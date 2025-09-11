@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -200,3 +201,12 @@ SIMPLE_JWT = {
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
+
+# Google Maps API Configuration
+# Get your API key from: https://console.cloud.google.com/google/maps-apis/
+# Make sure to enable the following APIs:
+# - Geocoding API
+# - Directions API
+# - Distance Matrix API
+# - Maps JavaScript API (for frontend)
+GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyC7aHMceYCqZjA2Vd146YsswkOjRwgXg6Y')

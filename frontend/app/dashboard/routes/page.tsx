@@ -31,6 +31,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { RouteMap } from '@/components/maps/route-map';
+import { LiveTrackingMap } from '@/components/maps/live-tracking-map';
 import { 
   Search,
   MapPin, 
@@ -311,75 +319,166 @@ export default function RoutesPage() {
 
         {/* Route Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>{selectedRoute?.name}</DialogTitle>
+          <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-hidden">
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Navigation className="h-5 w-5" />
+                  {selectedRoute?.name}
+                </div>
+                {selectedRoute && (
+                  <Badge variant={selectedRoute.status === 'active' ? 'default' : 'secondary'}>
+                    {selectedRoute.status}
+                  </Badge>
+                )}
+              </DialogTitle>
               <DialogDescription>
-                Route details and delivery stops
+                Route details, map view, and delivery tracking
               </DialogDescription>
             </DialogHeader>
+            
             {selectedRoute && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Date</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(selectedRoute.date), 'MMM dd, yyyy')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Total Distance</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedRoute.total_distance ? `${selectedRoute.total_distance} km` : 'Not calculated'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Estimated Duration</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedRoute.estimated_duration 
-                        ? `${Math.floor(selectedRoute.estimated_duration / 60)}h ${selectedRoute.estimated_duration % 60}m`
-                        : 'Not calculated'
-                      }
-                    </p>
-                  </div>
-                </div>
+              <Tabs defaultValue="overview" className="w-full h-full">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
+                  <TabsTrigger value="overview" className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="map" className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Map & Directions
+                  </TabsTrigger>
+                  <TabsTrigger value="tracking" disabled={selectedRoute.status !== 'active'} className="flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
+                    Live Tracking
+                    {selectedRoute.status !== 'active' && (
+                      <span className="text-xs text-gray-400">(inactive)</span>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
 
-                <div>
-                  <h4 className="font-semibold mb-2">Delivery Stops</h4>
-                  {selectedRoute.stops?.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Seq</TableHead>
-                          <TableHead>Farmer</TableHead>
-                          <TableHead>Address</TableHead>
-                          <TableHead>Order</TableHead>
-                          <TableHead>Quantity</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedRoute.stops.map((stop) => (
-                          <TableRow key={stop.id}>
-                            <TableCell>{stop.sequence_number}</TableCell>
-                            <TableCell>{stop.farmer.name}</TableCell>
-                            <TableCell>{stop.farmer.address}</TableCell>
-                            <TableCell>{stop.order.order_number}</TableCell>
-                            <TableCell>{stop.order.quantity} kg</TableCell>
-                            <TableCell>
-                              <Badge variant={stop.is_completed ? "default" : "secondary"}>
-                                {stop.is_completed ? 'Completed' : 'Pending'}
-                              </Badge>
-                            </TableCell>
+                {/* Overview Tab */}
+                <TabsContent value="overview" className="space-y-4 max-h-[60vh] overflow-y-auto">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Date</p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(selectedRoute.date), 'MMM dd, yyyy')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Total Distance</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedRoute.total_distance ? `${selectedRoute.total_distance} km` : 'Not calculated'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Estimated Duration</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedRoute.estimated_duration 
+                          ? `${Math.floor(selectedRoute.estimated_duration / 60)}h ${selectedRoute.estimated_duration % 60}m`
+                          : 'Not calculated'
+                        }
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold mb-2">Delivery Stops</h4>
+                    {selectedRoute.stops?.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Seq</TableHead>
+                            <TableHead>Farmer</TableHead>
+                            <TableHead>Address</TableHead>
+                            <TableHead>Order</TableHead>
+                            <TableHead>Quantity</TableHead>
+                            <TableHead>Status</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No stops added to this route</p>
-                  )}
-                </div>
-              </div>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedRoute.stops.map((stop) => (
+                            <TableRow key={stop.id}>
+                              <TableCell>{stop.sequence_number}</TableCell>
+                              <TableCell>{stop.farmer.name}</TableCell>
+                              <TableCell className="max-w-xs truncate">{stop.farmer.address}</TableCell>
+                              <TableCell>{stop.order.order_number}</TableCell>
+                              <TableCell>{stop.order.quantity} kg</TableCell>
+                              <TableCell>
+                                <Badge variant={stop.is_completed ? "default" : "secondary"}>
+                                  {stop.is_completed ? 'Completed' : 'Pending'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No stops added to this route</p>
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* Map Tab */}
+                <TabsContent value="map" className="space-y-4 h-full">
+                  <div className="h-[70vh]">
+                    {loading ? (
+                      <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          <p className="text-sm text-gray-600">Loading map...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <RouteMap
+                        route={selectedRoute}
+                        showDirections={true}
+                        showOptimizeButton={selectedRoute.status === 'planned'}
+                        onRouteOptimized={() => {
+                          // Refresh routes data after optimization
+                          fetchRoutes();
+                        }}
+                        height="100%"
+                        className="h-full"
+                      />
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* Live Tracking Tab */}
+                <TabsContent value="tracking" className="space-y-4 h-full">
+                  <div className="h-[70vh]">
+                    {selectedRoute.status === 'active' ? (
+                      <LiveTrackingMap
+                        height="100%"
+                        refreshInterval={30}
+                        showAllRoutes={false}
+                        focusedRouteId={selectedRoute.id}
+                        className="h-full"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                        <div className="text-center p-8">
+                          <Truck className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-gray-900 mb-2">
+                            Live tracking unavailable
+                          </h3>
+                          <p className="text-sm text-gray-600 max-w-md">
+                            Live tracking is only available for active routes. 
+                            Activate this route to see real-time driver location and progress.
+                          </p>
+                          <div className="mt-4">
+                            <Badge variant="secondary" className="text-xs">
+                              Current Status: {selectedRoute.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             )}
           </DialogContent>
         </Dialog>

@@ -24,6 +24,7 @@ import {
   Menu,
   Bell,
   BarChart3,
+  Navigation2,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useState } from 'react';
@@ -35,6 +36,7 @@ const navigation = [
   { name: 'Orders', href: '/dashboard/orders', icon: Package },
   { name: 'Drivers', href: '/dashboard/drivers', icon: Truck },
   { name: 'Routes', href: '/dashboard/routes', icon: Route },
+  { name: 'Live Tracking', href: '/dashboard/live-tracking', icon: Navigation2 },
   { name: 'Inventory', href: '/dashboard/inventory', icon: BarChart3 },
 ];
 

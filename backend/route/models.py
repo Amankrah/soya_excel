@@ -149,6 +149,75 @@ class RouteStop(models.Model):
     
     def __str__(self):
         return f"{self.route.name} - Stop {self.sequence_number}: {self.farmer.name}"
+    
+    @property
+    def has_coordinates(self):
+        """Check if stop has valid coordinates"""
+        return self.location_latitude is not None and self.location_longitude is not None
+    
+    @property
+    def coordinates_tuple(self):
+        """Get coordinates as tuple (lat, lng) or None"""
+        if self.has_coordinates:
+            return (float(self.location_latitude), float(self.location_longitude))
+        return None
+    
+    def get_coordinates(self):
+        """
+        Get coordinates for this stop, using farmer's coordinates as fallback.
+        Returns tuple (lat, lng) or None.
+        """
+        if self.has_coordinates:
+            return self.coordinates_tuple
+        elif self.farmer.has_coordinates:
+            return self.farmer.coordinates_tuple
+        return None
+    
+    def update_coordinates_from_farmer(self, save=True):
+        """
+        Update stop coordinates from farmer's coordinates.
+        Returns True if coordinates were updated.
+        """
+        if self.farmer.has_coordinates:
+            self.location_latitude = self.farmer.latitude
+            self.location_longitude = self.farmer.longitude
+            if save:
+                self.save(update_fields=['location_latitude', 'location_longitude'])
+            return True
+        return False
+    
+    def geocode_location(self, save=True):
+        """
+        Geocode this stop's location using farmer's address.
+        Returns geocoding result or None.
+        """
+        if not self.farmer.address:
+            return None
+        
+        try:
+            from route.services import GoogleMapsService
+            
+            maps_service = GoogleMapsService()
+            result = maps_service.geocode_address(self.farmer.address, self.farmer.province)
+            
+            if result and save:
+                self.location_latitude = result['latitude']
+                self.location_longitude = result['longitude']
+                self.save(update_fields=['location_latitude', 'location_longitude'])
+                
+                # Also update farmer's coordinates if they don't have them
+                if not self.farmer.has_coordinates:
+                    self.farmer.latitude = result['latitude']
+                    self.farmer.longitude = result['longitude']
+                    self.farmer.save(update_fields=['latitude', 'longitude'])
+            
+            return result
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error geocoding location for stop {self.id}: {str(e)}")
+            return None
 
 
 class RouteOptimization(models.Model):

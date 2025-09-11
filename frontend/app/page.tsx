@@ -9,10 +9,8 @@ import {
   BarChart3, 
   Shield, 
   Zap, 
-  Users, 
   Package,
   ArrowRight,
-  CheckCircle
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -34,7 +32,7 @@ export default function LandingPage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Soya Excel</h1>
-                <p className="text-xs text-gray-500">Management System</p>
+                <p className="text-xs text-gray-500">Feed Distribution Management System</p>
               </div>
             </div>
             
@@ -77,14 +75,13 @@ export default function LandingPage() {
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
             Soya Excel
             <span className="block text-4xl md:text-5xl text-green-600 mt-2">
-              Management System
+              Feed Distribution Management System
             </span>
           </h1>
           
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8 leading-relaxed">
-            Professional soybean meal distribution management across Canada, USA & Spain. 
-            Streamline operations, monitor inventory, and optimize delivery routes with our 
-            comprehensive management platform.
+            Sustainable soybean meal distribution management across Canada, USA & Spain. 
+            Streamline operations, monitor inventory, and optimize delivery routes.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">

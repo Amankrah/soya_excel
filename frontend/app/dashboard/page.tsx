@@ -21,9 +21,6 @@ import {
   Zap,
   BarChart3,
   Calendar,
-  Users,
-  MapPin,
-  Activity,
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { clientAPI, managerAPI } from '@/lib/api';

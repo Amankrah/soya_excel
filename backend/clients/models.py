@@ -61,6 +61,107 @@ class Farmer(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.province})"
+    
+    @property
+    def has_coordinates(self):
+        """Check if farmer has valid coordinates"""
+        return self.latitude is not None and self.longitude is not None
+    
+    @property
+    def coordinates_tuple(self):
+        """Get coordinates as tuple (lat, lng) or None"""
+        if self.has_coordinates:
+            return (float(self.latitude), float(self.longitude))
+        return None
+    
+    def geocode_address(self, save=True):
+        """
+        Geocode the farmer's address using Google Maps.
+        Returns the geocoding result dictionary or None if failed.
+        """
+        try:
+            from route.services import GoogleMapsService
+            
+            maps_service = GoogleMapsService()
+            result = maps_service.geocode_address(self.address, self.province)
+            
+            if result and save:
+                self.latitude = result['latitude']
+                self.longitude = result['longitude']
+                self.save(update_fields=['latitude', 'longitude'])
+            
+            return result
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error geocoding address for farmer {self.name}: {str(e)}")
+            return None
+    
+    def validate_address(self):
+        """
+        Validate the farmer's address using Google Maps.
+        Returns validation result dictionary.
+        """
+        try:
+            from route.services import GoogleMapsService
+            
+            maps_service = GoogleMapsService()
+            return maps_service.validate_canadian_address(self.address)
+            
+        except Exception as e:
+            return {
+                'is_valid': False,
+                'error': f'Validation service error: {str(e)}'
+            }
+    
+    def update_coordinates_if_missing(self):
+        """
+        Update coordinates if they are missing by geocoding the address.
+        Returns True if coordinates were updated, False otherwise.
+        """
+        if not self.has_coordinates and self.address:
+            result = self.geocode_address(save=True)
+            return result is not None
+        return False
+    
+    @property
+    def address_quality_score(self):
+        """
+        Calculate a quality score for the address based on completeness.
+        Returns a score from 0-100.
+        """
+        if not self.address:
+            return 0
+        
+        score = 0
+        address_lower = self.address.lower()
+        
+        # Basic address components (40 points)
+        if any(word in address_lower for word in ['street', 'st', 'avenue', 'ave', 'road', 'rd', 'drive', 'dr', 'boulevard', 'blvd']):
+            score += 20
+        if any(char.isdigit() for char in self.address):  # Has house number
+            score += 20
+        
+        # City/locality (25 points)
+        canadian_cities = ['montreal', 'quebec', 'toronto', 'ottawa', 'hamilton', 'winnipeg', 'calgary', 'edmonton', 'vancouver']
+        if any(city in address_lower for city in canadian_cities):
+            score += 25
+        
+        # Province (20 points)
+        provinces = ['quebec', 'ontario', 'qc', 'on', 'nb', 'bc', 'new brunswick', 'british columbia']
+        if any(prov in address_lower for prov in provinces):
+            score += 20
+        elif self.province and self.province in address_lower:
+            score += 20
+        
+        # Postal code (15 points)
+        import re
+        postal_pattern = r'[a-zA-Z]\d[a-zA-Z]\s?\d[a-zA-Z]\d'
+        if re.search(postal_pattern, self.address):
+            score += 15
+        
+        return min(score, 100)  # Cap at 100
 
 
 class FeedStorage(models.Model):

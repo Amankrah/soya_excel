@@ -38,6 +38,149 @@ class FarmerViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Override to ensure feed_storage is always prefetched"""
         return Farmer.objects.select_related('feed_storage').prefetch_related('orders')
+    
+    @action(detail=True, methods=['post'])
+    def geocode_address(self, request, pk=None):
+        """Geocode farmer's address and update coordinates"""
+        farmer = self.get_object()
+        
+        if not farmer.address:
+            return Response(
+                {'error': 'Farmer has no address to geocode'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            result = farmer.geocode_address(save=True)
+            
+            if result:
+                return Response({
+                    'success': True,
+                    'farmer_id': farmer.id,
+                    'geocoding_result': result,
+                    'coordinates': farmer.coordinates_tuple
+                })
+            else:
+                return Response(
+                    {'error': 'Could not geocode the address'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        except Exception as e:
+            return Response(
+                {'error': f'Geocoding service error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def validate_address(self, request, pk=None):
+        """Validate farmer's address using Google Maps"""
+        farmer = self.get_object()
+        
+        if not farmer.address:
+            return Response(
+                {'error': 'Farmer has no address to validate'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            validation_result = farmer.validate_address()
+            
+            return Response({
+                'farmer_id': farmer.id,
+                'current_address': farmer.address,
+                'validation_result': validation_result,
+                'address_quality_score': farmer.address_quality_score
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Address validation error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
+    def validate_new_address(self, request):
+        """Validate an address before saving (for form validation)"""
+        address = request.data.get('address')
+        province = request.data.get('province')
+        
+        if not address:
+            return Response(
+                {'error': 'Address is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from route.services import GoogleMapsService
+            
+            maps_service = GoogleMapsService()
+            validation_result = maps_service.validate_canadian_address(address)
+            
+            return Response({
+                'address': address,
+                'province': province,
+                'validation_result': validation_result
+            })
+            
+        except ValueError as ve:
+            return Response(
+                {'error': 'Google Maps API not configured properly', 'details': str(ve)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Address validation error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def address_quality_report(self, request):
+        """Get a report on address quality for all farmers"""
+        farmers = self.get_queryset()
+        
+        report = {
+            'total_farmers': farmers.count(),
+            'farmers_with_coordinates': farmers.filter(
+                latitude__isnull=False, 
+                longitude__isnull=False
+            ).count(),
+            'farmers_without_addresses': farmers.filter(
+                address__isnull=True
+            ).union(farmers.filter(address='')).count(),
+            'address_quality_distribution': {
+                'excellent': 0,  # 90-100
+                'good': 0,       # 70-89
+                'fair': 0,       # 50-69
+                'poor': 0        # 0-49
+            },
+            'farmers_by_province': {}
+        }
+        
+        # Calculate quality distribution
+        for farmer in farmers:
+            quality_score = farmer.address_quality_score
+            if quality_score >= 90:
+                report['address_quality_distribution']['excellent'] += 1
+            elif quality_score >= 70:
+                report['address_quality_distribution']['good'] += 1
+            elif quality_score >= 50:
+                report['address_quality_distribution']['fair'] += 1
+            else:
+                report['address_quality_distribution']['poor'] += 1
+            
+            # Province distribution
+            province = farmer.province or 'Unknown'
+            if province not in report['farmers_by_province']:
+                report['farmers_by_province'][province] = {
+                    'total': 0,
+                    'with_coordinates': 0
+                }
+            report['farmers_by_province'][province]['total'] += 1
+            if farmer.has_coordinates:
+                report['farmers_by_province'][province]['with_coordinates'] += 1
+        
+        return Response(report)
 
 
 class FeedStorageViewSet(viewsets.ModelViewSet):
