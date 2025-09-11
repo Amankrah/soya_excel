@@ -126,7 +126,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">Soya Excel</h1>
-                  <p className="text-xs text-gray-500">Management System</p>
+                  <p className="text-xs text-gray-500">Feed Management System</p>
                 </div>
               </div>
               <h1 className="text-xl font-semibold text-gray-900 lg:hidden">Soya Excel</h1>
@@ -191,7 +191,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Soya Excel</h2>
-                <p className="text-xs text-green-100">Management System</p>
+                <p className="text-xs text-green-100">Feed Management System</p>
               </div>
             </div>
           </div>

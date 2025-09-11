@@ -13,7 +13,7 @@ from .serializers import (
     RouteSerializer, RouteStopSerializer, RouteCreateSerializer,
     RouteOptimizationSerializer, RouteOptimizeSerializer
 )
-from .services import GoogleMapsService, RouteOptimizationService
+from .services import GoogleMapsService, RouteOptimizationService, LiveTrackingService
 from clients.models import Order, Farmer
 
 
@@ -311,6 +311,44 @@ class RouteViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response(
                 {'error': f'Error calculating route KPIs: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def live_tracking(self, request):
+        """Get live vehicle locations for active routes"""
+        route_ids = request.query_params.getlist('route_ids')
+        
+        try:
+            tracking_service = LiveTrackingService()
+            vehicle_locations = tracking_service.get_active_vehicle_locations(route_ids if route_ids else None)
+            
+            return Response({
+                'vehicles': vehicle_locations,
+                'count': len(vehicle_locations),
+                'timestamp': timezone.now().isoformat()
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error getting live tracking data: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get'])
+    def delivery_progress(self, request, pk=None):
+        """Check delivery progress for a specific route"""
+        route = self.get_object()
+        
+        try:
+            tracking_service = LiveTrackingService()
+            progress_data = tracking_service.check_delivery_progress(route.id)
+            
+            return Response(progress_data)
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error checking delivery progress: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

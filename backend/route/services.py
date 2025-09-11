@@ -652,3 +652,189 @@ def validate_address(address: str) -> Dict[str, Any]:
     """Validate and standardize a Canadian address"""
     service = GoogleMapsService()
     return service.validate_canadian_address(address)
+
+
+class LiveTrackingService:
+    """Service for live vehicle tracking and position updates"""
+    
+    def __init__(self):
+        self.active_vehicles = {}  # In-memory cache for demo purposes
+    
+    def get_active_vehicle_locations(self, route_ids: List[str] = None) -> List[Dict]:
+        """
+        Get current positions of active vehicles
+        In a real implementation, this would connect to GPS tracking systems
+        """
+        try:
+            from django.utils import timezone as django_timezone
+            import random
+            
+            # Get active routes
+            active_routes = Route.objects.filter(status='active')
+            if route_ids:
+                active_routes = active_routes.filter(id__in=route_ids)
+            
+            vehicle_locations = []
+            
+            for route in active_routes:
+                # Simulate GPS tracking data
+                vehicle_data = self._simulate_vehicle_position(route)
+                if vehicle_data:
+                    vehicle_locations.append(vehicle_data)
+            
+            return vehicle_locations
+            
+        except Exception as e:
+            logger.error(f"Error getting vehicle locations: {str(e)}")
+            return []
+    
+    def _simulate_vehicle_position(self, route: Route) -> Optional[Dict]:
+        """
+        Simulate vehicle position for demo purposes
+        In production, this would query actual GPS devices
+        """
+        try:
+            import random
+            from django.utils import timezone as django_timezone
+            
+            # Get completed and upcoming stops
+            completed_stops = list(route.stops.filter(is_completed=True).order_by('sequence_number'))
+            upcoming_stops = list(route.stops.filter(is_completed=False).order_by('sequence_number'))
+            
+            if not upcoming_stops:
+                return None  # Route is completed
+            
+            next_stop = upcoming_stops[0]
+            
+            # If no coordinates available, can't simulate position
+            if not next_stop.location_latitude or not next_stop.location_longitude:
+                return None
+            
+            # Calculate simulated position
+            if completed_stops:
+                # Between last completed stop and next stop
+                last_stop = completed_stops[-1]
+                if last_stop.location_latitude and last_stop.location_longitude:
+                    # Interpolate position (simulate being 30-70% along the way)
+                    progress = random.uniform(0.3, 0.7)
+                    
+                    lat = last_stop.location_latitude + (next_stop.location_latitude - last_stop.location_latitude) * Decimal(str(progress))
+                    lng = last_stop.location_longitude + (next_stop.location_longitude - last_stop.location_longitude) * Decimal(str(progress))
+                else:
+                    # Use next stop position with small offset
+                    lat = next_stop.location_latitude + Decimal(str(random.uniform(-0.001, 0.001)))
+                    lng = next_stop.location_longitude + Decimal(str(random.uniform(-0.001, 0.001)))
+            else:
+                # At or near first stop
+                lat = next_stop.location_latitude + Decimal(str(random.uniform(-0.001, 0.001)))
+                lng = next_stop.location_longitude + Decimal(str(random.uniform(-0.001, 0.001)))
+            
+            # Get delivery info if available
+            delivery = None
+            try:
+                delivery = route.deliveries.first() if hasattr(route, 'deliveries') else None
+            except:
+                pass
+            
+            return {
+                'id': f'vehicle_{route.id}',
+                'name': delivery.driver.full_name if delivery and delivery.driver else f'Driver {route.id}',
+                'latitude': float(lat),
+                'longitude': float(lng),
+                'vehicle': {
+                    'id': delivery.vehicle.id if delivery and delivery.vehicle else f'vehicle_{route.id}',
+                    'license_plate': delivery.vehicle.vehicle_number if delivery and delivery.vehicle else f'QC{route.id:03d}',
+                    'vehicle_type': delivery.vehicle.get_vehicle_type_display() if delivery and delivery.vehicle else 'Delivery Truck'
+                },
+                'current_route': {
+                    'id': str(route.id),
+                    'name': route.name,
+                    'stops_completed': len(completed_stops),
+                    'total_stops': route.stops.count(),
+                    'status': route.status
+                },
+                'last_update': django_timezone.now().isoformat(),
+                'is_active': True,
+                'heading': random.randint(0, 359),  # Random heading for demo
+                'speed': random.randint(40, 70),    # Random speed 40-70 km/h
+                'next_stop': {
+                    'farmer_name': next_stop.farmer.name,
+                    'estimated_arrival': next_stop.estimated_arrival_time.isoformat() if next_stop.estimated_arrival_time else None,
+                    'sequence_number': next_stop.sequence_number
+                } if next_stop else None
+            }
+            
+        except Exception as e:
+            logger.error(f"Error simulating vehicle position for route {route.id}: {str(e)}")
+            return None
+    
+    def update_vehicle_position(self, vehicle_id: str, latitude: float, longitude: float, 
+                               heading: float = None, speed: float = None) -> bool:
+        """
+        Update vehicle position (for real GPS integration)
+        """
+        try:
+            from django.utils import timezone as django_timezone
+            
+            # In a real implementation, this would update the database or cache
+            # with actual GPS coordinates received from tracking devices
+            
+            self.active_vehicles[vehicle_id] = {
+                'latitude': latitude,
+                'longitude': longitude,
+                'heading': heading,
+                'speed': speed,
+                'last_update': django_timezone.now().isoformat()
+            }
+            
+            # Here you would also update any delivery progress, 
+            # check for geofencing alerts, etc.
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating vehicle position for {vehicle_id}: {str(e)}")
+            return False
+    
+    def check_delivery_progress(self, route_id: int) -> Dict:
+        """
+        Check if vehicle has reached delivery stops (geofencing)
+        """
+        try:
+            route = Route.objects.get(id=route_id)
+            
+            # Get current vehicle position
+            vehicle_positions = self.get_active_vehicle_locations([str(route_id)])
+            if not vehicle_positions:
+                return {'status': 'no_tracking_data'}
+            
+            vehicle = vehicle_positions[0]
+            vehicle_lat = vehicle['latitude']
+            vehicle_lng = vehicle['longitude']
+            
+            # Check proximity to upcoming stops (within 100 meters)
+            upcoming_stops = route.stops.filter(is_completed=False).order_by('sequence_number')
+            
+            for stop in upcoming_stops:
+                if stop.location_latitude and stop.location_longitude:
+                    # Calculate distance (simple approximation)
+                    lat_diff = abs(float(stop.location_latitude) - vehicle_lat)
+                    lng_diff = abs(float(stop.location_longitude) - vehicle_lng)
+                    
+                    # Rough distance calculation (1 degree ≈ 111km)
+                    distance_km = ((lat_diff ** 2 + lng_diff ** 2) ** 0.5) * 111
+                    
+                    if distance_km < 0.1:  # Within 100 meters
+                        return {
+                            'status': 'arrived_at_stop',
+                            'stop_id': stop.id,
+                            'farmer_name': stop.farmer.name,
+                            'sequence_number': stop.sequence_number,
+                            'distance_meters': distance_km * 1000
+                        }
+            
+            return {'status': 'en_route'}
+            
+        except Exception as e:
+            logger.error(f"Error checking delivery progress for route {route_id}: {str(e)}")
+            return {'status': 'error', 'message': str(e)}

@@ -34,12 +34,16 @@ class RouteSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     created_by = serializers.SerializerMethodField()
     stops_count = serializers.SerializerMethodField()
+    driver_name = serializers.SerializerMethodField()
+    vehicle_number = serializers.SerializerMethodField()
+    route_type = serializers.CharField()
     
     class Meta:
         model = Route
-        fields = ['id', 'name', 'date', 'status', 'created_by', 'created_by_name',
+        fields = ['id', 'name', 'date', 'status', 'route_type', 'created_by', 'created_by_name',
                   'total_distance', 'estimated_duration', 'optimized_sequence', 
-                  'waypoints', 'created_at', 'updated_at', 'stops', 'stops_count']
+                  'waypoints', 'created_at', 'updated_at', 'stops', 'stops_count', 
+                  'driver_name', 'vehicle_number']
         read_only_fields = ['created_at', 'updated_at']
     
     def get_created_by(self, obj):
@@ -52,6 +56,20 @@ class RouteSerializer(serializers.ModelSerializer):
     
     def get_stops_count(self, obj):
         return obj.stops.count()
+    
+    def get_driver_name(self, obj):
+        """Get driver name from the delivery relationship"""
+        delivery = obj.deliveries.first() if hasattr(obj, 'deliveries') else None
+        if delivery and delivery.driver:
+            return delivery.driver.full_name
+        return None
+    
+    def get_vehicle_number(self, obj):
+        """Get vehicle number from the delivery relationship"""
+        delivery = obj.deliveries.first() if hasattr(obj, 'deliveries') else None
+        if delivery and delivery.vehicle:
+            return delivery.vehicle.vehicle_number
+        return None
 
 
 class RouteCreateSerializer(serializers.ModelSerializer):

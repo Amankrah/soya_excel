@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import datetime, timedelta
 import random
+import time
 from decimal import Decimal
 
 # Import all the updated models
@@ -14,6 +15,13 @@ from route.models import Route, RouteStop, WeeklyRoutePerformance
 
 class Command(BaseCommand):
     help = 'Creates realistic mock data for Soya Excel operations'
+    
+    def __init__(self):
+        super().__init__()
+        # Global counter to ensure unique order numbers
+        from clients.models import Order as OrderModel
+        existing_count = OrderModel.objects.count()
+        self.order_counter = existing_count + 1000  # Start well above existing orders
 
     def handle(self, *args, **options):
         self.stdout.write('Creating Soya Excel mock data...\n')
@@ -73,7 +81,7 @@ class Command(BaseCommand):
                 email='manager@soyaexcel.com',
                 can_approve_plans=True,
                 can_manage_contracts=True,
-                managed_provinces=['QC', 'ON', 'NB']
+                managed_provinces=['QC']
             )
             managers.append(manager)
             self.stdout.write(f'Created manager: {manager.full_name}')
@@ -129,7 +137,7 @@ class Command(BaseCommand):
                 self.stdout.write(f'Created weekly plan: {plan.plan_name}')
     
     def create_routes_with_kpi_tracking(self, created_by, farmers, orders, vehicles, drivers):
-        """Create routes with KPI tracking"""
+        """Create routes with KPI tracking and realistic stops"""
         routes = []
         
         for day in range(7):  # Next 7 days
@@ -153,6 +161,68 @@ class Command(BaseCommand):
                 created_by=created_by
             )
             
+            # Create realistic route stops with orders
+            selected_farmers = random.sample(farmers, min(random.randint(3, 8), len(farmers)))
+            for i, farmer in enumerate(selected_farmers):
+                # Create a unique order for this farmer and route
+                unique_order_number = f'ORD{timezone.now().year}{self.order_counter:05d}'
+                self.order_counter += 1
+                
+                # Calculate realistic quantity based on farmer type and capacity
+                max_quantity = min(38.0, float(farmer.historical_monthly_usage) / 2)  # Half monthly usage per delivery
+                order_quantity = Decimal(str(random.uniform(5.0, max_quantity)))
+                
+                order = Order.objects.create(
+                    farmer=farmer,
+                    order_number=unique_order_number,
+                    quantity=order_quantity,
+                    delivery_method='bulk_38tm' if farmer.client_type != 'oil' else 'tank_compartment',
+                    order_type=route.route_type,
+                    status='confirmed',
+                    expected_delivery_date=timezone.make_aware(datetime.combine(route_date, datetime.min.time())),
+                    planning_week=route.planned_during_week,
+                    priority='high' if route.route_type == 'emergency' else 'medium',
+                    created_by=created_by
+                )
+                
+                # Update order status and assignments now that it's assigned to a route
+                order.status = 'planned'
+                order.assigned_route = route
+                order.assigned_driver = driver
+                order.assigned_vehicle = vehicle
+                order.save()
+                
+                # Create route stop with realistic delivery times
+                estimated_arrival = timezone.now().replace(
+                    hour=8 + (i * 2),  # Start at 8 AM, 2 hours between stops
+                    minute=random.randint(0, 59),
+                    second=0,
+                    microsecond=0
+                ) + timedelta(days=day)
+                
+                stop = RouteStop.objects.create(
+                    route=route,
+                    farmer=farmer,
+                    order=order,
+                    sequence_number=i + 1,
+                    estimated_arrival_time=estimated_arrival,
+                    estimated_service_time=random.randint(20, 45),
+                    location_latitude=farmer.latitude,
+                    location_longitude=farmer.longitude,
+                    quantity_to_deliver=order.quantity,
+                    delivery_method='silo_to_silo' if farmer.client_type != 'oil' else 'compartment_delivery',
+                    is_completed=day < 0 or (day == 0 and i < len(selected_farmers) // 2)  # Some stops completed for today's route
+                )
+                
+                # For completed stops, add actual delivery data
+                if stop.is_completed:
+                    stop.actual_arrival_time = stop.estimated_arrival_time + timedelta(minutes=random.randint(-15, 30))
+                    stop.actual_service_time = stop.estimated_service_time + random.randint(-10, 15)
+                    stop.quantity_delivered = stop.quantity_to_deliver * Decimal(str(random.uniform(0.95, 1.0)))
+                    stop.customer_signature_captured = True
+                    stop.delivery_rating = random.randint(4, 5)
+                    stop.save()
+            
             # Add realistic performance data for completed routes
             if day == 0:  # Today's route
                 route.actual_distance = route.total_distance * Decimal(random.uniform(0.95, 1.15))
@@ -164,19 +234,35 @@ class Command(BaseCommand):
             
             routes.append(route)
             
-            # Create delivery
+            # Create delivery connecting driver, vehicle, and route
             delivery = Delivery.objects.create(
                 driver=driver,
                 vehicle=vehicle,
                 route=route,
                 status='in_progress' if day == 0 else 'assigned',
+                start_time=timezone.now().replace(hour=7, minute=0) + timedelta(days=day) if day == 0 else None,
                 total_quantity_delivered=route.total_capacity_used,
-                actual_distance_km=route.actual_distance,
-                actual_duration_minutes=route.actual_duration,
-                co2_emissions_kg=route.co2_emissions
+                actual_distance_km=route.actual_distance if day == 0 else None,
+                actual_duration_minutes=route.actual_duration if day == 0 else None,
+                co2_emissions_kg=route.co2_emissions if day == 0 else None
             )
             
-        self.stdout.write(f'Created {len(routes)} routes with KPI tracking')
+            # Create delivery items for each route stop/order
+            for stop in route.stops.all():
+                DeliveryItem.objects.create(
+                    delivery=delivery,
+                    order=stop.order,
+                    farmer=stop.farmer,
+                    quantity_planned=stop.quantity_to_deliver,
+                    quantity_delivered=stop.quantity_delivered if stop.is_completed else None,
+                    delivery_method=stop.delivery_method,
+                    delivery_time=stop.actual_arrival_time if stop.is_completed else None,
+                    quality_check_passed=True if stop.is_completed else None,
+                    customer_rating=stop.delivery_rating if stop.is_completed else None,
+                    notes=stop.delivery_notes or ''
+                )
+            
+        self.stdout.write(f'Created {len(routes)} routes with realistic stops and KPI tracking')
         return routes
     
     def create_kpi_metrics(self):
@@ -221,16 +307,23 @@ class Command(BaseCommand):
         self.stdout.write('='*60)
         self.stdout.write(f'Managers: {Manager.objects.count()}')
         self.stdout.write(f'Farmers (Clients): {Farmer.objects.count()}')
-        self.stdout.write(f'  - Quebec: {Farmer.objects.filter(province="QC").count()}')
-        self.stdout.write(f'  - Ontario: {Farmer.objects.filter(province="ON").count()}')
-        self.stdout.write(f'  - USA: {Farmer.objects.filter(province="USD").count()}')
-        self.stdout.write(f'  - Other: {Farmer.objects.exclude(province__in=["QC", "ON", "USD"]).count()}')
+        self.stdout.write(f'  - All Quebec-based: {Farmer.objects.filter(province="QC").count()}')
+        self.stdout.write(f'  - Dairy Trituro: {Farmer.objects.filter(client_type="dairy_trituro").count()}')
+        self.stdout.write(f'  - Trituro 44%: {Farmer.objects.filter(client_type="trituro_44").count()}')
+        self.stdout.write(f'  - Oil Processing: {Farmer.objects.filter(client_type="oil").count()}')
         self.stdout.write(f'Vehicles: {Vehicle.objects.count()}')
         self.stdout.write(f'Drivers: {Driver.objects.count()}')
         self.stdout.write(f'Soybean Products: {SoybeanMealProduct.objects.count()}')
         self.stdout.write(f'Supply Inventory: {SupplyInventory.objects.count()}')
         self.stdout.write(f'Orders: {Order.objects.count()}')
+        self.stdout.write(f'  - Assigned to routes: {Order.objects.filter(assigned_route__isnull=False).count()}')
+        self.stdout.write(f'  - With driver assignment: {Order.objects.filter(assigned_driver__isnull=False).count()}')
+        self.stdout.write(f'  - Pending/unassigned: {Order.objects.filter(status="pending").count()}')
         self.stdout.write(f'Routes: {Route.objects.count()}')
+        self.stdout.write(f'  - With delivery assignments: {Route.objects.filter(deliveries__isnull=False).distinct().count()}')
+        self.stdout.write(f'Route Stops: {RouteStop.objects.count()}')
+        self.stdout.write(f'Deliveries: {Delivery.objects.count()}')
+        self.stdout.write(f'Delivery Items: {DeliveryItem.objects.count()}')
         self.stdout.write(f'Weekly Plans: {WeeklyDistributionPlan.objects.count()}')
         self.stdout.write(f'KPI Metrics: {KPIMetrics.objects.count()}')
         self.stdout.write('='*60)
@@ -240,49 +333,83 @@ class Command(BaseCommand):
         self.stdout.write('Drivers: driver_martin_bulk, driver_sophie_tank, etc.')
         self.stdout.write('Password for all: SoyaExcel_2024')
         self.stdout.write('\nKey Features:')
-        self.stdout.write('• Real Canadian province distribution')
+        self.stdout.write('• Valid Quebec addresses across 8 agricultural regions')
+        self.stdout.write('• Google Maps compatible coordinates for routing')
+        self.stdout.write('• Complete order-route-driver-vehicle relationships')
         self.stdout.write('• Soybean meal products (not generic feed)')
         self.stdout.write('• Realistic vehicle fleet (bulk trucks, tank trucks)')
         self.stdout.write('• BinConnect sensor integration')
         self.stdout.write('• Weekly planning cycles (Tuesday-Friday)')
         self.stdout.write('• KM/TM KPI tracking by product type')
         self.stdout.write('• Emergency alert system (1 tm or 80%)')
+        self.stdout.write('• Complete delivery tracking with items')
         self.stdout.write('• Integration points for ZOHO CRM and ALIX')
         
     def create_farmers(self):
-        """Create farmers representing Soya Excel's client distribution"""
+        """Create farmers representing Quebec agricultural regions with valid addresses"""
         farmers = []
         
-        # Real distribution: 151 QC, 13 ON, 7 USD, 2 NB, 1 BC, 1 Spain
+        # Valid Quebec addresses across major agricultural regions
         farmer_data = [
-            # Quebec clients (dairy trituro priority)
-            {'name': 'Ferme Laitière Beauce', 'address': '123 Route Rurale, Beauce, QC', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.2382, 'lng': -70.9492, 'capacity': 25.0, 'monthly_usage': 15.5},
-            {'name': 'Producteurs Laitiers St-Jean', 'address': '456 Chemin des Fermes, St-Jean, QC', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 45.3077, 'lng': -73.2627, 'capacity': 40.0, 'monthly_usage': 22.3},
-            {'name': 'Ferme Avicole Montérégie', 'address': '789 Avenue Agricole, Montérégie, QC', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 45.4442, 'lng': -73.2498, 'capacity': 60.0, 'monthly_usage': 35.2},
+            # Montérégie Region - Major agricultural area
+            {'name': 'Ferme Laitière Saint-Jean', 'address': '2550 Boulevard du Séminaire, Saint-Jean-sur-Richelieu, QC J3A 1E5', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 45.3077, 'lng': -73.2627, 'capacity': 40.0, 'monthly_usage': 22.3},
+            {'name': 'Producteurs Granby', 'address': '139 Rue Principale, Granby, QC J2G 2T8', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 45.4048, 'lng': -72.7342, 'capacity': 60.0, 'monthly_usage': 35.2},
+            {'name': 'Ferme Avicole Farnham', 'address': '524 Rue de l\'Église, Farnham, QC J2N 2R1', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 45.2845, 'lng': -72.9814, 'capacity': 55.0, 'monthly_usage': 32.1},
+            {'name': 'Élevage Belœil', 'address': '970 Chemin des Patriotes, Belœil, QC J3G 0E2', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 45.5668, 'lng': -73.2079, 'capacity': 35.0, 'monthly_usage': 28.7},
+            {'name': 'Ferme Laitière Sorel', 'address': '3800 Chemin des Patriotes, Sorel-Tracy, QC J3P 5K8', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.0378, 'lng': -73.1041, 'capacity': 42.0, 'monthly_usage': 31.5},
             
-            # Ontario clients 
-            {'name': 'Ontario Dairy Cooperative', 'address': '321 Farm Road, London, ON', 'province': 'ON', 'client_type': 'dairy_trituro', 'lat': 42.9849, 'lng': -81.2453, 'capacity': 80.0, 'monthly_usage': 45.8},
-            {'name': 'Southwestern Feed Mill', 'address': '654 Agricultural Dr, Windsor, ON', 'province': 'ON', 'client_type': 'trituro_44', 'lat': 42.3149, 'lng': -83.0364, 'capacity': 35.0, 'monthly_usage': 28.1},
+            # Centre-du-Québec Region
+            {'name': 'Ferme des Bois-Francs', 'address': '405 Rue Notre-Dame, Victoriaville, QC G6P 1T1', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.0526, 'lng': -71.9643, 'capacity': 45.0, 'monthly_usage': 33.8},
+            {'name': 'Producteurs Drummondville', 'address': '1395 Rue Saint-Pierre, Drummondville, QC J2C 2Z8', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 45.8835, 'lng': -72.4841, 'capacity': 38.0, 'monthly_usage': 27.9},
+            {'name': 'Coopérative Nicolet', 'address': '3211 Boulevard Louis-Fréchette, Nicolet, QC J3T 1M8', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.2278, 'lng': -72.6136, 'capacity': 32.0, 'monthly_usage': 24.6},
             
-            # US clients
-            {'name': 'Vermont Premium Dairy', 'address': '987 Dairy Lane, Burlington, VT', 'province': 'USD', 'client_type': 'dairy_trituro', 'lat': 44.4759, 'lng': -73.2121, 'capacity': 50.0, 'monthly_usage': 32.5},
-            {'name': 'Northeast Feed Solutions', 'address': '147 Industrial Ave, Albany, NY', 'province': 'USD', 'client_type': 'oil', 'lat': 42.6526, 'lng': -73.7562, 'capacity': 45.0, 'monthly_usage': 18.7},
+            # Beauce Region
+            {'name': 'Ferme Laitière Beauce', 'address': '11500 1re Avenue, Saint-Georges, QC G5Y 2C8', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.1158, 'lng': -70.6675, 'capacity': 28.0, 'monthly_usage': 18.5},
+            {'name': 'Éleveurs Sainte-Marie', 'address': '427 Avenue Marguerite-Bourgeoys, Sainte-Marie, QC G6E 3S8', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 46.4346, 'lng': -71.0093, 'capacity': 35.0, 'monthly_usage': 26.3},
+            {'name': 'Ferme Scott', 'address': '2505 Route 173, Scott, QC G0S 3G0', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.2667, 'lng': -70.8333, 'capacity': 30.0, 'monthly_usage': 21.8},
             
-            # New Brunswick
-            {'name': 'Maritime Dairy Farms', 'address': '258 Coastal Road, Moncton, NB', 'province': 'NB', 'client_type': 'dairy_trituro', 'lat': 46.0878, 'lng': -64.7782, 'capacity': 30.0, 'monthly_usage': 19.2},
+            # Capitale-Nationale Region
+            {'name': 'Ferme Portneuf', 'address': '600 Rue Saint-Charles, Portneuf, QC G0A 2Y0', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.6908, 'lng': -71.8850, 'capacity': 25.0, 'monthly_usage': 17.4},
+            {'name': 'Producteurs Pont-Rouge', 'address': '88 Avenue Cantin, Pont-Rouge, QC G3H 1J6', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 46.7528, 'lng': -71.6911, 'capacity': 40.0, 'monthly_usage': 29.7},
+            {'name': 'Élevage Cap-Santé', 'address': '32 Rue du Quai, Cap-Santé, QC G0A 1L0', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.6708, 'lng': -71.7881, 'capacity': 33.0, 'monthly_usage': 23.9},
             
-            # British Columbia
-            {'name': 'Pacific Coast Feed Co', 'address': '369 Valley View, Vancouver, BC', 'province': 'BC', 'client_type': 'oil', 'lat': 49.2827, 'lng': -123.1207, 'capacity': 55.0, 'monthly_usage': 25.6},
+            # Laurentides Region
+            {'name': 'Coopérative Laurentides', 'address': '360 Rue Principale, Lachute, QC J8H 1Y2', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 45.6525, 'lng': -74.3376, 'capacity': 50.0, 'monthly_usage': 31.2},
+            {'name': 'Ferme Saint-Eustache', 'address': '235 Rue Saint-Eustache, Saint-Eustache, QC J7R 2L7', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 45.5650, 'lng': -73.9010, 'capacity': 36.0, 'monthly_usage': 25.8},
+            {'name': 'Producteurs Mirabel', 'address': '14005 Rue Saint-Vincent, Mirabel, QC J7J 2H7', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 45.6558, 'lng': -74.0825, 'capacity': 48.0, 'monthly_usage': 34.2},
             
-            # Spain
-            {'name': 'Cooperativa Ganadera Española', 'address': 'Calle Agricultura 123, Barcelona, Spain', 'province': 'SPAIN', 'client_type': 'trituro_44', 'lat': 41.3851, 'lng': 2.1734, 'capacity': 75.0, 'monthly_usage': 42.3},
+            # Laval Region
+            {'name': 'Ferme des Mille-Îles', 'address': '4600 Boulevard Sainte-Rose, Laval, QC H7R 1V5', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 45.6066, 'lng': -73.7853, 'capacity': 28.0, 'monthly_usage': 21.4},
+            
+            # Mauricie Region
+            {'name': 'Producteurs Mauricie', 'address': '1882 5e Rue, Shawinigan, QC G9N 1E9', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 46.5569, 'lng': -72.7414, 'capacity': 42.0, 'monthly_usage': 27.9},
+            {'name': 'Ferme Trois-Rivières', 'address': '3731 Boulevard des Forges, Trois-Rivières, QC G8Y 1W1', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.3432, 'lng': -72.5530, 'capacity': 37.0, 'monthly_usage': 26.5},
+            {'name': 'Élevage Louiseville', 'address': '220 Avenue Saint-Laurent, Louiseville, QC J5V 1J6', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 46.2581, 'lng': -72.9407, 'capacity': 31.0, 'monthly_usage': 22.7},
+            
+            # Estrie Region
+            {'name': 'Ferme Sherbrooke', 'address': '2665 Chemin de Sainte-Catherine, Sherbrooke, QC J1R 0C5', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 45.4042, 'lng': -71.8929, 'capacity': 34.0, 'monthly_usage': 25.1},
+            {'name': 'Producteurs Magog', 'address': '2847 Chemin d\'Ayer\'s Cliff, Magog, QC J1X 0B7', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 45.2669, 'lng': -72.1403, 'capacity': 44.0, 'monthly_usage': 30.8},
+            {'name': 'Coopérative Coaticook', 'address': '150 Rue Main, Coaticook, QC J1A 1R1', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 45.1361, 'lng': -71.8000, 'capacity': 29.0, 'monthly_usage': 20.3},
+            
+            # Saguenay-Lac-Saint-Jean Region  
+            {'name': 'Ferme Laitière Saguenay', 'address': '1805 Avenue du Pont Nord, Alma, QC G8B 5G2', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 48.5500, 'lng': -71.6491, 'capacity': 38.0, 'monthly_usage': 29.3},
+            {'name': 'Producteurs Chicoutimi', 'address': '1855 Boulevard Saint-Jean-Baptiste, Chicoutimi, QC G7H 5B4', 'province': 'QC', 'client_type': 'trituro_44', 'lat': 48.4284, 'lng': -71.0570, 'capacity': 41.0, 'monthly_usage': 28.6},
+            {'name': 'Élevage Roberval', 'address': '755 Boulevard Saint-Joseph, Roberval, QC G8H 2L4', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 48.5167, 'lng': -72.2261, 'capacity': 32.0, 'monthly_usage': 24.2},
+            
+            # Bas-Saint-Laurent Region
+            {'name': 'Ferme Rivière-du-Loup', 'address': '298 Rue Lafontaine, Rivière-du-Loup, QC G5R 3A4', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 47.8408, 'lng': -69.5336, 'capacity': 26.0, 'monthly_usage': 18.9},
+            {'name': 'Producteurs Kamouraska', 'address': '117 Avenue Morel, Kamouraska, QC G0L 1M0', 'province': 'QC', 'client_type': 'dairy_trituro', 'lat': 47.5667, 'lng': -69.8667, 'capacity': 24.0, 'monthly_usage': 17.6},
+            
+            # Oil processing facilities
+            {'name': 'Trituration Bécancour', 'address': '1700 Boulevard Bécancour, Bécancour, QC G9H 2L4', 'province': 'QC', 'client_type': 'oil', 'lat': 46.3408, 'lng': -72.4069, 'capacity': 75.0, 'monthly_usage': 45.8},
+            {'name': 'Usine Huiles Montréal', 'address': '7635 Boulevard Maurice-Duplessis, Montréal, QC H1E 1N1', 'province': 'QC', 'client_type': 'oil', 'lat': 45.6496, 'lng': -73.5108, 'capacity': 85.0, 'monthly_usage': 52.3},
         ]
         
         for i, data in enumerate(farmer_data):
             farmer, created = Farmer.objects.get_or_create(
                 name=data['name'],
                 defaults={
-                    'phone_number': f'+1{random.randint(4000000000, 9999999999)}' if data['province'] != 'SPAIN' else f'+34{random.randint(600000000, 799999999)}',
+                    'phone_number': f'+1{random.randint(4000000000, 9999999999)}',
                     'email': f"{data['name'].lower().replace(' ', '_').replace('é', 'e').replace('ñ', 'n')}@farm.com",
                     'address': data['address'],
                     'latitude': data['lat'],
@@ -298,19 +425,22 @@ class Command(BaseCommand):
             farmers.append(farmer)
             
             # Create realistic silo storage (3-80 tm range)
-            feed_storage, created = FeedStorage.objects.get_or_create(
-                farmer=farmer,
-                defaults={
-                    'capacity': Decimal(str(data['capacity'])),
-                    'current_quantity': Decimal(str(random.uniform(0.5, data['capacity'] * 0.8))),
-                    'sensor_type': 'binconnect',
-                    'sensor_id': f'BINCONNECT{i+1:03d}',
-                    'low_stock_threshold_tonnes': Decimal('1.0'),
-                    'low_stock_threshold_percentage': Decimal('80.0'),
-                    'reporting_frequency': 60,  # BinConnect reports hourly
-                    'is_connected': True
-                }
-            )
+            try:
+                feed_storage = FeedStorage.objects.get(farmer=farmer)
+                created = False
+            except FeedStorage.DoesNotExist:
+                feed_storage = FeedStorage.objects.create(
+                    farmer=farmer,
+                    capacity=Decimal(str(data['capacity'])),
+                    current_quantity=Decimal(str(random.uniform(0.5, data['capacity'] * 0.8))),
+                    sensor_type='binconnect',
+                    sensor_id=f'BINCONNECT{farmer.id}_{i+1:03d}',
+                    low_stock_threshold_tonnes=Decimal('1.0'),
+                    low_stock_threshold_percentage=Decimal('80.0'),
+                    reporting_frequency=60,  # BinConnect reports hourly
+                    is_connected=True
+                )
+                created = True
             
             if created:
                 self.stdout.write(f'Created farmer: {farmer.name} ({farmer.province}) - {data["capacity"]} tm silo')
@@ -422,16 +552,19 @@ class Command(BaseCommand):
         return products
 
     def create_realistic_orders(self, farmers, products, manager):
-        """Create orders with realistic Soya Excel patterns"""
+        """Create additional orders with realistic Soya Excel patterns (beyond route-specific orders)"""
         orders = []
         
-        # Contract deliveries (planned in advance)
+        # Contract deliveries (planned for future weeks)
         contract_farmers = [f for f in farmers if f.has_contract]
-        for farmer in contract_farmers[:5]:  # First 5 contract farmers
-            for week_offset in range(4):  # Next 4 weeks
+        for farmer in contract_farmers[:3]:  # First 3 contract farmers for future orders
+            for week_offset in range(2, 6):  # Weeks 2-5 (beyond current planning)
+                order_number = f'ORD{timezone.now().year}{self.order_counter:05d}'
+                self.order_counter += 1
+                
                 order = Order.objects.create(
                     farmer=farmer,
-                    order_number=f'ORD{timezone.now().year}{len(orders)+1:05d}',
+                    order_number=order_number,
                     quantity=Decimal(str(random.uniform(15.0, float(farmer.historical_monthly_usage)))),
                     delivery_method='bulk_38tm' if farmer.client_type != 'oil' else 'tank_compartment',
                     order_type='contract',
@@ -439,24 +572,31 @@ class Command(BaseCommand):
                     planning_week=f'{timezone.now().year}-W{timezone.now().isocalendar()[1] + week_offset}',
                     forecast_based=True,
                     expected_delivery_date=timezone.now() + timedelta(weeks=week_offset, days=random.randint(1, 5)),
+                    priority='medium',
                     created_by=manager.user
                 )
                 orders.append(order)
         
-        # Emergency/low stock orders
+        # Emergency/low stock orders (not yet assigned to routes)
         low_stock_farmers = [f for f in farmers if hasattr(f, 'feed_storage') and f.feed_storage.is_emergency_level]
-        for farmer in low_stock_farmers[:3]:
+        for farmer in low_stock_farmers[:2]:  # Only 2 emergency orders
+            order_number = f'ORD{timezone.now().year}{self.order_counter:05d}'
+            self.order_counter += 1
+            
             order = Order.objects.create(
                 farmer=farmer,
-                order_number=f'ORD{timezone.now().year}{len(orders)+1:05d}',
+                order_number=order_number,
                 quantity=Decimal(str(min(38.0, float(farmer.feed_storage.capacity) * 0.8))),
                 delivery_method='bulk_38tm',
                 order_type='emergency',
                 status='pending',
+                priority='urgent',
+                is_urgent=True,
+                requires_approval=True,
                 expected_delivery_date=timezone.now() + timedelta(days=1),
                 created_by=manager.user
             )
             orders.append(order)
         
-        self.stdout.write(f'Created {len(orders)} realistic orders')
+        self.stdout.write(f'Created {len(orders)} additional orders (future planning + emergency)')
         return orders 

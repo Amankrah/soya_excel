@@ -36,9 +36,11 @@ const GoogleMap = forwardRef<GoogleMapRef, GoogleMapProps>(({
   children,
 }, ref) => {
   const mapRef = useRef<HTMLDivElement>(null);
+  const [mapDiv, setMapDiv] = useState<HTMLDivElement | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   useImperativeHandle(ref, () => ({
     getMap: () => map,
@@ -59,19 +61,47 @@ const GoogleMap = forwardRef<GoogleMapRef, GoogleMapProps>(({
     },
   }));
 
+  // Simple callback ref to capture the div element
+  const mapDivRef = (div: HTMLDivElement | null) => {
+    if (div && div !== mapRef.current) {
+      mapRef.current = div;
+      setMapDiv(div);
+    } else if (!div) {
+      setMapDiv(null);
+    }
+  };
+
+  // Effect to check DOM on mount
+  useEffect(() => {
+    const checkElement = () => {
+      if (mapRef.current && !mapDiv) {
+        setMapDiv(mapRef.current);
+      }
+    };
+    checkElement();
+    const timer = setTimeout(checkElement, 100);
+    return () => clearTimeout(timer);
+  }, [mapDiv]);
+
   useEffect(() => {
     let mounted = true;
+    let initializationStarted = false;
 
     const initializeMap = async () => {
+      // Prevent multiple initializations
+      if (initializationStarted) return;
+      initializationStarted = true;
+
       try {
-        setIsLoading(true);
-        setError(null);
+        if (mounted) {
+          setIsLoading(true);
+          setError(null);
+        }
 
         // Load Google Maps API
         await loadGoogleMaps();
 
-        if (!mounted || !mapRef.current) return;
-
+        if (!mounted || !mapDiv) return;
         // Create map options
         const mapOptions: google.maps.MapOptions = {
           center,
@@ -98,19 +128,31 @@ const GoogleMap = forwardRef<GoogleMapRef, GoogleMapProps>(({
         };
 
         // Initialize the map
-        const googleMap = new google.maps.Map(mapRef.current, mapOptions);
+        const googleMap = new google.maps.Map(mapDiv, mapOptions);
 
         // Add click listener if provided
         if (onMapClick) {
           googleMap.addListener('click', onMapClick);
         }
 
-        setMap(googleMap);
-        onMapLoad?.(googleMap);
+        if (mounted) {
+          setMap(googleMap);
+          onMapLoad?.(googleMap);
+        }
       } catch (err) {
         if (mounted) {
-          setError(`Failed to load Google Maps: ${err instanceof Error ? err.message : 'Unknown error'}`);
-          console.error('Google Maps initialization error:', err);
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          
+          // More user-friendly error messages
+          if (errorMessage.includes('timeout')) {
+            setError('Google Maps is taking too long to load. Please check your internet connection and try again.');
+          } else if (errorMessage.includes('quota') || errorMessage.includes('key')) {
+            setError('Google Maps API key issue. Please contact support.');
+          } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+            setError('Network error loading Google Maps. Please check your internet connection.');
+          } else {
+            setError(`Failed to load Google Maps: ${errorMessage}`);
+          }
         }
       } finally {
         if (mounted) {
@@ -119,12 +161,39 @@ const GoogleMap = forwardRef<GoogleMapRef, GoogleMapProps>(({
       }
     };
 
-    initializeMap();
+    // Initialize map when component mounts and mapDiv is available
+    if (!map && mapDiv) {
+      initializeMap();
+    }
 
     return () => {
       mounted = false;
     };
-  }, [center, zoom, mapStyle, options, onMapLoad, onMapClick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryAttempt, map, mapDiv]); // Include mapDiv to trigger when DOM element becomes available
+
+  // Separate effect to handle prop changes on existing map
+  useEffect(() => {
+    if (map) {
+      // Update map properties when props change (but avoid infinite loops)
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+      
+      if (!currentCenter || 
+          Math.abs(currentCenter.lat() - center.lat) > 0.0001 || 
+          Math.abs(currentCenter.lng() - center.lng) > 0.0001) {
+        map.setCenter(center);
+      }
+      
+      if (currentZoom !== zoom) {
+        map.setZoom(zoom);
+      }
+      
+      // Note: Changing styles requires re-creating the map, which we'll skip
+      // to avoid infinite loop issues. This is acceptable for most use cases.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center.lat, center.lng, zoom, map]);
 
   // Error state
   if (error) {
@@ -137,15 +206,25 @@ const GoogleMap = forwardRef<GoogleMapRef, GoogleMapProps>(({
           <div className="text-red-600 text-sm font-medium mb-2">
             Map Error
           </div>
-          <div className="text-gray-600 text-xs">
+          <div className="text-gray-600 text-xs mb-3">
             {error}
           </div>
+          <button 
+            onClick={() => {
+              setError(null);
+              setMap(null);
+              setRetryAttempt(prev => prev + 1);
+            }}
+            className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+          >
+            Retry Loading Map
+          </button>
         </div>
       </div>
     );
   }
 
-  // Loading state
+  // Loading state with timeout warning
   if (isLoading) {
     return (
       <div 
@@ -154,7 +233,10 @@ const GoogleMap = forwardRef<GoogleMapRef, GoogleMapProps>(({
       >
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-          <div className="text-gray-600 text-sm">Loading map...</div>
+          <div className="text-gray-600 text-sm">Loading Google Maps...</div>
+          <div className="text-xs text-gray-500 mt-2">
+            Check console for details if this takes longer than 15 seconds
+          </div>
         </div>
       </div>
     );
@@ -163,8 +245,10 @@ const GoogleMap = forwardRef<GoogleMapRef, GoogleMapProps>(({
   return (
     <div className={`relative ${className}`} style={{ height, width }}>
       <div 
-        ref={mapRef} 
+        ref={mapDivRef} 
         className="w-full h-full rounded-lg"
+        style={{ minHeight: height, minWidth: '100%' }}
+        id="google-map-container"
       />
       {/* Render children (markers, overlays, etc.) */}
       {children}
