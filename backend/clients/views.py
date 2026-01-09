@@ -309,6 +309,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         for order_number in unique_order_numbers:
             combined = Order.combine_batches(order_number)
             if combined:
+                # Add unique ID for frontend (use client_order_number as key)
+                combined['id'] = order_number
+
                 # Convert Client object to serializable format
                 client = combined['client']
                 combined['client'] = {
@@ -317,16 +320,28 @@ class OrderViewSet(viewsets.ModelViewSet):
                     'city': client.city,
                     'country': client.country,
                 }
-                # Convert datetime objects to ISO format strings
+
+                # Convert datetime objects to ISO format strings and map field names
                 if combined.get('order_date'):
                     combined['sales_order_creation_date'] = combined['order_date'].isoformat()
                     combined['order_date'] = combined['order_date'].isoformat()
+                else:
+                    combined['sales_order_creation_date'] = None
+                    combined['order_date'] = None
+
                 if combined.get('final_delivery_date'):
                     combined['actual_expedition_date'] = combined['final_delivery_date'].isoformat()
                     combined['final_delivery_date'] = combined['final_delivery_date'].isoformat()
+                else:
+                    combined['actual_expedition_date'] = None
+                    combined['final_delivery_date'] = None
+
                 if combined.get('promised_date'):
                     combined['promised_expedition_date'] = combined['promised_date'].isoformat()
                     combined['promised_date'] = combined['promised_date'].isoformat()
+                else:
+                    combined['promised_expedition_date'] = None
+                    combined['promised_date'] = None
 
                 # Convert Decimal to float for JSON serialization
                 if combined.get('total_ordered'):
@@ -335,6 +350,16 @@ class OrderViewSet(viewsets.ModelViewSet):
                 if combined.get('total_delivered'):
                     combined['total_amount_delivered_tm'] = float(combined['total_delivered'])
                     combined['total_delivered'] = float(combined['total_delivered'])
+
+                # Add status field for frontend
+                total_delivered = combined.get('total_delivered', 0)
+                total_ordered = combined.get('total_ordered', 0)
+                if total_delivered == 0:
+                    combined['status'] = 'not_delivered'
+                elif total_delivered >= total_ordered:
+                    combined['status'] = 'delivered'
+                else:
+                    combined['status'] = 'partially_delivered'
 
                 aggregated_orders.append(combined)
 
