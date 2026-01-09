@@ -93,12 +93,17 @@ class AnalyticsCache(models.Model):
             print(f"🔄 No analytics cache found for {cache_key}, computing...")
             data = compute_func()
 
-            cls.objects.create(
-                cache_key=cache_key,
-                data=data,
-                order_count_at_cache=current_order_count,
-                last_order_date=latest_order_date
-            )
+            try:
+                cls.objects.create(
+                    cache_key=cache_key,
+                    data=data,
+                    order_count_at_cache=current_order_count,
+                    last_order_date=latest_order_date
+                )
+            except Exception as e:
+                # Race condition: another request created the cache simultaneously
+                # This is fine, just return the computed data
+                print(f"⚠️  Cache creation race condition for {cache_key} (another request created it): {e}")
 
             return data
 
