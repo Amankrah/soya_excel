@@ -3,6 +3,16 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
+
+// Import User type from store
+type User = {
+  id: number;
+  username: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  role?: string;
+};
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -16,15 +26,14 @@ import {
 import {
   LayoutDashboard,
   Users,
-  Truck,
   Package,
-  Route,
   Settings,
   LogOut,
   Menu,
   Bell,
-  BarChart3,
   Navigation2,
+  BarChart3,
+  Radio,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useState } from 'react';
@@ -32,12 +41,11 @@ import Image from 'next/image';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Clients', href: '/dashboard/farmers', icon: Users },
+  { name: 'Clients', href: '/dashboard/clients', icon: Users },
   { name: 'Orders', href: '/dashboard/orders', icon: Package },
-  { name: 'Drivers', href: '/dashboard/drivers', icon: Truck },
-  { name: 'Routes', href: '/dashboard/routes', icon: Route },
-  { name: 'Live Tracking', href: '/dashboard/live-tracking', icon: Navigation2 },
-  { name: 'Inventory', href: '/dashboard/inventory', icon: BarChart3 },
+  { name: 'Routes', href: '/dashboard/routes', icon: Navigation2 },
+  { name: 'Live Tracking', href: '/dashboard/live-tracking', icon: Radio },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -58,6 +66,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const getFullName = (user: User | null): string => {
+    if (!user) return 'Manager';
+    if (user.first_name && user.last_name) {
+      return `${user.first_name} ${user.last_name}`;
+    }
+    if (user.first_name) return user.first_name;
+    if (user.last_name) return user.last_name;
+    return user.username || 'Manager';
   };
 
   return (
@@ -126,7 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">Soya Excel</h1>
-                  <p className="text-xs text-gray-500">Feed Management System</p>
+                  <p className="text-xs text-gray-500">Distribution Platform</p>
                 </div>
               </div>
               <h1 className="text-xl font-semibold text-gray-900 lg:hidden">Soya Excel</h1>
@@ -144,9 +162,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full hover:bg-gray-100">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="/avatar.png" alt={user?.full_name} />
+                      <AvatarImage src="/avatar.png" alt={getFullName(user)} />
                       <AvatarFallback className="bg-green-600 text-white font-semibold">
-                        {getInitials(user?.full_name || 'Manager')}
+                        {getInitials(getFullName(user))}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
@@ -154,7 +172,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user?.full_name}</p>
+                      <p className="text-sm font-medium leading-none">{getFullName(user)}</p>
                       <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                     </div>
                   </DropdownMenuLabel>
@@ -191,7 +209,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Soya Excel</h2>
-                <p className="text-xs text-green-100">Feed Management System</p>
+                <p className="text-xs text-green-100">Distribution Platform</p>
               </div>
             </div>
           </div>

@@ -14,7 +14,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from .models import Route, RouteStop
-from clients.models import Farmer, Order
+from clients.models import Client, Order
 
 logger = logging.getLogger(__name__)
 
@@ -216,87 +216,178 @@ class GoogleMapsService:
                 'error': str(e)
             }
     
-    def optimize_route(self, route_id: int, optimization_type: str = 'balanced') -> Dict[str, Any]:
+    def optimize_route(self, route_id: int) -> Dict[str, Any]:
         """
-        Optimize a route using Google Maps API.
-        
+        Optimize a route using Google Maps API, including warehouse as origin/destination.
+
+        This method:
+        1. Calculates distance with CURRENT stop order (unoptimized baseline)
+        2. Calculates distance with GOOGLE-OPTIMIZED stop order (optimizes for travel time)
+        3. Compares both to calculate actual savings
+        4. Updates route with optimized sequence if savings exist
+
         Args:
             route_id: ID of the route to optimize
-            optimization_type: Type of optimization ('distance', 'duration', 'balanced')
-            
+
         Returns:
-            Dictionary with optimization results
+            Dictionary with optimization results including actual savings
         """
         try:
             route = Route.objects.get(id=route_id)
             stops = list(route.stops.all().order_by('sequence_number'))
-            
-            if len(stops) < 2:
-                return {'success': False, 'error': 'Route must have at least 2 stops'}
-            
-            # Get coordinates for all stops
+
+            if len(stops) < 1:
+                return {'success': False, 'error': 'Route must have at least 1 stop'}
+
+            # Get warehouse coordinates (origin)
+            warehouse = route.origin_warehouse
+            if not warehouse:
+                # Try to get the primary warehouse
+                from .models import Warehouse
+                warehouse = Warehouse.objects.filter(is_primary=True, is_active=True).first()
+
+                if not warehouse:
+                    return {
+                        'success': False,
+                        'error': 'No warehouse configured. Please set up a warehouse first.'
+                    }
+
+                # Auto-assign warehouse to route
+                route.origin_warehouse = warehouse
+                route.save()
+
+            # Ensure warehouse has coordinates
+            if not warehouse.latitude or not warehouse.longitude:
+                # Try to geocode warehouse address
+                warehouse_address = f"{warehouse.address}, {warehouse.city}, {warehouse.province} {warehouse.postal_code}, {warehouse.country}"
+                geocode_result = self.geocode_address(warehouse_address)
+
+                if geocode_result:
+                    warehouse.latitude = geocode_result['latitude']
+                    warehouse.longitude = geocode_result['longitude']
+                    warehouse.has_coordinates = True
+                    warehouse.save()
+                else:
+                    return {
+                        'success': False,
+                        'error': f'Could not geocode warehouse address: {warehouse_address}'
+                    }
+
+            # Build waypoints list: warehouse -> stops -> warehouse
             waypoints = []
             invalid_addresses = []
-            
+
+            # Add warehouse as starting point
+            waypoints.append({
+                'lat': float(warehouse.latitude),
+                'lng': float(warehouse.longitude),
+                'stop_id': 'warehouse_origin',
+                'is_warehouse': True,
+                'warehouse_id': warehouse.id
+            })
+
+            # Add all client stops
             for stop in stops:
                 if stop.location_latitude and stop.location_longitude:
                     waypoints.append({
                         'lat': float(stop.location_latitude),
                         'lng': float(stop.location_longitude),
-                        'stop_id': stop.id
+                        'stop_id': stop.id,
+                        'is_warehouse': False
                     })
                 else:
-                    # Try to geocode farmer's address
-                    geocode_result = self.geocode_address(
-                        stop.farmer.address, 
-                        stop.farmer.province
-                    )
-                    
+                    # Try to geocode client's address
+                    address_str = f"{stop.client.city}, {stop.client.postal_code}, {stop.client.country}"
+                    geocode_result = self.geocode_address(address_str)
+
                     if geocode_result:
                         stop.location_latitude = geocode_result['latitude']
                         stop.location_longitude = geocode_result['longitude']
                         stop.save()
-                        
+
                         waypoints.append({
                             'lat': float(geocode_result['latitude']),
                             'lng': float(geocode_result['longitude']),
-                            'stop_id': stop.id
+                            'stop_id': stop.id,
+                            'is_warehouse': False
                         })
                     else:
                         invalid_addresses.append({
                             'stop_id': stop.id,
-                            'farmer_name': stop.farmer.name,
-                            'address': stop.farmer.address
+                            'client_name': stop.client.name,
+                            'address': stop.client.full_address
                         })
-            
+
+            # Add warehouse as ending point (if return_to_warehouse is True)
+            if route.return_to_warehouse:
+                destination_warehouse = route.destination_warehouse or warehouse
+                waypoints.append({
+                    'lat': float(destination_warehouse.latitude),
+                    'lng': float(destination_warehouse.longitude),
+                    'stop_id': 'warehouse_destination',
+                    'is_warehouse': True,
+                    'warehouse_id': destination_warehouse.id
+                })
+
             if invalid_addresses:
                 return {
-                    'success': False, 
+                    'success': False,
                     'error': 'Could not geocode some addresses',
                     'invalid_addresses': invalid_addresses
                 }
-            
+
             if len(waypoints) < 2:
                 return {'success': False, 'error': 'Not enough valid addresses found'}
-            
-            # Use Google's route optimization
-            optimized_result = self._optimize_waypoints(waypoints, optimization_type)
-            
-            if optimized_result['success']:
-                # Update route with optimized data
-                self._update_route_with_optimization(route, optimized_result)
-                
-                return {
-                    'success': True,
-                    'route_id': route.id,
-                    'optimized_distance': optimized_result.get('total_distance'),
-                    'optimized_duration': optimized_result.get('total_duration'),
-                    'optimization_type': optimization_type,
-                    'stops_optimized': len(waypoints)
-                }
-            else:
+
+            # STEP 1: Calculate distance with CURRENT order (no optimization)
+            # This gives us the true "original" baseline distance
+            logger.info(f"Calculating baseline distance for route {route_id} with current order...")
+            current_order_result = self._calculate_route_distance_no_optimization(waypoints, route.return_to_warehouse)
+
+            if not current_order_result['success']:
+                return current_order_result
+
+            original_distance = current_order_result['total_distance']
+            original_duration = current_order_result['total_duration']
+
+            logger.info(f"Baseline (current order): {original_distance:.2f} km, {original_duration:.2f} min")
+
+            # STEP 2: Calculate distance with OPTIMIZED order (Google optimization)
+            logger.info(f"Calculating optimized distance for route {route_id}...")
+            optimized_result = self._optimize_waypoints(waypoints, route.return_to_warehouse)
+
+            if not optimized_result['success']:
                 return optimized_result
-                
+
+            optimized_distance = optimized_result['total_distance']
+            optimized_duration = optimized_result['total_duration']
+
+            logger.info(f"Optimized: {optimized_distance:.2f} km, {optimized_duration:.2f} min")
+
+            # STEP 3: Calculate actual savings
+            distance_savings = max(0, original_distance - optimized_distance)
+            time_savings = max(0, int(original_duration - optimized_duration))
+
+            logger.info(f"Savings: {distance_savings:.2f} km, {time_savings} min")
+
+            # STEP 4: Update route with optimized data
+            self._update_route_with_optimization(route, optimized_result)
+
+            return {
+                'success': True,
+                'route_id': route.id,
+                'original_distance': original_distance,
+                'original_duration': original_duration,
+                'optimized_distance': optimized_distance,
+                'optimized_duration': optimized_duration,
+                'distance_savings': distance_savings,
+                'time_savings': time_savings,
+                'stops_optimized': len(stops),
+                'includes_warehouse': True,
+                'warehouse_name': warehouse.name,
+                'waypoint_order': optimized_result.get('waypoint_order', [])
+            }
+
         except Route.DoesNotExist:
             return {'success': False, 'error': 'Route not found'}
         except Exception as e:
@@ -368,59 +459,152 @@ class GoogleMapsService:
         return (self.canada_bounds['southwest']['lat'] <= lat <= self.canada_bounds['northeast']['lat'] and
                 self.canada_bounds['southwest']['lng'] <= lng <= self.canada_bounds['northeast']['lng'])
     
-    def _optimize_waypoints(self, waypoints: List[Dict], optimization_type: str) -> Dict[str, Any]:
+    def _calculate_route_distance_no_optimization(self, waypoints: List[Dict], return_to_origin: bool = True) -> Dict[str, Any]:
+        """
+        Calculate route distance with CURRENT waypoint order (no optimization).
+
+        This provides the baseline distance for comparing optimization savings.
+
+        Args:
+            waypoints: List of waypoint dictionaries with lat/lng in current order
+            return_to_origin: Whether the route returns to origin warehouse
+
+        Returns:
+            Dictionary with total_distance and total_duration for current order
+        """
+        try:
+            if len(waypoints) < 2:
+                return {'success': False, 'error': 'Need at least 2 waypoints'}
+
+            # First waypoint is always the warehouse (origin)
+            origin = f"{waypoints[0]['lat']},{waypoints[0]['lng']}"
+
+            # Last waypoint depends on return_to_origin
+            if return_to_origin:
+                # Last waypoint is warehouse (destination)
+                destination = f"{waypoints[-1]['lat']},{waypoints[-1]['lng']}"
+                # Middle waypoints are client stops (exclude first and last)
+                intermediate_waypoints = [
+                    f"{wp['lat']},{wp['lng']}" for wp in waypoints[1:-1]
+                ]
+            else:
+                # Last client stop is destination
+                destination = f"{waypoints[-1]['lat']},{waypoints[-1]['lng']}"
+                # Middle waypoints (exclude first and last)
+                intermediate_waypoints = [
+                    f"{wp['lat']},{wp['lng']}" for wp in waypoints[1:-1]
+                ]
+
+            # Get route WITHOUT optimization - preserve current order
+            directions = self.client.directions(
+                origin=origin,
+                destination=destination,
+                waypoints=intermediate_waypoints if intermediate_waypoints else None,
+                optimize_waypoints=False,  # CRITICAL: Do NOT optimize
+                mode='driving',
+                region='ca',
+                units='metric'
+            )
+
+            if directions:
+                route = directions[0]
+                legs = route.get('legs', [])
+
+                total_distance = 0
+                total_duration = 0
+
+                for leg in legs:
+                    if 'distance' in leg:
+                        total_distance += leg['distance']['value']  # meters
+                    if 'duration' in leg:
+                        total_duration += leg['duration']['value']  # seconds
+
+                # Convert to appropriate units
+                total_distance_km = total_distance / 1000.0  # Convert to km
+                total_duration_minutes = total_duration / 60.0  # Convert to minutes
+
+                return {
+                    'success': True,
+                    'total_distance': total_distance_km,
+                    'total_duration': total_duration_minutes,
+                    'waypoint_order': list(range(len(intermediate_waypoints))),  # Current order unchanged
+                    'legs': legs
+                }
+            else:
+                return {'success': False, 'error': 'No route found for current order'}
+
+        except Exception as e:
+            logger.error(f"Error calculating route distance (no optimization): {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    def _optimize_waypoints(self, waypoints: List[Dict], return_to_origin: bool = True) -> Dict[str, Any]:
         """
         Optimize waypoint order using Google's route optimization.
-        
+
+        Google Maps automatically optimizes for travel time when optimize_waypoints=True.
+
         Args:
-            waypoints: List of waypoint dictionaries with lat/lng
-            optimization_type: Type of optimization
-            
+            waypoints: List of waypoint dictionaries with lat/lng (first = warehouse, middle = stops, last = warehouse if return_to_origin)
+            return_to_origin: Whether the route returns to origin warehouse
+
         Returns:
             Optimization result dictionary
         """
         try:
             if len(waypoints) < 2:
                 return {'success': False, 'error': 'Need at least 2 waypoints'}
-            
-            # Convert waypoints to coordinate strings
+
+            # First waypoint is always the warehouse (origin)
             origin = f"{waypoints[0]['lat']},{waypoints[0]['lng']}"
-            destination = f"{waypoints[-1]['lat']},{waypoints[-1]['lng']}"
-            intermediate_waypoints = [
-                f"{wp['lat']},{wp['lng']}" for wp in waypoints[1:-1]
-            ]
-            
+
+            # Last waypoint depends on return_to_origin
+            if return_to_origin:
+                # Last waypoint is warehouse (destination)
+                destination = f"{waypoints[-1]['lat']},{waypoints[-1]['lng']}"
+                # Middle waypoints are client stops (exclude first and last)
+                intermediate_waypoints = [
+                    f"{wp['lat']},{wp['lng']}" for wp in waypoints[1:-1]
+                ]
+            else:
+                # Last client stop is destination
+                destination = f"{waypoints[-1]['lat']},{waypoints[-1]['lng']}"
+                # Middle waypoints (exclude first and last)
+                intermediate_waypoints = [
+                    f"{wp['lat']},{wp['lng']}" for wp in waypoints[1:-1]
+                ]
+
             # Get optimized route
+            # Only optimize intermediate waypoints, keep origin and destination fixed
             directions = self.client.directions(
                 origin=origin,
                 destination=destination,
-                waypoints=intermediate_waypoints,
-                optimize_waypoints=True,
+                waypoints=intermediate_waypoints if intermediate_waypoints else None,
+                optimize_waypoints=True if intermediate_waypoints else False,
                 mode='driving',
                 region='ca',
                 units='metric'
             )
-            
+
             if directions:
                 route = directions[0]
-                
+
                 # Extract optimization results
                 waypoint_order = route.get('waypoint_order', [])
                 legs = route.get('legs', [])
-                
+
                 total_distance = 0
                 total_duration = 0
-                
+
                 for leg in legs:
                     if 'distance' in leg:
                         total_distance += leg['distance']['value']  # meters
                     if 'duration' in leg:
                         total_duration += leg['duration']['value']  # seconds
-                
+
                 # Convert to appropriate units
                 total_distance_km = total_distance / 1000.0  # Convert to km
                 total_duration_minutes = total_duration / 60.0  # Convert to minutes
-                
+
                 return {
                     'success': True,
                     'waypoint_order': waypoint_order,
@@ -428,11 +612,12 @@ class GoogleMapsService:
                     'total_duration': total_duration_minutes,
                     'legs': legs,
                     'overview_polyline': route.get('overview_polyline', {}).get('points', ''),
-                    'optimized_waypoints': waypoints
+                    'optimized_waypoints': waypoints,
+                    'return_to_origin': return_to_origin
                 }
             else:
                 return {'success': False, 'error': 'No route found'}
-                
+
         except Exception as e:
             logger.error(f"Error optimizing waypoints: {str(e)}")
             return {'success': False, 'error': str(e)}
@@ -462,8 +647,13 @@ class GoogleMapsService:
                     new_sequence.append(stops[-1].id)  # Last stop stays last
                 
                 route.optimized_sequence = new_sequence
-                
+
                 # Update stop sequence numbers
+                # Step 1: Set temporary negative values to avoid UNIQUE constraint conflicts
+                for i, stop_id in enumerate(new_sequence):
+                    RouteStop.objects.filter(id=stop_id).update(sequence_number=-(i + 1000))
+
+                # Step 2: Set actual sequence numbers
                 for i, stop_id in enumerate(new_sequence):
                     RouteStop.objects.filter(id=stop_id).update(sequence_number=i + 1)
             
@@ -629,23 +819,24 @@ class RouteOptimizationService:
 
 
 # Convenience functions for easy usage
-def geocode_farmer_address(farmer: Farmer) -> Optional[Dict]:
-    """Geocode a farmer's address and update their coordinates"""
+def geocode_client_address(client: Client) -> Optional[Dict]:
+    """Geocode a client's address and update their coordinates"""
     service = GoogleMapsService()
-    result = service.geocode_address(farmer.address, farmer.province)
-    
+    address_str = f"{client.city}, {client.postal_code}, {client.country}"
+    result = service.geocode_address(address_str)
+
     if result:
-        farmer.latitude = result['latitude']
-        farmer.longitude = result['longitude']
-        farmer.save()
-    
+        client.latitude = result['latitude']
+        client.longitude = result['longitude']
+        client.save()
+
     return result
 
 
-def optimize_route_with_google_maps(route_id: int, optimization_type: str = 'balanced') -> Dict[str, Any]:
-    """Optimize a single route using Google Maps"""
+def optimize_route_with_google_maps(route_id: int) -> Dict[str, Any]:
+    """Optimize a single route using Google Maps (optimizes for travel time)"""
     service = GoogleMapsService()
-    return service.optimize_route(route_id, optimization_type)
+    return service.optimize_route(route_id)
 
 
 def validate_address(address: str) -> Dict[str, Any]:
@@ -758,7 +949,7 @@ class LiveTrackingService:
                 'heading': random.randint(0, 359),  # Random heading for demo
                 'speed': random.randint(40, 70),    # Random speed 40-70 km/h
                 'next_stop': {
-                    'farmer_name': next_stop.farmer.name,
+                    'client_name': next_stop.client.name,
                     'estimated_arrival': next_stop.estimated_arrival_time.isoformat() if next_stop.estimated_arrival_time else None,
                     'sequence_number': next_stop.sequence_number
                 } if next_stop else None
@@ -828,7 +1019,7 @@ class LiveTrackingService:
                         return {
                             'status': 'arrived_at_stop',
                             'stop_id': stop.id,
-                            'farmer_name': stop.farmer.name,
+                            'client_name': stop.client.name,
                             'sequence_number': stop.sequence_number,
                             'distance_meters': distance_km * 1000
                         }

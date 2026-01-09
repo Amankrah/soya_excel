@@ -52,23 +52,47 @@ interface VehicleLocation {
 
 interface RouteStop {
   id: string;
-  farmer: {
-    id: string;
+  client: {
+    id: number;
     name: string;
-    address: string;
+    full_address: string;
+    city?: string | null;
+    country?: string | null;
+    has_coordinates: boolean;
+    latitude: number | null;
+    longitude: number | null;
   };
   order: {
-    id: string;
-    order_number: string;
-    quantity: number;
-  };
+    id: number;
+    client_order_number: string;
+    quantity_ordered: number;
+    quantity_delivered: number;
+    status: string;
+  } | null;
   sequence_number: number;
-  location_latitude?: number;
-  location_longitude?: number;
-  estimated_arrival_time?: string;
+  location_latitude?: number | null;
+  location_longitude?: number | null;
+  estimated_arrival_time?: string | null;
   is_completed: boolean;
-  actual_arrival_time?: string;
-  delivery_notes?: string;
+  actual_arrival_time?: string | null;
+  delivery_notes?: string | null;
+}
+
+interface Warehouse {
+  id: number;
+  name: string;
+  code: string;
+  address: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+  has_coordinates: boolean;
+  full_address: string;
+  is_primary: boolean;
+  is_active: boolean;
 }
 
 interface Route {
@@ -82,6 +106,9 @@ interface Route {
   stops: RouteStop[];
   waypoints?: Array<{ lat: number; lng: number; stop_id: string }>;
   driver_name?: string;
+  origin_warehouse?: Warehouse | null;
+  destination_warehouse?: Warehouse | null;
+  return_to_warehouse: boolean;
 }
 
 interface UnifiedRouteMapProps {
@@ -117,6 +144,7 @@ export function UnifiedRouteMap({
   // Map state - use regular Markers for better compatibility
   const stopMarkersRef = useRef<google.maps.Marker[]>([]);
   const vehicleMarkersRef = useRef<google.maps.Marker[]>([]);
+  const warehouseMarkersRef = useRef<google.maps.Marker[]>([]);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
   const [infoWindow, setInfoWindow] = useState<google.maps.InfoWindow | null>(null);
   
@@ -182,19 +210,22 @@ export function UnifiedRouteMap({
     }
   }, [route, showDirections]);
   
+  // Optimization menu state
+  const [showOptimizeMenu, setShowOptimizeMenu] = useState(false);
+
   // Optimize route
-  const optimizeRoute = async () => {
+  const optimizeRoute = async (type: 'balanced' | 'distance' | 'duration' | 'fuel_cost' | 'co2_emissions' = 'balanced') => {
     if (!route) return;
-    
+
     try {
       setOptimizing(true);
-      await routeAPI.optimizeRoute(parseInt(route.id), 'balanced');
-      toast.success('Route optimized successfully');
+      await routeAPI.optimizeRoute(parseInt(route.id), type);
+      toast.success(`Route optimized using ${type} strategy`);
       onRouteOptimized?.();
-      
+
       // Reload route data
       await loadRouteData(false);
-      
+
       // Reload directions after optimization
       if (showDirections) {
         await loadDirections();
@@ -204,6 +235,7 @@ export function UnifiedRouteMap({
       toast.error('Failed to optimize route');
     } finally {
       setOptimizing(false);
+      setShowOptimizeMenu(false);
     }
   };
   
@@ -221,26 +253,33 @@ export function UnifiedRouteMap({
       setInfoWindow(currentInfoWindow);
     }
     
-    route.stops
-      .filter(stop => stop.location_latitude && stop.location_longitude)
-      .forEach((stop) => {
-        const lat = typeof stop.location_latitude === 'number' 
-          ? stop.location_latitude 
-          : parseFloat((stop.location_latitude as unknown) as string);
-        const lng = typeof stop.location_longitude === 'number' 
-          ? stop.location_longitude 
-          : parseFloat((stop.location_longitude as unknown) as string);
-          
+    route.stops.forEach((stop) => {
+        // Prioritize stop coordinates, fall back to client coordinates
+        const rawLat = stop.location_latitude ?? stop.client.latitude;
+        const rawLng = stop.location_longitude ?? stop.client.longitude;
+
+        // Skip if no coordinates available
+        if (rawLat == null || rawLng == null) {
+          console.warn(`No coordinates available for stop ${stop.sequence_number} (${stop.client.name})`);
+          return;
+        }
+
+        const lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat));
+        const lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng));
+
         // Skip markers with invalid coordinates
         if (isNaN(lat) || isNaN(lng)) {
-          console.warn(`Invalid coordinates for stop ${stop.sequence_number}:`, {lat: stop.location_latitude, lng: stop.location_longitude});
+          console.warn(`Invalid coordinates for stop ${stop.sequence_number}:`, {
+            stop_coords: {lat: stop.location_latitude, lng: stop.location_longitude},
+            client_coords: {lat: stop.client.latitude, lng: stop.client.longitude}
+          });
           return;
         }
         
         const marker = new google.maps.Marker({
           position: { lat, lng },
           map,
-          title: `Stop ${stop.sequence_number}: ${stop.farmer.name}`,
+          title: `Stop ${stop.sequence_number}: ${stop.client.name}`,
           label: {
             text: stop.sequence_number.toString(),
             color: 'white',
@@ -268,30 +307,146 @@ export function UnifiedRouteMap({
     stopMarkersRef.current = newMarkers;
   }, [route, infoWindow]);
   
+  // Create warehouse markers
+  const createWarehouseMarkers = useCallback((map: google.maps.Map) => {
+    if (!route) return;
+
+    // Clear existing warehouse markers
+    warehouseMarkersRef.current.forEach(marker => marker.setMap(null));
+
+    const newMarkers: google.maps.Marker[] = [];
+    const currentInfoWindow = infoWindow || new google.maps.InfoWindow();
+
+    // Add origin warehouse marker
+    if (route.origin_warehouse && route.origin_warehouse.has_coordinates) {
+      const warehouse = route.origin_warehouse;
+      const lat = typeof warehouse.latitude === 'number'
+        ? warehouse.latitude
+        : parseFloat(String(warehouse.latitude));
+      const lng = typeof warehouse.longitude === 'number'
+        ? warehouse.longitude
+        : parseFloat(String(warehouse.longitude));
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const marker = new google.maps.Marker({
+          position: { lat, lng },
+          map,
+          title: `Warehouse: ${warehouse.name}`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 15,
+            fillColor: '#16a34a',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
+          },
+          label: {
+            text: '🏭',
+            fontSize: '20px',
+            color: '#ffffff'
+          },
+          zIndex: 2000
+        });
+
+        marker.addListener('click', () => {
+          currentInfoWindow.setContent(`
+            <div style="padding: 8px; min-width: 200px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">
+                🏭 ${warehouse.name}
+              </h3>
+              <div style="font-size: 12px; color: #666;">
+                <p style="margin: 4px 0;"><strong>Code:</strong> ${warehouse.code}</p>
+                <p style="margin: 4px 0;"><strong>Address:</strong><br/>${warehouse.full_address}</p>
+                <p style="margin: 4px 0;"><strong>Type:</strong> Origin Point</p>
+              </div>
+            </div>
+          `);
+          currentInfoWindow.open(map, marker);
+        });
+
+        newMarkers.push(marker);
+      }
+    }
+
+    // Add destination warehouse marker if different from origin
+    if (route.return_to_warehouse && route.destination_warehouse &&
+        route.destination_warehouse.id !== route.origin_warehouse?.id) {
+      const warehouse = route.destination_warehouse;
+      const lat = typeof warehouse.latitude === 'number'
+        ? warehouse.latitude
+        : parseFloat(String(warehouse.latitude));
+      const lng = typeof warehouse.longitude === 'number'
+        ? warehouse.longitude
+        : parseFloat(String(warehouse.longitude));
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const marker = new google.maps.Marker({
+          position: { lat, lng },
+          map,
+          title: `Warehouse: ${warehouse.name}`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 15,
+            fillColor: '#ea580c',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
+          },
+          label: {
+            text: '🏭',
+            fontSize: '20px',
+            color: '#ffffff'
+          },
+          zIndex: 2000
+        });
+
+        marker.addListener('click', () => {
+          currentInfoWindow.setContent(`
+            <div style="padding: 8px; min-width: 200px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">
+                🏭 ${warehouse.name}
+              </h3>
+              <div style="font-size: 12px; color: #666;">
+                <p style="margin: 4px 0;"><strong>Code:</strong> ${warehouse.code}</p>
+                <p style="margin: 4px 0;"><strong>Address:</strong><br/>${warehouse.full_address}</p>
+                <p style="margin: 4px 0;"><strong>Type:</strong> Destination Point</p>
+              </div>
+            </div>
+          `);
+          currentInfoWindow.open(map, marker);
+        });
+
+        newMarkers.push(marker);
+      }
+    }
+
+    warehouseMarkersRef.current = newMarkers;
+  }, [route, infoWindow]);
+
   // Create vehicle markers
   const createVehicleMarkers = useCallback((map: google.maps.Map) => {
     if (!liveTrackingActive) return;
-    
+
     // Clear existing vehicle markers
     vehicleMarkersRef.current.forEach(marker => marker.setMap(null));
-    
+
     const newMarkers: google.maps.Marker[] = [];
     const currentInfoWindow = infoWindow || new google.maps.InfoWindow();
-    
+
     vehicles.forEach(vehicle => {
-      const lat = typeof vehicle.latitude === 'number' 
-        ? vehicle.latitude 
+      const lat = typeof vehicle.latitude === 'number'
+        ? vehicle.latitude
         : parseFloat((vehicle.latitude as unknown) as string);
-      const lng = typeof vehicle.longitude === 'number' 
-        ? vehicle.longitude 
+      const lng = typeof vehicle.longitude === 'number'
+        ? vehicle.longitude
         : parseFloat((vehicle.longitude as unknown) as string);
-        
+
       // Skip markers with invalid coordinates
       if (isNaN(lat) || isNaN(lng)) {
         console.warn(`Invalid coordinates for vehicle ${vehicle.name}:`, {lat: vehicle.latitude, lng: vehicle.longitude});
         return;
       }
-      
+
       const marker = new google.maps.Marker({
         position: { lat, lng },
         map,
@@ -310,15 +465,15 @@ export function UnifiedRouteMap({
         },
         zIndex: 1000
       });
-      
+
       marker.addListener('click', () => {
         currentInfoWindow.setContent(createDriverInfoWindowContent(vehicle));
         currentInfoWindow.open(map, marker);
       });
-      
+
       newMarkers.push(marker);
     });
-    
+
     vehicleMarkersRef.current = newMarkers;
   }, [vehicles, liveTrackingActive, infoWindow]);
   
@@ -350,20 +505,24 @@ export function UnifiedRouteMap({
       polyline.setMap(map);
       routePolylineRef.current = polyline;
     } else if (route && route.stops.length > 1) {
-      // Create simple polyline connecting stops
+      // Create simple polyline connecting stops using same coordinate fallback logic
       const path = route.stops
-        .filter(stop => stop.location_latitude && stop.location_longitude)
         .sort((a, b) => a.sequence_number - b.sequence_number)
         .map(stop => {
-          const lat = typeof stop.location_latitude === 'number' 
-            ? stop.location_latitude 
-            : parseFloat((stop.location_latitude as unknown) as string);
-          const lng = typeof stop.location_longitude === 'number' 
-            ? stop.location_longitude 
-            : parseFloat((stop.location_longitude as unknown) as string);
+          // Use same fallback logic as markers: stop coords -> client coords
+          const rawLat = stop.location_latitude ?? stop.client.latitude;
+          const rawLng = stop.location_longitude ?? stop.client.longitude;
+
+          if (rawLat == null || rawLng == null) return null;
+
+          const lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat));
+          const lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng));
+
           return { lat, lng };
         })
-        .filter(point => !isNaN(point.lat) && !isNaN(point.lng));
+        .filter((point): point is { lat: number; lng: number } =>
+          point !== null && !isNaN(point.lat) && !isNaN(point.lng)
+        );
       
       if (path.length > 1) {
         const polyline = new google.maps.Polyline({
@@ -381,38 +540,65 @@ export function UnifiedRouteMap({
   }, [directions, route]);
   
   
-  // Simple Google Maps initialization
+  // Simple Google Maps initialization with retry logic
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 3;
+
     const initializeMap = async () => {
       try {
         const mapContainer = document.getElementById('google-map-container');
-        if (!mapContainer) return;
+        if (!mapContainer) {
+          console.warn('Map container not found, retrying...');
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(initializeMap, 500);
+          }
+          return;
+        }
 
         const { loadGoogleMaps } = await import('@/lib/google-maps');
         const googleMaps = await loadGoogleMaps();
-        
-        // Ensure Google Maps API is fully loaded
-        if (!googleMaps?.maps?.Map) {
+
+        // Ensure Google Maps API is fully loaded with all required libraries
+        if (!googleMaps?.maps?.Map || !googleMaps?.maps?.Marker || !googleMaps?.maps?.Polyline) {
           throw new Error('Google Maps API not fully loaded');
         }
-        
+
+        // Extra safety: wait a bit to ensure libraries are ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         // Use default center for initialization, will be updated when route loads
         const map = new googleMaps.maps.Map(mapContainer, {
           center: { lat: 45.5017, lng: -73.5673 }, // Montreal default
           zoom: 8,
           mapTypeId: googleMaps.maps.MapTypeId.ROADMAP,
+          mapTypeControl: true,
+          streetViewControl: true,
+          fullscreenControl: true,
         });
 
         // Store map reference for other functions to use
         mapRef.current = map;
         setMapInitialized(true);
-        
+
       } catch (error) {
         console.error('Map initialization failed:', error);
+        // Retry logic
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Retrying map initialization (${retryCount}/${maxRetries})...`);
+          setTimeout(initializeMap, 1000 * retryCount); // Exponential backoff
+        } else {
+          toast.error('Failed to load Google Maps. Please refresh the page.');
+        }
       }
     };
 
-    initializeMap();
+    // Small initial delay to ensure DOM is ready
+    const initTimer = setTimeout(initializeMap, 100);
+
+    return () => clearTimeout(initTimer);
   }, []);
 
   // Initial data load when routeId changes
@@ -428,46 +614,63 @@ export function UnifiedRouteMap({
   useEffect(() => {
     const map = mapRef.current;
     if (map && !loading && route) {
+      createWarehouseMarkers(map);
       createStopMarkers(map);
       createVehicleMarkers(map);
       createRoutePolyline(map);
-      
-      // Fit bounds to show all markers
+
+      // Fit bounds to show all markers using same coordinate fallback
       const bounds = new google.maps.LatLngBounds();
       let hasPoints = false;
-      
+
+      // Add warehouse positions to bounds
+      if (route.origin_warehouse && route.origin_warehouse.has_coordinates) {
+        const warehouse = route.origin_warehouse;
+        const lat = typeof warehouse.latitude === 'number'
+          ? warehouse.latitude
+          : parseFloat(String(warehouse.latitude));
+        const lng = typeof warehouse.longitude === 'number'
+          ? warehouse.longitude
+          : parseFloat(String(warehouse.longitude));
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+          bounds.extend({ lat, lng });
+          hasPoints = true;
+        }
+      }
+
       // Add stop positions to bounds
-      route.stops
-        .filter(stop => stop.location_latitude && stop.location_longitude)
-        .forEach(stop => {
-          const lat = typeof stop.location_latitude === 'number' 
-            ? stop.location_latitude 
-            : parseFloat((stop.location_latitude as unknown) as string);
-          const lng = typeof stop.location_longitude === 'number' 
-            ? stop.location_longitude 
-            : parseFloat((stop.location_longitude as unknown) as string);
-          
+      route.stops.forEach(stop => {
+          // Use same fallback logic: stop coords -> client coords
+          const rawLat = stop.location_latitude ?? stop.client.latitude;
+          const rawLng = stop.location_longitude ?? stop.client.longitude;
+
+          if (rawLat == null || rawLng == null) return;
+
+          const lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat));
+          const lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng));
+
           if (!isNaN(lat) && !isNaN(lng)) {
             bounds.extend({ lat, lng });
             hasPoints = true;
           }
         });
-      
+
       // Add vehicle positions to bounds
       vehicles.forEach(vehicle => {
-        const lat = typeof vehicle.latitude === 'number' 
-          ? vehicle.latitude 
+        const lat = typeof vehicle.latitude === 'number'
+          ? vehicle.latitude
           : parseFloat((vehicle.latitude as unknown) as string);
-        const lng = typeof vehicle.longitude === 'number' 
-          ? vehicle.longitude 
+        const lng = typeof vehicle.longitude === 'number'
+          ? vehicle.longitude
           : parseFloat((vehicle.longitude as unknown) as string);
-        
+
         if (!isNaN(lat) && !isNaN(lng)) {
           bounds.extend({ lat, lng });
           hasPoints = true;
         }
       });
-      
+
       if (hasPoints && !bounds.isEmpty()) {
         map.fitBounds(bounds, 50);
       }
@@ -518,7 +721,7 @@ export function UnifiedRouteMap({
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
       }
-      
+
       // Clear markers
       stopMarkersRef.current.forEach(marker => {
         marker.setMap(null);
@@ -528,12 +731,16 @@ export function UnifiedRouteMap({
         marker.setMap(null);
         google.maps.event.clearInstanceListeners(marker);
       });
-      
+      warehouseMarkersRef.current.forEach(marker => {
+        marker.setMap(null);
+        google.maps.event.clearInstanceListeners(marker);
+      });
+
       // Clear polyline
       if (routePolylineRef.current) {
         routePolylineRef.current.setMap(null);
       }
-      
+
       // Clear info window
       if (infoWindow) {
         infoWindow.close();
@@ -617,19 +824,62 @@ export function UnifiedRouteMap({
                 </Button>
               )}
               {route?.status === 'planned' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={optimizeRoute}
-                  disabled={optimizing || !route || route.stops.length < 2}
-                >
-                  {optimizing ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Zap className="h-4 w-4" />
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowOptimizeMenu(!showOptimizeMenu)}
+                    disabled={optimizing || !route || route.stops.length < 2}
+                  >
+                    {optimizing ? (
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Zap className="h-4 w-4 mr-2" />
+                    )}
+                    Optimize
+                  </Button>
+                  {showOptimizeMenu && !optimizing && (
+                    <div className="absolute right-0 mt-1 w-48 bg-white border rounded-md shadow-lg z-10">
+                      <div className="py-1">
+                        <button
+                          type="button"
+                          onClick={() => optimizeRoute('balanced')}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          ⚖️ Balanced
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => optimizeRoute('distance')}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          📏 Shortest Distance
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => optimizeRoute('duration')}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          ⏱️ Fastest Time
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => optimizeRoute('fuel_cost')}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          ⛽ Fuel Efficient
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => optimizeRoute('co2_emissions')}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          🌱 Low Emissions
+                        </button>
+                      </div>
+                    </div>
                   )}
-                  Optimize
-                </Button>
+                </div>
               )}
               <Button
                 variant="outline"

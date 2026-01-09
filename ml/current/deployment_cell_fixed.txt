@@ -1,0 +1,9 @@
+The issue is with UTF-8 encoding. Replace line 291 with:
+
+with open(inference_path, 'w', encoding='utf-8') as f:
+
+And line 304 with:
+
+with open(readme_path, 'w', encoding='utf-8') as f:
+
+This will fix the UnicodeEncodeError.

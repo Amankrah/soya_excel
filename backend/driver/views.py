@@ -131,11 +131,73 @@ class DriverViewSet(viewsets.ModelViewSet):
         """Get orders assigned to this driver"""
         driver = self.get_object()
         orders = driver.assigned_orders.select_related('farmer', 'assigned_route').order_by('-order_date')
-        
+
         # Use the Order serializer from clients app
         from clients.serializers import OrderSerializer
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def assigned_routes(self, request, pk=None):
+        """Get routes assigned to this driver with Google Maps navigation"""
+        driver = self.get_object()
+
+        # Get active deliveries for this driver
+        deliveries = driver.deliveries.filter(
+            status__in=['assigned', 'in_progress']
+        ).select_related('route', 'vehicle').prefetch_related('route__stops')
+
+        serializer = DeliverySerializer(
+            deliveries,
+            many=True,
+            context={'request': request}  # Pass request for user agent detection
+        )
+
+        return Response({
+            'driver_id': driver.id,
+            'driver_name': driver.full_name,
+            'active_routes': serializer.data
+        })
+
+    @action(detail=True, methods=['get'])
+    def current_route_navigation(self, request, pk=None):
+        """Get detailed navigation for driver's current active route"""
+        from route.google_maps_integration import GoogleMapsRouteSharing
+
+        driver = self.get_object()
+
+        # Get current active delivery
+        active_delivery = driver.deliveries.filter(
+            status='in_progress'
+        ).select_related('route').first()
+
+        if not active_delivery:
+            # Try assigned deliveries
+            active_delivery = driver.deliveries.filter(
+                status='assigned'
+            ).select_related('route').first()
+
+        if not active_delivery or not active_delivery.route:
+            return Response(
+                {'error': 'No active route found for this driver'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            maps_service = GoogleMapsRouteSharing()
+            route_summary = maps_service.create_route_summary_for_driver(active_delivery.route.id)
+
+            return Response({
+                'delivery_id': active_delivery.id,
+                'delivery_status': active_delivery.status,
+                **route_summary
+            })
+
+        except Exception as e:
+            return Response(
+                {'error': f'Error generating navigation: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['get'])
     def available(self, request):

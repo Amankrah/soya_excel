@@ -1,0 +1,150 @@
+Cell Index: 6
+Cell ID: f37de0b6
+
+--- FULL CELL SOURCE ---
+print("="*80)
+print("ENHANCED FEATURE ENGINEERING - CLIENT-LEVEL FEATURES")
+print("="*80)
+
+# ============================================================================
+# CLIENT-LEVEL FEATURES (Aggregated across all historical orders)
+# ============================================================================
+
+client_features = df_filtered.groupby('client_name').agg({
+    'total_amount_delivered_tm': ['mean', 'std', 'min', 'max', 'count', 'sum'],
+    'days_since_last_order': ['mean', 'std', 'median', 'min', 'max'],
+    'sales_order_creation_date': ['min', 'max']
+}).reset_index()
+
+client_features.columns = ['_'.join(col).strip('_') for col in client_features.columns.values]
+client_features.rename(columns={'client_name': 'client_name'}, inplace=True)
+
+# ============================================================================
+# 1. CUSTOMER LIFETIME VALUE (CLV) FEATURES
+# ============================================================================
+print("\n1. Computing Customer Lifetime Value (CLV) features...")
+
+# Total revenue from client
+client_features['total_revenue'] = client_features['total_amount_delivered_tm_sum']
+
+# Calculate client lifetime (days active)
+client_features['client_lifetime_days'] = (
+    client_features['sales_order_creation_date_max'] - client_features['sales_order_creation_date_min']
+).dt.days
+
+# Average revenue per order
+client_features['avg_revenue_per_order'] = (
+    client_features['total_revenue'] / client_features['total_amount_delivered_tm_count']
+)
+
+# Revenue per day (CLV rate)
+client_features['revenue_per_day'] = (
+    client_features['total_revenue'] / (client_features['client_lifetime_days'] + 1)
+)
+
+# Order frequency metrics
+client_features['order_frequency_per_month'] = (
+    client_features['total_amount_delivered_tm_count'] / 
+    ((client_features['client_lifetime_days'] + 1) / 30)
+)
+
+# Predicted annual value (if pattern continues)
+client_features['predicted_annual_value'] = client_features['revenue_per_day'] * 365
+
+# Client value category (quintiles)
+client_features['client_value_tier'] = pd.qcut(
+    client_features['total_revenue'], 
+    q=5, 
+    labels=[0, 1, 2, 3, 4],  # 0=lowest, 4=highest
+    duplicates='drop'
+).astype(float).fillna(2)  # Default to middle tier
+
+print(f"   ✅ CLV features created: total_revenue, revenue_per_day, client_value_tier")
+
+# ============================================================================
+# 2. CLIENT CONSISTENCY & RELIABILITY METRICS
+# ============================================================================
+print("\n2. Computing client consistency metrics...")
+
+# Ordering consistency (coefficient of variation)
+client_features['ordering_consistency_score'] = (
+    client_features['days_since_last_order_mean'] / 
+    (client_features['days_since_last_order_std'] + 1)
+)
+
+# Order size consistency
+client_features['order_size_consistency'] = (
+    client_features['total_amount_delivered_tm_mean'] / 
+    (client_features['total_amount_delivered_tm_std'] + 1)
+)
+
+# Client maturity level (based on order count)
+client_features['client_maturity'] = pd.cut(
+    client_features['total_amount_delivered_tm_count'],
+    bins=[0, 5, 15, 30, np.inf],
+    labels=[0, 1, 2, 3]  # 0=new, 1=growing, 2=established, 3=veteran
+).astype(int)
+
+# High frequency flag
+median_freq = client_features['order_frequency_per_month'].median()
+client_features['is_high_frequency_client'] = (
+    client_features['order_frequency_per_month'] > median_freq
+).astype(int)
+
+print(f"   ✅ Consistency features created: ordering_consistency_score, client_maturity")
+
+# ============================================================================
+# 3. CLIENT CLUSTERING FEATURES (Similar Clients)
+# ============================================================================
+print("\n3. Computing client clustering features...")
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+
+# Select features for clustering
+clustering_features = [
+    'order_frequency_per_month',
+    'avg_revenue_per_order',
+    'ordering_consistency_score',
+    'client_lifetime_days'
+]
+
+# Prepare clustering data
+cluster_data = client_features[clustering_features].fillna(0)
+cluster_data = cluster_data.replace([np.inf, -np.inf], 0)
+
+# Standardize for clustering
+scaler_cluster = StandardScaler()
+cluster_data_scaled = scaler_cluster.fit_transform(cluster_data)
+
+# K-Means clustering (5 client segments)
+n_clusters = min(5, len(client_features) // 10)  # At least 10 clients per cluster
+if n_clusters >= 2:
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    client_features['client_cluster'] = kmeans.fit_predict(cluster_data_scaled)
+    
+    print(f"   ✅ Created {n_clusters} client clusters based on behavior patterns")
+    print(f"      Cluster distribution: {client_features['client_cluster'].value_counts().to_dict()}")
+else:
+    client_features['client_cluster'] = 0
+    print(f"   ⚠️  Too few clients for clustering, assigning all to cluster 0")
+
+# Calculate cluster-level statistics for similarity features
+cluster_stats = client_features.groupby('client_cluster').agg({
+    'order_frequency_per_month': 'mean',
+    'avg_revenue_per_order': 'mean',
+    'days_since_last_order_mean': 'mean'
+}).reset_index()
+
+cluster_stats.columns = ['client_cluster', 'cluster_avg_frequency', 
+                         'cluster_avg_revenue', 'cluster_avg_reorder_days']
+
+client_features = client_features.merge(cluster_stats, on='client_cluster', how='left')
+
+print(f"   ✅ Cluster statistics added: cluster_avg_frequency, cluster_avg_revenue")
+
+print("\n✅ Client-level features complete!")
+print(f"   Total client features: {len(client_features.columns)}")
+print(f"\nSample client features:")
+print(client_features[['client_name', 'total_revenue', 'client_value_tier', 
+                        'client_maturity', 'client_cluster']].head())

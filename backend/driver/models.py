@@ -174,7 +174,7 @@ class DeliveryItem(models.Model):
     """Model for individual delivery items within a delivery"""
     delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE, related_name='items')
     order = models.ForeignKey('clients.Order', on_delete=models.CASCADE)
-    farmer = models.ForeignKey('clients.Farmer', on_delete=models.CASCADE)
+    farmer = models.ForeignKey('clients.Client', on_delete=models.CASCADE)
     
     # Delivery details
     quantity_planned = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Planned quantity in tonnes")

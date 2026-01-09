@@ -5,6 +5,64 @@ from datetime import timedelta
 import json
 
 
+class Warehouse(models.Model):
+    """Model for Soya Excel warehouses/depots (route origins)"""
+
+    name = models.CharField(max_length=200, help_text="Warehouse name (e.g., 'Main Depot - Montreal')")
+    code = models.CharField(max_length=20, unique=True, help_text="Warehouse code (e.g., 'MTL-01')")
+
+    # Address information
+    address = models.CharField(max_length=500)
+    city = models.CharField(max_length=100)
+    province = models.CharField(max_length=50)
+    postal_code = models.CharField(max_length=20)
+    country = models.CharField(max_length=100, default="Canada")
+
+    # Geocoded coordinates
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    has_coordinates = models.BooleanField(default=False)
+
+    # Warehouse details
+    capacity_tonnes = models.DecimalField(max_digits=12, decimal_places=2, help_text="Total storage capacity in tonnes")
+    current_stock_tonnes = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    # Operating hours
+    operating_hours_start = models.TimeField(default='07:00:00', help_text="Warehouse opening time")
+    operating_hours_end = models.TimeField(default='18:00:00', help_text="Warehouse closing time")
+    operates_weekends = models.BooleanField(default=False)
+
+    # Contact information
+    manager_name = models.CharField(max_length=200, blank=True)
+    phone_number = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+
+    # Status
+    is_active = models.BooleanField(default=True)
+    is_primary = models.BooleanField(default=False, help_text="Primary/main warehouse for routes")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_primary', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    @property
+    def full_address(self):
+        """Return formatted full address"""
+        return f"{self.address}, {self.city}, {self.province} {self.postal_code}, {self.country}"
+
+    @property
+    def stock_utilization_percentage(self):
+        """Calculate current stock utilization"""
+        if self.capacity_tonnes > 0:
+            return (self.current_stock_tonnes / self.capacity_tonnes) * 100
+        return 0
+
+
 class Route(models.Model):
     """Model for delivery routes optimized for Soya Excel operations"""
     STATUS_CHOICES = [
@@ -56,7 +114,29 @@ class Route(models.Model):
     alix_route_reference = models.CharField(max_length=100, blank=True, help_text="ALIX system reference")
     gps_tracking_enabled = models.BooleanField(default=True)
     electronic_log_data = models.JSONField(default=dict, blank=True, help_text="Data from electronic truck logs")
-    
+
+    # Warehouse origin/destination
+    origin_warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='outbound_routes',
+        help_text="Starting warehouse/depot for this route"
+    )
+    return_to_warehouse = models.BooleanField(
+        default=True,
+        help_text="Whether route returns to origin warehouse"
+    )
+    destination_warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inbound_routes',
+        help_text="Ending warehouse if different from origin"
+    )
+
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_routes')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -86,8 +166,8 @@ class Route(models.Model):
 class RouteStop(models.Model):
     """Model for individual stops on a route with enhanced tracking"""
     route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='stops')
-    farmer = models.ForeignKey('clients.Farmer', on_delete=models.CASCADE)
-    order = models.ForeignKey('clients.Order', on_delete=models.CASCADE)
+    client = models.ForeignKey('clients.Client', on_delete=models.CASCADE, related_name='route_stops')
+    order = models.ForeignKey('clients.Order', on_delete=models.CASCADE, related_name='route_stops', null=True, blank=True)
     
     # Stop sequence and planning
     sequence_number = models.IntegerField()
@@ -148,7 +228,7 @@ class RouteStop(models.Model):
         unique_together = ['route', 'sequence_number']
     
     def __str__(self):
-        return f"{self.route.name} - Stop {self.sequence_number}: {self.farmer.name}"
+        return f"{self.route.name} - Stop {self.sequence_number}: {self.client.name}"
     
     @property
     def has_coordinates(self):
@@ -164,23 +244,23 @@ class RouteStop(models.Model):
     
     def get_coordinates(self):
         """
-        Get coordinates for this stop, using farmer's coordinates as fallback.
+        Get coordinates for this stop, using client's coordinates as fallback.
         Returns tuple (lat, lng) or None.
         """
         if self.has_coordinates:
             return self.coordinates_tuple
-        elif self.farmer.has_coordinates:
-            return self.farmer.coordinates_tuple
+        elif self.client.has_coordinates:
+            return self.client.coordinates_tuple
         return None
     
-    def update_coordinates_from_farmer(self, save=True):
+    def update_coordinates_from_client(self, save=True):
         """
-        Update stop coordinates from farmer's coordinates.
+        Update stop coordinates from client's coordinates.
         Returns True if coordinates were updated.
         """
-        if self.farmer.has_coordinates:
-            self.location_latitude = self.farmer.latitude
-            self.location_longitude = self.farmer.longitude
+        if self.client.has_coordinates:
+            self.location_latitude = self.client.latitude
+            self.location_longitude = self.client.longitude
             if save:
                 self.save(update_fields=['location_latitude', 'location_longitude'])
             return True
@@ -188,31 +268,32 @@ class RouteStop(models.Model):
     
     def geocode_location(self, save=True):
         """
-        Geocode this stop's location using farmer's address.
+        Geocode this stop's location using client's address.
         Returns geocoding result or None.
         """
-        if not self.farmer.address:
+        if not self.client.full_address:
             return None
-        
+
         try:
             from route.services import GoogleMapsService
-            
+
             maps_service = GoogleMapsService()
-            result = maps_service.geocode_address(self.farmer.address, self.farmer.province)
-            
+            address_str = f"{self.client.city}, {self.client.postal_code}, {self.client.country}"
+            result = maps_service.geocode_address(address_str)
+
             if result and save:
                 self.location_latitude = result['latitude']
                 self.location_longitude = result['longitude']
                 self.save(update_fields=['location_latitude', 'location_longitude'])
-                
-                # Also update farmer's coordinates if they don't have them
-                if not self.farmer.has_coordinates:
-                    self.farmer.latitude = result['latitude']
-                    self.farmer.longitude = result['longitude']
-                    self.farmer.save(update_fields=['latitude', 'longitude'])
-            
+
+                # Also update client's coordinates if they don't have them
+                if not self.client.has_coordinates:
+                    self.client.latitude = result['latitude']
+                    self.client.longitude = result['longitude']
+                    self.client.save(update_fields=['latitude', 'longitude'])
+
             return result
-            
+
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)

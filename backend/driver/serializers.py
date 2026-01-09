@@ -86,19 +86,20 @@ class DeliverySerializer(serializers.ModelSerializer):
     vehicle_info = serializers.SerializerMethodField()
     route_name = serializers.CharField(source='route.name', read_only=True)
     route = serializers.SerializerMethodField()
+    route_navigation = serializers.SerializerMethodField()
     items = DeliveryItemSerializer(many=True, read_only=True)
     km_per_tonne = serializers.ReadOnlyField()
     efficiency_rating = serializers.ReadOnlyField()
-    
+
     class Meta:
         model = Delivery
-        fields = ['id', 'driver', 'driver_name', 'vehicle', 'vehicle_info', 'route', 'route_name', 
-                  'status', 'assigned_date', 'start_time', 'end_time', 
+        fields = ['id', 'driver', 'driver_name', 'vehicle', 'vehicle_info', 'route', 'route_name',
+                  'route_navigation', 'status', 'assigned_date', 'start_time', 'end_time',
                   'total_quantity_delivered', 'actual_distance_km', 'actual_duration_minutes',
                   'fuel_consumed_liters', 'co2_emissions_kg', 'gps_tracking_data',
                   'km_per_tonne', 'efficiency_rating', 'notes', 'items']
         read_only_fields = ['assigned_date']
-    
+
     def get_vehicle_info(self, obj):
         if obj.vehicle:
             return {
@@ -108,13 +109,68 @@ class DeliverySerializer(serializers.ModelSerializer):
                 'capacity_tonnes': float(obj.vehicle.capacity_tonnes)
             }
         return None
-    
+
     def get_route(self, obj):
         return {
             'id': obj.route.id,
             'name': obj.route.name,
-            'date': obj.route.date.isoformat() if obj.route.date else None
+            'date': obj.route.date.isoformat() if obj.route.date else None,
+            'total_distance_km': float(obj.route.total_distance) if obj.route.total_distance else None,
+            'estimated_duration_minutes': obj.route.estimated_duration,
+            'total_stops': obj.route.stops.count() if obj.route else 0
         }
+
+    def get_route_navigation(self, obj):
+        """
+        Get Google Maps navigation data for the delivery route.
+        Only calculated for active and assigned deliveries.
+        """
+        if obj.status not in ['assigned', 'in_progress'] or not obj.route:
+            return None
+
+        try:
+            from route.google_maps_integration import GoogleMapsRouteSharing
+
+            maps_service = GoogleMapsRouteSharing()
+
+            # Determine device platform from context if available
+            request = self.context.get('request')
+            user_agent = request.META.get('HTTP_USER_AGENT', '').lower() if request else ''
+
+            # Detect platform from user agent
+            if 'android' in user_agent:
+                url_type = 'android'
+            elif 'iphone' in user_agent or 'ipad' in user_agent:
+                url_type = 'ios'
+            else:
+                url_type = 'mobile'
+
+            # Generate navigation URLs for all platforms
+            result = maps_service.generate_route_url(obj.route.id, url_type)
+
+            if result.get('success'):
+                # Also generate all platform URLs for flexibility
+                all_urls = {
+                    'web': maps_service.generate_route_url(obj.route.id, 'web').get('url'),
+                    'mobile': maps_service.generate_route_url(obj.route.id, 'mobile').get('url'),
+                    'android': maps_service.generate_route_url(obj.route.id, 'android').get('url'),
+                    'ios': maps_service.generate_route_url(obj.route.id, 'ios').get('url'),
+                }
+
+                return {
+                    'recommended_url': result.get('url'),
+                    'all_urls': all_urls,
+                    'waypoints_count': result.get('waypoints_count'),
+                    'instructions': result.get('instructions')
+                }
+
+            return None
+
+        except Exception as e:
+            # Silently fail if navigation cannot be generated
+            import logging
+            logging.getLogger(__name__).warning(f"Could not generate navigation data: {str(e)}")
+            return None
 
 
 class DeliveryCreateSerializer(serializers.ModelSerializer):

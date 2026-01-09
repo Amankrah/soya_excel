@@ -1,0 +1,31 @@
+{
+  "feature_columns": [
+    "total_amount_delivered_tm",
+    "order_sequence",
+    "order_month",
+    "order_quarter",
+    "order_day_of_week",
+    "is_weekend",
+    "days_since_last_order",
+    "product_encoded",
+    "rolling_avg_quantity_3",
+    "rolling_std_quantity_3",
+    "total_amount_delivered_tm_mean",
+    "total_amount_delivered_tm_std",
+    "total_amount_delivered_tm_count",
+    "days_since_last_order_mean",
+    "days_since_last_order_std",
+    "client_lifetime_days",
+    "order_frequency_per_month"
+  ],
+  "feature_count": 17,
+  "model_type": "Bidirectional LSTM",
+  "target_variable": "days_until_next_order",
+  "input_shape": [
+    1,
+    17
+  ],
+  "split_strategy": "random",
+  "training_samples": 2819,
+  "test_samples": 705
+}

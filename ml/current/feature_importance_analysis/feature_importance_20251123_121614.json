@@ -1,0 +1,112 @@
+{
+  "timestamp": "2025-11-23T12:16:14.937552",
+  "models": {
+    "bilstm": {
+      "test_mae": 6.172135977144756,
+      "test_rmse": 14.64847846834766,
+      "test_r2": 0.7153653789579333
+    },
+    "adaboost": {
+      "test_mae": 6.5178620232684885,
+      "test_rmse": 14.158496135682833,
+      "test_r2": 0.7340886084371332
+    }
+  },
+  "feature_importance": {
+    "days_since_last_order_mean": {
+      "adaboost": 73.21604762665555,
+      "bilstm": 27.305947602172587,
+      "average": 50.260997614414066
+    },
+    "order_frequency_per_month": {
+      "adaboost": 4.452651518606478,
+      "bilstm": 28.604091927186737,
+      "average": 16.52837172289661
+    },
+    "total_amount_delivered_tm_count": {
+      "adaboost": 0.6658198922316516,
+      "bilstm": 28.795683026725776,
+      "average": 14.730751459478714
+    },
+    "days_since_last_order_std": {
+      "adaboost": 4.456431798755284,
+      "bilstm": 3.1696890553306685,
+      "average": 3.813060427042976
+    },
+    "order_sequence": {
+      "adaboost": 2.3151824350855312,
+      "bilstm": 4.302851025011158,
+      "average": 3.3090167300483446
+    },
+    "total_amount_delivered_tm": {
+      "adaboost": 2.3194428901534487,
+      "bilstm": 2.2238338025156454,
+      "average": 2.271638346334547
+    },
+    "days_since_last_order": {
+      "adaboost": 3.764660032760786,
+      "bilstm": 0.07583841403124181,
+      "average": 1.920249223396014
+    },
+    "client_lifetime_days": {
+      "adaboost": 0.4772348465493571,
+      "bilstm": 2.421907905070283,
+      "average": 1.44957137580982
+    },
+    "rolling_std_quantity_3": {
+      "adaboost": 2.479834346916717,
+      "bilstm": 0.169716516850653,
+      "average": 1.324775431883685
+    },
+    "rolling_avg_quantity_3": {
+      "adaboost": 2.1949807860447157,
+      "bilstm": 0.3173334675321755,
+      "average": 1.2561571267884455
+    },
+    "order_month": {
+      "adaboost": 0.9431618320422309,
+      "bilstm": 1.334720745832098,
+      "average": 1.1389412889371644
+    },
+    "order_quarter": {
+      "adaboost": 0.24058655682194616,
+      "bilstm": 0.7430120216522977,
+      "average": 0.49179928923712196
+    },
+    "total_amount_delivered_tm_std": {
+      "adaboost": 0.8569257620711925,
+      "bilstm": 0.08455172226406864,
+      "average": 0.47073874216763056
+    },
+    "product_encoded": {
+      "adaboost": 0.6573710989930138,
+      "bilstm": 0.21553412641826092,
+      "average": 0.4364526127056374
+    },
+    "order_day_of_week": {
+      "adaboost": 0.712843605971073,
+      "bilstm": 0.034920269966646086,
+      "average": 0.37388193796885955
+    },
+    "total_amount_delivered_tm_mean": {
+      "adaboost": 0.24682497034101075,
+      "bilstm": 0.200368371439695,
+      "average": 0.22359667089035287
+    },
+    "is_weekend": {
+      "adaboost": 0.0,
+      "bilstm": 0.0,
+      "average": 0.0
+    }
+  },
+  "category_importance": {
+    "Client History & Behavior": 14.783833637173032,
+    "Sequential Features": 1.872734671376991,
+    "Order Characteristics": 1.109381263612932,
+    "Temporal Features": 0.5011556290357865
+  },
+  "agreement": {
+    "spearman_correlation": 0.38480392156862747,
+    "p_value": 0.1272159953159875
+  }
+}

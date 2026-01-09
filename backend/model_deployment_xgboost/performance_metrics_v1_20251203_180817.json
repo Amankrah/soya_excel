@@ -1,0 +1,20 @@
+{
+  "model_name": "XGBoost (Tuned)",
+  "model_version": "v1_20251203_180817",
+  "deployment_date": "2025-12-03T18:08:17.463032",
+  "train_mae": 3.855481099555921,
+  "test_mae": 4.880426301051638,
+  "train_rmse": 5.201482795972512,
+  "test_rmse": 6.559922864958498,
+  "train_r2": 0.6346582238899356,
+  "test_r2": 0.48228664813524613,
+  "target_mean": 8.417034700315458,
+  "target_std": 8.608243496813769,
+  "target_median": 6.0,
+  "target_min": 0.0,
+  "target_max": 30.0,
+  "train_size": 1585,
+  "test_size": 427,
+  "total_clients": 77,
+  "total_features": 62
+}

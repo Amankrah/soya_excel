@@ -1,0 +1,21 @@
+{
+  "model_name": "Bidirectional LSTM",
+  "model_version": "v1_20251123_073507",
+  "deployment_date": "2025-11-23T07:35:07.149209",
+  "train_mae": 9.113148034549258,
+  "test_mae": 10.631868532870678,
+  "train_rmse": 23.575346958363763,
+  "test_rmse": 24.74686427921929,
+  "train_r2": 0.6102675764545644,
+  "test_r2": 0.5360236370352356,
+  "target_mean": 21.338063142958497,
+  "target_std": 37.770424636568116,
+  "target_median": 8.0,
+  "target_min": 0.0,
+  "target_max": 363.0,
+  "split_strategy": "random",
+  "train_size": 2819,
+  "test_size": 705,
+  "total_clients": 147,
+  "test_clients": 106
+}

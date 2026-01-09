@@ -12,7 +12,7 @@ from .serializers import (
     SupplyTransactionSerializer, WeeklyDistributionPlanSerializer,
     KPIMetricsSerializer, DashboardSerializer
 )
-from clients.models import Farmer, Order, FeedStorage
+from clients.models import Client, Order
 from driver.models import Driver, Delivery
 from route.models import Route
 
@@ -30,22 +30,38 @@ class ManagerViewSet(viewsets.ModelViewSet):
         month_start = today.replace(day=1)
         
         # Get counts
-        total_farmers = Farmer.objects.filter(is_active=True).count()
+        total_clients = Client.objects.filter(is_active=True).count()
         active_routes = Route.objects.filter(
             status='active',
             date=today
         ).count()
         available_drivers = Driver.objects.filter(is_available=True).count()
-        
-        # Low stock and emergency alerts (Soya Excel thresholds)
-        low_stock_alerts = FeedStorage.objects.filter(
-            Q(current_quantity__lte=F('low_stock_threshold_tonnes')) |
-            Q(current_quantity__lte=F('capacity') * F('low_stock_threshold_percentage') / 100)
+
+        # Prediction-based alerts using date-only comparison (matching client statistics)
+        # Overdue clients (past predicted date)
+        overdue_alerts = Client.objects.filter(
+            is_active=True,
+            predicted_next_order_date__isnull=False,
+            predicted_next_order_date__date__lt=today
         ).count()
-        
-        emergency_alerts = FeedStorage.objects.filter(
-            Q(current_quantity__lte=0.5) | 
-            Q(current_quantity__lte=F('capacity') * 0.1)
+
+        # Urgent clients (0-3 days, EXCLUDING overdue)
+        cutoff_3days = today + timedelta(days=3)
+        urgent_alerts = Client.objects.filter(
+            is_active=True,
+            predicted_next_order_date__isnull=False,
+            predicted_next_order_date__date__gte=today,  # NOT overdue (today or future)
+            predicted_next_order_date__date__lte=cutoff_3days
+        ).count()
+
+        # High priority clients (4-7 days from today)
+        high_start = today + timedelta(days=4)
+        high_end = today + timedelta(days=7)
+        high_priority_alerts = Client.objects.filter(
+            is_active=True,
+            predicted_next_order_date__isnull=False,
+            predicted_next_order_date__date__gte=high_start,
+            predicted_next_order_date__date__lte=high_end
         ).count()
         
         # Pending orders
@@ -70,11 +86,12 @@ class ManagerViewSet(viewsets.ModelViewSet):
             })
         
         data = {
-            'total_farmers': total_farmers,
+            'total_clients': total_clients,
             'active_routes': active_routes,
             'available_drivers': available_drivers,
-            'low_stock_alerts': low_stock_alerts,
-            'emergency_alerts': emergency_alerts,
+            'overdue_alerts': overdue_alerts,
+            'urgent_alerts': urgent_alerts,
+            'high_priority_alerts': high_priority_alerts,
             'pending_orders': pending_orders,
             'monthly_deliveries': monthly_deliveries,
             'inventory_status': inventory_status,

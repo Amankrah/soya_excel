@@ -1,0 +1,111 @@
+
+================================================================================
+FEATURE IMPORTANCE ANALYSIS REPORT
+================================================================================
+Generated: 2025-11-23 12:16:14
+Models Analyzed: Bidirectional LSTM, AdaBoost
+
+================================================================================
+MODEL PERFORMANCE SUMMARY
+================================================================================
+1. Bidirectional LSTM (Best Model)
+   - Test MAE: 6.17 days
+   - Test RMSE: 14.65 days
+   - Test R²: 0.7154
+
+2. AdaBoost (Second Best)
+   - Test MAE: 6.52 days
+   - Test RMSE: 14.16 days
+   - Test R²: 0.7341
+
+================================================================================
+TOP 10 MOST IMPORTANT FEATURES (CONSENSUS)
+================================================================================
+
+1. days_since_last_order_mean
+   AdaBoost: 73.22%
+   BiLSTM:   27.31%
+   Average:  50.26%
+
+2. order_frequency_per_month
+   AdaBoost: 4.45%
+   BiLSTM:   28.60%
+   Average:  16.53%
+
+3. total_amount_delivered_tm_count
+   AdaBoost: 0.67%
+   BiLSTM:   28.80%
+   Average:  14.73%
+
+4. days_since_last_order_std
+   AdaBoost: 4.46%
+   BiLSTM:   3.17%
+   Average:  3.81%
+
+5. order_sequence
+   AdaBoost: 2.32%
+   BiLSTM:   4.30%
+   Average:  3.31%
+
+6. total_amount_delivered_tm
+   AdaBoost: 2.32%
+   BiLSTM:   2.22%
+   Average:  2.27%
+
+7. days_since_last_order
+   AdaBoost: 3.76%
+   BiLSTM:   0.08%
+   Average:  1.92%
+
+8. client_lifetime_days
+   AdaBoost: 0.48%
+   BiLSTM:   2.42%
+   Average:  1.45%
+
+9. rolling_std_quantity_3
+   AdaBoost: 2.48%
+   BiLSTM:   0.17%
+   Average:  1.32%
+
+10. rolling_avg_quantity_3
+   AdaBoost: 2.19%
+   BiLSTM:   0.32%
+   Average:  1.26%
+
+================================================================================
+FEATURE CATEGORY IMPORTANCE
+================================================================================
+
+Client History & Behavior: 14.78%
+Sequential Features: 1.87%
+Order Characteristics: 1.11%
+Temporal Features: 0.50%
+
+================================================================================
+MODEL AGREEMENT ANALYSIS
+================================================================================
+Spearman Correlation: 0.3848
+P-value: 1.2722e-01
+
+❌ WEAK AGREEMENT: Models disagree on feature importance
+
+================================================================================
+KEY BUSINESS INSIGHTS
+================================================================================
+
+1. Client ordering history is the strongest predictor
+2. Recent patterns (last 3 orders) are crucial
+3. Temporal features (month, day) have lower importance
+4. Model works best for clients with consistent patterns
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+1. Focus data quality efforts on order date tracking
+2. Segment clients by ordering frequency for better predictions
+3. Monitor 'days_since_last_order' as key early warning indicator
+4. Consider removing least important features to simplify model
+5. Implement different strategies for new vs. established clients
+
+================================================================================

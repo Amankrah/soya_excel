@@ -1,0 +1,420 @@
+# These cells should be added after cell 45 in the notebook
+
+## CELL 46 - MARKDOWN
+# Feature Engineering
+
+Now that we understand the data, let's create features for predicting reorder timing.
+
+## CELL 47 - CODE
+# Prepare base dataset for feature engineering
+print("FEATURE ENGINEERING - PART 1: BASE FEATURES")
+print("="*80)
+
+# Start with clean data (≥7 days reorders only)
+df_features = df_valid[df_valid['days_since_last_order'] >= 7].copy()
+
+# Sort by client, product, and date
+df_features = df_features.sort_values(['Client', 'Produit', 'expedition_date']).reset_index(drop=True)
+
+print(f"\nBase dataset: {len(df_features):,} records")
+print(f"Date range: {df_features['expedition_date'].min().date()} to {df_features['expedition_date'].max().date()}")
+print(f"Unique client-product pairs: {df_features.groupby(['Client', 'Produit']).ngroups:,}")
+
+## CELL 48 - MARKDOWN
+### 1. Client-Level Features
+
+Features that capture client behavior patterns
+
+## CELL 49 - CODE
+# Client-level aggregated features
+print("\n1. CLIENT-LEVEL FEATURES")
+print("-" * 80)
+
+client_features = df_features.groupby('Client').agg({
+    'expedition_date': ['count', 'min', 'max'],
+    'Total Qte expediee(TM) details': ['sum', 'mean', 'std', 'min', 'max'],
+    'Produit': 'nunique',
+    'days_since_last_order': ['mean', 'median', 'std']
+}).reset_index()
+
+# Flatten column names
+client_features.columns = ['Client',
+                           'client_total_orders', 'client_first_order', 'client_last_order',
+                           'client_total_quantity', 'client_avg_quantity', 'client_std_quantity',
+                           'client_min_quantity', 'client_max_quantity',
+                           'client_num_products',
+                           'client_avg_reorder_days', 'client_median_reorder_days', 'client_std_reorder_days']
+
+# Calculate client tenure
+client_features['client_days_active'] = (client_features['client_last_order'] -
+                                         client_features['client_first_order']).dt.days
+
+# Calculate order frequency
+client_features['client_orders_per_month'] = (client_features['client_total_orders'] /
+                                               (client_features['client_days_active'] / 30.44)).round(2)
+
+print(f"Created {len(client_features)} client feature records")
+print(f"\nSample client features:")
+display(client_features.head())
+
+## CELL 50 - MARKDOWN
+### 2. Product-Level Features
+
+Features that capture product reorder patterns
+
+## CELL 51 - CODE
+# Product-level aggregated features
+print("\n2. PRODUCT-LEVEL FEATURES")
+print("-" * 80)
+
+product_features = df_features.groupby('Produit').agg({
+    'expedition_date': 'count',
+    'Total Qte expediee(TM) details': ['mean', 'std', 'min', 'max'],
+    'days_since_last_order': ['mean', 'median', 'std']
+}).reset_index()
+
+# Flatten column names
+product_features.columns = ['Produit',
+                            'product_total_orders',
+                            'product_avg_quantity', 'product_std_quantity',
+                            'product_min_quantity', 'product_max_quantity',
+                            'product_avg_reorder_days', 'product_median_reorder_days',
+                            'product_std_reorder_days']
+
+# Create product category based on reorder speed
+def categorize_product(avg_days):
+    if avg_days < 15:
+        return 'fast'
+    elif avg_days < 30:
+        return 'medium'
+    else:
+        return 'slow'
+
+product_features['product_reorder_category'] = product_features['product_avg_reorder_days'].apply(categorize_product)
+
+print(f"Created {len(product_features)} product feature records")
+print(f"\nProduct categories:")
+print(product_features['product_reorder_category'].value_counts())
+print(f"\nSample product features:")
+display(product_features.head())
+
+## CELL 52 - MARKDOWN
+### 3. Client-Product Interaction Features
+
+Features specific to each client-product combination
+
+## CELL 53 - CODE
+# Client-Product pair features
+print("\n3. CLIENT-PRODUCT INTERACTION FEATURES")
+print("-" * 80)
+
+client_product_features = df_features.groupby(['Client', 'Produit']).agg({
+    'expedition_date': ['count', 'min', 'max'],
+    'Total Qte expediee(TM) details': ['sum', 'mean', 'std', 'min', 'max'],
+    'days_since_last_order': ['mean', 'median', 'std', 'min', 'max']
+}).reset_index()
+
+# Flatten column names
+client_product_features.columns = ['Client', 'Produit',
+                                    'cp_total_orders', 'cp_first_order', 'cp_last_order',
+                                    'cp_total_quantity', 'cp_avg_quantity', 'cp_std_quantity',
+                                    'cp_min_quantity', 'cp_max_quantity',
+                                    'cp_avg_reorder_days', 'cp_median_reorder_days', 'cp_std_reorder_days',
+                                    'cp_min_reorder_days', 'cp_max_reorder_days']
+
+# Calculate client-product specific metrics
+client_product_features['cp_days_active'] = (client_product_features['cp_last_order'] -
+                                              client_product_features['cp_first_order']).dt.days
+
+# Reorder consistency (lower std = more consistent)
+client_product_features['cp_reorder_consistency'] = (
+    client_product_features['cp_std_reorder_days'] /
+    (client_product_features['cp_avg_reorder_days'] + 1)  # +1 to avoid division by zero
+).round(3)
+
+# Quantity consistency
+client_product_features['cp_quantity_consistency'] = (
+    client_product_features['cp_std_quantity'] /
+    (client_product_features['cp_avg_quantity'] + 1)
+).round(3)
+
+print(f"Created {len(client_product_features)} client-product feature records")
+print(f"\nSample client-product features:")
+display(client_product_features.head())
+
+## CELL 54 - MARKDOWN
+### 4. Historical Rolling Features
+
+Create rolling window features for recent ordering behavior
+
+## CELL 55 - CODE
+# Rolling window features (last 3, 5 orders)
+print("\n4. HISTORICAL ROLLING FEATURES")
+print("-" * 80)
+
+# For each row, calculate features from previous orders
+df_features_sorted = df_features.sort_values(['Client', 'Produit', 'expedition_date']).copy()
+
+# Last 3 orders average reorder days
+df_features_sorted['last_3_avg_reorder_days'] = (
+    df_features_sorted.groupby(['Client', 'Produit'])['days_since_last_order']
+    .rolling(window=3, min_periods=1).mean().reset_index(0, drop=True)
+).round(1)
+
+# Last 3 orders average quantity
+df_features_sorted['last_3_avg_quantity'] = (
+    df_features_sorted.groupby(['Client', 'Produit'])['Total Qte expediee(TM) details']
+    .rolling(window=3, min_periods=1).mean().reset_index(0, drop=True)
+).round(2)
+
+# Last 5 orders average reorder days
+df_features_sorted['last_5_avg_reorder_days'] = (
+    df_features_sorted.groupby(['Client', 'Produit'])['days_since_last_order']
+    .rolling(window=5, min_periods=1).mean().reset_index(0, drop=True)
+).round(1)
+
+# Days since last order (this becomes a key feature)
+df_features_sorted['days_since_last'] = df_features_sorted['days_since_last_order']
+
+# Order number in sequence for this client-product
+df_features_sorted['order_number'] = (
+    df_features_sorted.groupby(['Client', 'Produit']).cumcount() + 1
+)
+
+print(f"✓ Created rolling window features")
+print(f"\nSample with rolling features:")
+display(df_features_sorted[['Client', 'Produit', 'expedition_date',
+                            'days_since_last_order', 'last_3_avg_reorder_days',
+                            'last_5_avg_reorder_days', 'order_number']].head(10))
+
+## CELL 56 - MARKDOWN
+### 5. Temporal Features
+
+Extract time-based features from expedition date
+
+## CELL 57 - CODE
+# Temporal features (already extracted, but let's ensure they're included)
+print("\n5. TEMPORAL FEATURES")
+print("-" * 80)
+
+# These were already created in data exploration, verify they exist
+temporal_cols = ['year', 'month', 'quarter', 'day_of_week', 'week_of_year']
+print(f"Temporal features available: {temporal_cols}")
+
+# Add some additional temporal features
+df_features_sorted['is_holiday_season'] = df_features_sorted['month'].isin([11, 12]).astype(int)
+df_features_sorted['is_summer'] = df_features_sorted['month'].isin([6, 7, 8]).astype(int)
+df_features_sorted['is_weekday'] = (df_features_sorted['day_of_week'] < 5).astype(int)
+
+# Season encoding
+def get_season(month):
+    if month in [12, 1, 2]:
+        return 'winter'
+    elif month in [3, 4, 5]:
+        return 'spring'
+    elif month in [6, 7, 8]:
+        return 'summer'
+    else:
+        return 'fall'
+
+df_features_sorted['season'] = df_features_sorted['month'].apply(get_season)
+
+print(f"✓ Added seasonal and holiday features")
+print(f"\nTemporal feature distribution:")
+print(df_features_sorted[['season', 'is_holiday_season', 'is_summer', 'is_weekday']].describe())
+
+## CELL 58 - MARKDOWN
+### 6. Merge All Features
+
+Combine all feature sets into final feature matrix
+
+## CELL 59 - CODE
+# Merge all features into one dataframe
+print("\n6. MERGING ALL FEATURES")
+print("="*80)
+
+# Start with the sorted dataframe with rolling features
+df_final = df_features_sorted.copy()
+
+# Merge client features
+df_final = df_final.merge(client_features, on='Client', how='left')
+
+# Merge product features
+df_final = df_final.merge(product_features, on='Produit', how='left')
+
+# Merge client-product features
+df_final = df_final.merge(client_product_features, on=['Client', 'Produit'], how='left')
+
+print(f"✓ Merged all feature sets")
+print(f"\nFinal feature matrix shape: {df_final.shape}")
+print(f"Total features: {df_final.shape[1]}")
+
+# Show feature columns
+print(f"\nFeature categories:")
+client_feat_cols = [c for c in df_final.columns if c.startswith('client_')]
+product_feat_cols = [c for c in df_final.columns if c.startswith('product_')]
+cp_feat_cols = [c for c in df_final.columns if c.startswith('cp_')]
+temporal_feat_cols = ['year', 'month', 'quarter', 'day_of_week', 'week_of_year',
+                      'season', 'is_holiday_season', 'is_summer', 'is_weekday']
+rolling_feat_cols = ['last_3_avg_reorder_days', 'last_3_avg_quantity',
+                     'last_5_avg_reorder_days', 'order_number']
+
+print(f"  - Client features: {len(client_feat_cols)}")
+print(f"  - Product features: {len(product_feat_cols)}")
+print(f"  - Client-Product features: {len(cp_feat_cols)}")
+print(f"  - Temporal features: {len(temporal_feat_cols)}")
+print(f"  - Rolling window features: {len(rolling_feat_cols)}")
+
+## CELL 60 - MARKDOWN
+### 7. Create Target Variable
+
+Define what we're trying to predict
+
+## CELL 61 - CODE
+# Create target variable: days until NEXT order
+print("\n7. CREATE TARGET VARIABLE")
+print("="*80)
+
+# Shift to get next reorder interval (this is what we want to predict)
+df_final['target_days_to_next_order'] = (
+    df_final.groupby(['Client', 'Produit'])['days_since_last_order'].shift(-1)
+)
+
+# Remove last order for each client-product (no target)
+df_final_with_target = df_final[df_final['target_days_to_next_order'].notna()].copy()
+
+print(f"\nRecords with target variable: {len(df_final_with_target):,}")
+print(f"Records dropped (last order per client-product): {len(df_final) - len(df_final_with_target):,}")
+
+print(f"\nTarget variable statistics:")
+print(df_final_with_target['target_days_to_next_order'].describe())
+
+# Visualize target distribution
+plt.figure(figsize=(14, 5))
+
+plt.subplot(1, 2, 1)
+plt.hist(df_final_with_target['target_days_to_next_order'], bins=50, color='steelblue', edgecolor='black', alpha=0.7)
+plt.xlabel('Days to Next Order', fontsize=11)
+plt.ylabel('Frequency', fontsize=11)
+plt.title('Target Variable Distribution', fontsize=12, fontweight='bold')
+plt.axvline(df_final_with_target['target_days_to_next_order'].mean(),
+            color='red', linestyle='--', linewidth=2, label=f'Mean: {df_final_with_target["target_days_to_next_order"].mean():.1f}')
+plt.axvline(df_final_with_target['target_days_to_next_order'].median(),
+            color='green', linestyle='--', linewidth=2, label=f'Median: {df_final_with_target["target_days_to_next_order"].median():.1f}')
+plt.legend()
+plt.grid(axis='y', alpha=0.3)
+
+plt.subplot(1, 2, 2)
+plt.boxplot(df_final_with_target['target_days_to_next_order'], vert=True, patch_artist=True,
+           boxprops=dict(facecolor='lightblue'),
+           medianprops=dict(color='red', linewidth=2))
+plt.ylabel('Days to Next Order', fontsize=11)
+plt.title('Target Variable Box Plot', fontsize=12, fontweight='bold')
+plt.grid(axis='y', alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+print("\n✓ Target variable created and validated")
+
+## CELL 62 - MARKDOWN
+### 8. Feature Selection
+
+Select final features for modeling
+
+## CELL 63 - CODE
+# Select features for modeling
+print("\n8. FINAL FEATURE SELECTION")
+print("="*80)
+
+# Define feature columns (exclude non-feature columns)
+exclude_cols = ['No Expédition', 'No Commande client', 'Client', 'Produit',
+                'Code Postal livraison', 'Ville Livraison', 'Pays livraison',
+                'Date création SO', 'Date promise = expedition', 'Date d\'expédition',
+                'Date et Heure expédition', 'Contrat', 'Total CCommaommandé_converti',
+                'Expédié', 'Source_File', 'Ville livraison', 'Date promise',
+                'Total Qte commandee(TM) details', 'No Commande', 'No Expedition',
+                'Code Postal', 'Ville', 'Pays', 'Date Expédition', 'Date Promise',
+                '# Contrat', 'Tag Inventaire', 'ISV.inventory_location',
+                'Total Commande_converti', '# Expédition', '# PO', 'Transporteur',
+                '# Facture', 'COST', 'TM', 'expedition_date', 'creation_date',
+                'promise_date', 'days_since_last_order', 'target_days_to_next_order',
+                'client_first_order', 'client_last_order', 'cp_first_order', 'cp_last_order']
+
+# Get all numeric and categorical features
+feature_cols = [col for col in df_final_with_target.columns if col not in exclude_cols]
+
+# Separate numeric and categorical
+numeric_features = df_final_with_target[feature_cols].select_dtypes(include=[np.number]).columns.tolist()
+categorical_features = df_final_with_target[feature_cols].select_dtypes(include=['object']).columns.tolist()
+
+print(f"Total features selected: {len(feature_cols)}")
+print(f"  - Numeric features: {len(numeric_features)}")
+print(f"  - Categorical features: {len(categorical_features)}")
+
+print(f"\nNumeric features ({len(numeric_features)}):")
+for i, feat in enumerate(numeric_features, 1):
+    print(f"  {i:2d}. {feat}")
+
+print(f"\nCategorical features ({len(categorical_features)}):")
+for i, feat in enumerate(categorical_features, 1):
+    print(f"  {i:2d}. {feat}")
+
+# Check for missing values in features
+missing_in_features = df_final_with_target[feature_cols].isnull().sum()
+missing_in_features = missing_in_features[missing_in_features > 0]
+
+if len(missing_in_features) > 0:
+    print(f"\n⚠️ Features with missing values:")
+    display(pd.DataFrame({'Feature': missing_in_features.index,
+                         'Missing_Count': missing_in_features.values}))
+else:
+    print(f"\n✓ No missing values in feature columns")
+
+## CELL 64 - MARKDOWN
+### 9. Save Feature-Engineered Dataset
+
+Save the final dataset for modeling
+
+## CELL 65 - CODE
+# Save feature-engineered dataset
+print("\n9. SAVING FEATURE-ENGINEERED DATASET")
+print("="*80)
+
+# Create final dataset with features and target
+modeling_data = df_final_with_target[feature_cols + ['target_days_to_next_order', 'Client', 'Produit', 'expedition_date']].copy()
+
+# Fill any missing values
+for col in numeric_features:
+    if modeling_data[col].isnull().sum() > 0:
+        modeling_data[col] = modeling_data[col].fillna(modeling_data[col].median())
+
+print(f"Final modeling dataset shape: {modeling_data.shape}")
+print(f"  - Records: {len(modeling_data):,}")
+print(f"  - Features: {len(feature_cols)}")
+print(f"  - Target: target_days_to_next_order")
+
+# Save to CSV
+output_file = 'reorder_prediction_features.csv'
+modeling_data.to_csv(output_file, index=False)
+print(f"\n✓ Dataset saved to: {output_file}")
+
+# Show summary statistics
+print(f"\nDataset summary:")
+print(f"  Date range: {modeling_data['expedition_date'].min().date()} to {modeling_data['expedition_date'].max().date()}")
+print(f"  Unique clients: {modeling_data['Client'].nunique()}")
+print(f"  Unique products: {modeling_data['Produit'].nunique()}")
+print(f"  Unique client-product pairs: {modeling_data.groupby(['Client', 'Produit']).ngroups}")
+
+print(f"\nTarget variable range: {modeling_data['target_days_to_next_order'].min():.0f} to {modeling_data['target_days_to_next_order'].max():.0f} days")
+print(f"Mean target: {modeling_data['target_days_to_next_order'].mean():.1f} days")
+print(f"Median target: {modeling_data['target_days_to_next_order'].median():.1f} days")
+
+print("\n" + "="*80)
+print("FEATURE ENGINEERING COMPLETE!")
+print("="*80)
+print("\nNext steps:")
+print("  1. Create train/test split (chronological)")
+print("  2. Train baseline models")
+print("  3. Evaluate and tune models")
+print("  4. Make predictions for active clients")

@@ -123,11 +123,11 @@ class KPIMetricsSerializer(serializers.ModelSerializer):
 
 class DashboardSerializer(serializers.Serializer):
     """Serializer for Soya Excel dashboard summary data"""
-    total_farmers = serializers.IntegerField()
+    total_clients = serializers.IntegerField()
     active_routes = serializers.IntegerField()
     available_drivers = serializers.IntegerField()
-    low_stock_alerts = serializers.IntegerField()
-    emergency_alerts = serializers.IntegerField()
+    high_priority_alerts = serializers.IntegerField()
+    urgent_alerts = serializers.IntegerField()
     pending_orders = serializers.IntegerField()
     monthly_deliveries = serializers.IntegerField()
-    inventory_status = serializers.ListField(child=serializers.DictField()) 
+    inventory_status = serializers.ListField(child=serializers.DictField(), required=False) 

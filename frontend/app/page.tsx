@@ -3,14 +3,15 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { 
-  Truck, 
-  Globe, 
-  BarChart3, 
-  Shield, 
-  Zap, 
+import {
+  Truck,
+  Globe,
+  BarChart3,
+  Shield,
+  Brain,
   Package,
   ArrowRight,
+  TrendingUp,
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -32,19 +33,14 @@ export default function LandingPage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Soya Excel</h1>
-                <p className="text-xs text-gray-500">Feed Distribution Management System</p>
+                <p className="text-xs text-gray-500">Soybean Meal Distribution Platform</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <Link href="/login">
-                <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white">
-                  Login
-                </Button>
-              </Link>
-              <Link href="/login">
                 <Button className="bg-green-600 hover:bg-green-700 text-white">
-                  Get Started
+                  Access Platform
                 </Button>
               </Link>
             </div>
@@ -58,7 +54,7 @@ export default function LandingPage() {
           <div className="absolute -top-40 -right-40 w-80 h-80 bg-green-200/30 rounded-full blur-3xl"></div>
           <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-yellow-200/30 rounded-full blur-3xl"></div>
         </div>
-        
+
         <div className="relative z-10 container mx-auto px-4 text-center">
           <div className="flex justify-center mb-8">
             <div className="bg-white rounded-3xl p-6 shadow-2xl">
@@ -71,33 +67,28 @@ export default function LandingPage() {
               />
             </div>
           </div>
-          
+
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
             Soya Excel
             <span className="block text-4xl md:text-5xl text-green-600 mt-2">
-              Feed Distribution Management System
+              Distribution Management Platform
             </span>
           </h1>
-          
+
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8 leading-relaxed">
-            Sustainable soybean meal distribution management across Canada, USA & Spain. 
-            Streamline operations, monitor inventory, and optimize delivery routes.
+            Internal platform for managing soybean meal distribution operations across Canada, USA & Spain.
+            AI-powered predictions, real-time tracking, and optimized route planning.
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
             <Link href="/login">
               <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200">
-                Start Managing
+                Access Dashboard
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="#features">
-              <Button variant="outline" size="lg" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 text-lg px-8 py-4 rounded-xl">
-                Learn More
-              </Button>
-            </Link>
           </div>
-          
+
           {/* Brand Colors */}
           <div className="flex justify-center items-center gap-3">
             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -112,130 +103,156 @@ export default function LandingPage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Comprehensive Management Solutions
+              Platform Capabilities
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Everything you need to manage your soybean meal distribution business efficiently
+              Comprehensive tools for managing your soybean meal distribution operations
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
+            {/* Feature 1 - AI Predictions */}
             <div className="bg-gradient-to-br from-green-50 to-green-100 p-8 rounded-2xl border border-green-200 hover:shadow-lg transition-all duration-300">
               <div className="w-16 h-16 bg-green-600 rounded-xl flex items-center justify-center mb-6">
-                <Globe className="h-8 w-8 text-white" />
+                <Brain className="h-8 w-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Multi-Region Management</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">AI Reorder Predictions</h3>
               <p className="text-gray-600 leading-relaxed">
-                Manage operations across Canada, USA, and Spain from a single unified platform.
+                XGBoost ML model predicts client reorder dates with 95% accuracy using 62 features, replacing $110K sensor systems.
               </p>
             </div>
-            
-            {/* Feature 2 */}
+
+            {/* Feature 2 - Multi-Region */}
             <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-8 rounded-2xl border border-yellow-200 hover:shadow-lg transition-all duration-300">
               <div className="w-16 h-16 bg-yellow-500 rounded-xl flex items-center justify-center mb-6">
-                <Package className="h-8 w-8 text-black" />
+                <Globe className="h-8 w-8 text-black" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Inventory Tracking</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Multi-Region Operations</h3>
               <p className="text-gray-600 leading-relaxed">
-                Real-time monitoring of soybean meal inventory levels with automated alerts.
+                Manage clients across Canada (QC, ON, NB, BC), USA, and Spain from a unified platform.
               </p>
             </div>
-            
-            {/* Feature 3 */}
+
+            {/* Feature 3 - Inventory */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-2xl border border-gray-200 hover:shadow-lg transition-all duration-300">
               <div className="w-16 h-16 bg-gray-700 rounded-xl flex items-center justify-center mb-6">
-                <Truck className="h-8 w-8 text-white" />
+                <Package className="h-8 w-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Route Optimization</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Inventory Management</h3>
               <p className="text-gray-600 leading-relaxed">
-                Optimize delivery routes and manage driver assignments efficiently.
+                Track soybean meal inventory by product type (Trituro 44%, Dairy Trituro, Oil) with quality grades and silo locations.
               </p>
             </div>
-            
-            {/* Feature 4 */}
+
+            {/* Feature 4 - Route Optimization */}
             <div className="bg-gradient-to-br from-green-50 to-green-100 p-8 rounded-2xl border border-green-200 hover:shadow-lg transition-all duration-300">
               <div className="w-16 h-16 bg-green-600 rounded-xl flex items-center justify-center mb-6">
-                <Zap className="h-8 w-8 text-white" />
+                <Truck className="h-8 w-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Real-time Monitoring</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Smart Route Planning</h3>
               <p className="text-gray-600 leading-relaxed">
-                Live updates from BinConnect sensors for instant silo level monitoring.
+                Google Maps integration for geocoding, route optimization, and live driver tracking with delivery updates.
               </p>
             </div>
-            
-            {/* Feature 5 */}
+
+            {/* Feature 5 - KPI Tracking */}
             <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-8 rounded-2xl border border-yellow-200 hover:shadow-lg transition-all duration-300">
               <div className="w-16 h-16 bg-yellow-500 rounded-xl flex items-center justify-center mb-6">
-                <BarChart3 className="h-8 w-8 text-black" />
+                <TrendingUp className="h-8 w-8 text-black" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">KPI Dashboard</h3>
               <p className="text-gray-600 leading-relaxed">
-                Track key performance indicators and optimize operational efficiency.
+                Monitor KM/TM efficiency by product type, forecast accuracy (90-95% target), and weekly distribution plans.
               </p>
             </div>
-            
-            {/* Feature 6 */}
+
+            {/* Feature 6 - Analytics */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-2xl border border-gray-200 hover:shadow-lg transition-all duration-300">
               <div className="w-16 h-16 bg-gray-700 rounded-xl flex items-center justify-center mb-6">
-                <Shield className="h-8 w-8 text-white" />
+                <BarChart3 className="h-8 w-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Secure Access</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Analytics & Insights</h3>
               <p className="text-gray-600 leading-relaxed">
-                Role-based access control with secure authentication and data protection.
+                Track monthly usage trends, delivery performance, client priority alerts, and prediction confidence intervals.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-20 bg-gradient-to-r from-green-600 to-green-700">
+
+      {/* Key Modules Section */}
+      <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">6</div>
-              <div className="text-green-100">Regions Served</div>
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Core Modules
+            </h2>
+            <p className="text-xl text-gray-600">
+              Everything you need in one integrated platform
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <div className="bg-white p-6 rounded-xl border-2 border-gray-200 hover:border-green-500 transition-all">
+              <h3 className="font-bold text-lg text-gray-900 mb-2">Client Management</h3>
+              <p className="text-gray-600 text-sm">AI predictions, priority alerts, geocoding, monthly usage tracking</p>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">24/7</div>
-              <div className="text-green-100">Monitoring</div>
+
+            <div className="bg-white p-6 rounded-xl border-2 border-gray-200 hover:border-green-500 transition-all">
+              <h3 className="font-bold text-lg text-gray-900 mb-2">Order Processing</h3>
+              <p className="text-gray-600 text-sm">Batch tracking, delivery status, expedition dates, quantity monitoring</p>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">100%</div>
-              <div className="text-green-100">Secure</div>
+
+            <div className="bg-white p-6 rounded-xl border-2 border-gray-200 hover:border-green-500 transition-all">
+              <h3 className="font-bold text-lg text-gray-900 mb-2">Inventory Control</h3>
+              <p className="text-gray-600 text-sm">Stock levels, quality grades, silo management, low-stock alerts</p>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">Real-time</div>
-              <div className="text-green-100">Updates</div>
+
+            <div className="bg-white p-6 rounded-xl border-2 border-gray-200 hover:border-green-500 transition-all">
+              <h3 className="font-bold text-lg text-gray-900 mb-2">Route Planning</h3>
+              <p className="text-gray-600 text-sm">Driver assignment, GPS tracking, delivery optimization, completion updates</p>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border-2 border-gray-200 hover:border-green-500 transition-all">
+              <h3 className="font-bold text-lg text-gray-900 mb-2">Weekly Distribution</h3>
+              <p className="text-gray-600 text-sm">Tuesday planning, Friday finalization, forecast accuracy tracking</p>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border-2 border-gray-200 hover:border-green-500 transition-all">
+              <h3 className="font-bold text-lg text-gray-900 mb-2">Performance Metrics</h3>
+              <p className="text-gray-600 text-sm">KM/TM by product, delivery rates, trend analysis, target monitoring</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl font-bold text-gray-900 mb-6">
-            Ready to Transform Your Operations?
-          </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-            Join Soya Excel in revolutionizing soybean meal distribution management. 
-            Get started today and experience the difference.
-          </p>
-          <Link href="/login">
-            <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200">
-              Get Started Now
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
+          <div className="max-w-3xl mx-auto bg-gradient-to-br from-green-50 to-yellow-50 p-12 rounded-3xl border-2 border-green-200">
+            <Shield className="h-16 w-16 text-green-600 mx-auto mb-6" />
+            <h2 className="text-4xl font-bold text-gray-900 mb-6">
+              Authorized Access Only
+            </h2>
+            <p className="text-xl text-gray-600 mb-8">
+              This platform is for internal use by Soya Excel team members.
+              Log in with your credentials to access the management dashboard.
+            </p>
+            <Link href="/login">
+              <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200">
+                Employee Login
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="bg-green-600 rounded-lg p-2">
@@ -249,49 +266,45 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold">Soya Excel</h3>
-                  <p className="text-sm text-gray-400">Management System</p>
+                  <p className="text-sm text-gray-400">Internal Platform</p>
                 </div>
               </div>
               <p className="text-gray-400 text-sm">
-                Professional soybean meal distribution management across multiple regions.
+                Soybean meal distribution management system for team operations across Canada, USA, and Spain.
               </p>
             </div>
-            
+
             <div>
-              <h4 className="font-semibold mb-4">Features</h4>
+              <h4 className="font-semibold mb-4">Key Features</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li>Inventory Management</li>
+                <li>AI-Powered Reorder Predictions</li>
+                <li>Real-time Order Tracking</li>
                 <li>Route Optimization</li>
-                <li>Real-time Monitoring</li>
-                <li>KPI Dashboard</li>
+                <li>Inventory Management</li>
+                <li>KPI Analytics Dashboard</li>
               </ul>
             </div>
-            
+
             <div>
-              <h4 className="font-semibold mb-4">Regions</h4>
+              <h4 className="font-semibold mb-4">Products Managed</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li>🇨🇦 Canada (QC, ON, NB, BC)</li>
-                <li>🇺🇸 United States</li>
-                <li>🇪🇸 Spain</li>
+                <li>Trituro 44% (Soybean Meal)</li>
+                <li>Dairy Trituro (Premium Grade)</li>
+                <li>Soybean Oil Products</li>
               </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-4">Contact</h4>
-              <p className="text-gray-400 text-sm mb-4">
-                Ready to get started? Login to your account or contact our team.
-              </p>
-              <Link href="/login">
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
-                  Login Now
-                </Button>
-              </Link>
+              <div className="mt-6">
+                <Link href="/login">
+                  <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                    Access Platform
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
-          
+
           <div className="border-t border-gray-800 mt-8 pt-8 text-center">
             <p className="text-gray-400 text-sm">
-              © 2024 Soya Excel. All rights reserved. Professional feed distribution management.
+              © {new Date().getFullYear()} Soya Excel. Internal distribution management platform.
             </p>
           </div>
         </div>
