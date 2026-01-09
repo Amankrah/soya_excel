@@ -319,16 +319,21 @@ class OrderViewSet(viewsets.ModelViewSet):
                 }
                 # Convert datetime objects to ISO format strings
                 if combined.get('order_date'):
+                    combined['sales_order_creation_date'] = combined['order_date'].isoformat()
                     combined['order_date'] = combined['order_date'].isoformat()
                 if combined.get('final_delivery_date'):
+                    combined['actual_expedition_date'] = combined['final_delivery_date'].isoformat()
                     combined['final_delivery_date'] = combined['final_delivery_date'].isoformat()
                 if combined.get('promised_date'):
+                    combined['promised_expedition_date'] = combined['promised_date'].isoformat()
                     combined['promised_date'] = combined['promised_date'].isoformat()
 
                 # Convert Decimal to float for JSON serialization
                 if combined.get('total_ordered'):
+                    combined['total_amount_ordered_tm'] = float(combined['total_ordered'])
                     combined['total_ordered'] = float(combined['total_ordered'])
                 if combined.get('total_delivered'):
+                    combined['total_amount_delivered_tm'] = float(combined['total_delivered'])
                     combined['total_delivered'] = float(combined['total_delivered'])
 
                 aggregated_orders.append(combined)
