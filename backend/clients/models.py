@@ -431,8 +431,8 @@ class Order(models.Model):
             return None
 
         combined = batches.aggregate(
-            total_ordered=Sum('total_amount_ordered_tm'),
-            total_delivered=Sum('total_amount_delivered_tm'),
+            total_ordered=Max('total_amount_ordered_tm'),  # Use Max instead of Sum - all batches have same order total
+            total_delivered=Sum('total_amount_delivered_tm'),  # Sum delivered across batches
             first_order_date=Min('sales_order_creation_date'),
             last_delivery_date=Max('actual_expedition_date'),
             earliest_promised_date=Min('promised_expedition_date')

@@ -296,82 +296,120 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         """
-        List orders with batch aggregation.
+        List orders with batch aggregation and caching.
         Orders with the same client_order_number are aggregated into a single entry.
+        Results are cached to avoid expensive recomputation.
+
+        Query Parameters:
+            force_refresh: If 'true', bypass cache and recompute (default: false)
         """
-        queryset = self.filter_queryset(self.get_queryset())
+        from .models_analytics import AnalyticsCache
 
-        # Get unique order numbers
-        unique_order_numbers = queryset.values_list('client_order_number', flat=True).distinct()
+        # Get query parameters
+        force_refresh = request.query_params.get('force_refresh', 'false').lower() == 'true'
+        status_filter = request.query_params.get('status', 'all')
+        search_query = request.query_params.get('search', '')
+        page_num = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
 
-        # Aggregate batches for each order
-        aggregated_orders = []
-        for order_number in unique_order_numbers:
-            combined = Order.combine_batches(order_number)
-            if combined:
-                # Add unique ID for frontend (use client_order_number as key)
-                combined['id'] = order_number
+        # Generate cache key based on filters (not page number - cache all results)
+        cache_key = f"order_list_{status_filter}_{search_query[:50]}"
 
-                # Convert Client object to serializable format
-                client = combined['client']
-                combined['client'] = {
-                    'id': client.id,
-                    'name': client.name,
-                    'city': client.city,
-                    'country': client.country,
+        def compute_order_list():
+            """Compute aggregated order list - wrapped for caching"""
+            queryset = self.filter_queryset(self.get_queryset())
+
+            # Use a single optimized query to get all order data
+            # Group by client_order_number and aggregate
+            from django.db.models import Sum, Max, Min
+
+            order_data = queryset.values('client_order_number').annotate(
+                total_ordered=Max('total_amount_ordered_tm'),
+                total_delivered=Sum('total_amount_delivered_tm'),
+                first_order_date=Min('sales_order_creation_date'),
+                last_delivery_date=Max('actual_expedition_date'),
+                earliest_promised_date=Min('promised_expedition_date'),
+                batch_count=Count('id'),
+                client_id=Max('client_id'),
+                product_name=Max('product_name')
+            ).order_by('-last_delivery_date', '-first_order_date')
+
+            # Get all unique client IDs to fetch in one query
+            client_ids = [item['client_id'] for item in order_data if item['client_id']]
+            clients_dict = {c.id: c for c in Client.objects.filter(id__in=client_ids)}
+
+            # Build aggregated orders list
+            aggregated_orders = []
+            for item in order_data:
+                client = clients_dict.get(item['client_id'])
+                if not client:
+                    continue
+
+                order_dict = {
+                    'id': item['client_order_number'],
+                    'client_order_number': item['client_order_number'],
+                    'product_name': item['product_name'],
+                    'batch_count': item['batch_count'],
+
+                    # Client data
+                    'client': {
+                        'id': client.id,
+                        'name': client.name,
+                        'city': client.city,
+                        'country': client.country,
+                    },
+
+                    # Dates
+                    'sales_order_creation_date': item['first_order_date'].isoformat() if item['first_order_date'] else None,
+                    'order_date': item['first_order_date'].isoformat() if item['first_order_date'] else None,
+                    'actual_expedition_date': item['last_delivery_date'].isoformat() if item['last_delivery_date'] else None,
+                    'final_delivery_date': item['last_delivery_date'].isoformat() if item['last_delivery_date'] else None,
+                    'delivery_date': item['last_delivery_date'].isoformat() if item['last_delivery_date'] else None,
+                    'promised_expedition_date': item['earliest_promised_date'].isoformat() if item['earliest_promised_date'] else None,
+                    'promised_date': item['earliest_promised_date'].isoformat() if item['earliest_promised_date'] else None,
+
+                    # Quantities
+                    'total_ordered': float(item['total_ordered'] or 0),
+                    'total_amount_ordered_tm': float(item['total_ordered'] or 0),
+                    'total_delivered': float(item['total_delivered'] or 0),
+                    'total_amount_delivered_tm': float(item['total_delivered'] or 0),
                 }
 
-                # Convert datetime objects to ISO format strings and map field names
-                if combined.get('order_date'):
-                    combined['sales_order_creation_date'] = combined['order_date'].isoformat()
-                    combined['order_date'] = combined['order_date'].isoformat()
-                else:
-                    combined['sales_order_creation_date'] = None
-                    combined['order_date'] = None
-
-                if combined.get('final_delivery_date'):
-                    combined['actual_expedition_date'] = combined['final_delivery_date'].isoformat()
-                    combined['final_delivery_date'] = combined['final_delivery_date'].isoformat()
-                else:
-                    combined['actual_expedition_date'] = None
-                    combined['final_delivery_date'] = None
-
-                if combined.get('promised_date'):
-                    combined['promised_expedition_date'] = combined['promised_date'].isoformat()
-                    combined['promised_date'] = combined['promised_date'].isoformat()
-                else:
-                    combined['promised_expedition_date'] = None
-                    combined['promised_date'] = None
-
-                # Convert Decimal to float for JSON serialization
-                if combined.get('total_ordered'):
-                    combined['total_amount_ordered_tm'] = float(combined['total_ordered'])
-                    combined['total_ordered'] = float(combined['total_ordered'])
-                if combined.get('total_delivered'):
-                    combined['total_amount_delivered_tm'] = float(combined['total_delivered'])
-                    combined['total_delivered'] = float(combined['total_delivered'])
-
-                # Add status field for frontend
-                total_delivered = combined.get('total_delivered', 0)
-                total_ordered = combined.get('total_ordered', 0)
+                # Calculate status
+                total_delivered = item['total_delivered'] or 0
+                total_ordered = item['total_ordered'] or 0
                 if total_delivered == 0:
-                    combined['status'] = 'not_delivered'
+                    order_dict['status'] = 'not_delivered'
                 elif total_delivered >= total_ordered:
-                    combined['status'] = 'delivered'
+                    order_dict['status'] = 'delivered'
                 else:
-                    combined['status'] = 'partially_delivered'
+                    order_dict['status'] = 'partially_delivered'
 
-                aggregated_orders.append(combined)
+                aggregated_orders.append(order_dict)
 
-        # Sort by date
-        aggregated_orders.sort(key=lambda x: x['order_date'] if x['order_date'] else '', reverse=True)
+            return aggregated_orders
 
-        # Pagination
-        page = self.paginate_queryset(aggregated_orders)
-        if page is not None:
-            return self.get_paginated_response(page)
+        # Use caching to avoid expensive recomputation
+        all_orders = AnalyticsCache.get_or_compute(
+            cache_key=cache_key,
+            compute_func=compute_order_list,
+            force_refresh=force_refresh,
+            max_age_minutes=30  # Cache for 30 minutes
+        )
 
-        return Response(aggregated_orders)
+        # Paginate the cached results
+        total_count = len(all_orders)
+        start_index = (page_num - 1) * page_size
+        end_index = start_index + page_size
+        paginated_orders = all_orders[start_index:end_index]
+
+        # Return paginated response
+        return Response({
+            'count': total_count,
+            'next': f"?page={page_num + 1}" if end_index < total_count else None,
+            'previous': f"?page={page_num - 1}" if page_num > 1 else None,
+            'results': paginated_orders
+        })
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
