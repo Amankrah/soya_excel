@@ -26,6 +26,29 @@ class ClientViewSet(viewsets.ModelViewSet):
         """Enhanced queryset with filtering"""
         queryset = super().get_queryset()
 
+        # CRITICAL: Only show clients suitable for AI predictions
+        # These are clients with:
+        # 1. At least 3 orders (minimum for meaningful predictions)
+        # 2. Small/medium order patterns (≤10 tonnes average per order)
+        # 3. Valid predictions
+        # 4. Active status
+
+        from django.db.models import Count, Avg
+
+        # Annotate with order statistics
+        queryset = queryset.annotate(
+            order_count=Count('orders', filter=Q(orders__status='delivered')),
+            avg_order_size=Avg('orders__total_amount_delivered_tm', filter=Q(orders__status='delivered'))
+        )
+
+        # Filter for prediction-suitable clients
+        queryset = queryset.filter(
+            is_active=True,  # Active clients only
+            order_count__gte=3,  # At least 3 orders
+            avg_order_size__lte=10.0,  # Small/medium orders (≤10 tonnes average)
+            predicted_next_order_date__isnull=False  # Has valid prediction
+        )
+
         # Filter by priority
         priority = self.request.query_params.get('priority')
         if priority:
@@ -36,9 +59,10 @@ class ClientViewSet(viewsets.ModelViewSet):
         if country:
             queryset = queryset.filter(country=country)
 
-        # Filter by active status
+        # Override active status filter if explicitly provided
         is_active = self.request.query_params.get('is_active')
         if is_active is not None:
+            # Remove the default is_active filter and apply the requested one
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
 
         # Filter by urgent predictions (predicted to order within 3 days)
@@ -65,41 +89,68 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
-        """Get client statistics including AI predictions"""
-        clients = self.get_queryset()
+        """
+        Get client statistics including AI predictions.
 
-        total_clients = clients.count()
-        active_clients = clients.filter(is_active=True).count()
+        NOTE: This uses ALL clients with predictions, not just the filtered queryset,
+        because statistics should show the complete picture of all clients with predictions.
+        """
+        # Use the filtered queryset for the paginated client list
+        filtered_clients = self.get_queryset()
 
-        # Prediction statistics
-        clients_with_predictions = clients.filter(predicted_next_order_date__isnull=False).count()
+        # But for statistics, count ALL clients with predictions (not just filtered ones)
+        # This matches what the prediction command reports
+        all_clients_with_predictions = Client.objects.filter(
+            is_active=True,
+            predicted_next_order_date__isnull=False
+        )
 
-        # Calculate urgent clients (property, can't filter directly)
-        # Urgent = predicted to order within 3 days or overdue
-        urgent_date = timezone.now() + timedelta(days=3)
-        urgent_clients = clients.filter(
-            predicted_next_order_date__isnull=False,
+        total_clients = filtered_clients.count()
+        active_clients = filtered_clients.filter(is_active=True).count()
+
+        # Prediction statistics - use ALL clients with predictions
+        clients_with_predictions = all_clients_with_predictions.count()
+
+        now = timezone.now()
+
+        # Overdue: predicted date is in the past
+        overdue = all_clients_with_predictions.filter(
+            predicted_next_order_date__lt=now
+        ).count()
+
+        # Urgent: 0-3 days (not including overdue)
+        urgent_date = now + timedelta(days=3)
+        urgent = all_clients_with_predictions.filter(
+            predicted_next_order_date__gte=now,
             predicted_next_order_date__lte=urgent_date
         ).count()
 
-        # Priority breakdown
+        # High: 4-7 days
+        high_start = now + timedelta(days=4)
+        high_end = now + timedelta(days=7)
+        high = all_clients_with_predictions.filter(
+            predicted_next_order_date__gt=urgent_date,
+            predicted_next_order_date__lte=high_end
+        ).count()
+
+        # Priority breakdown (use filtered clients for this)
         priority_breakdown = {
-            'high': clients.filter(priority='high').count(),
-            'medium': clients.filter(priority='medium').count(),
-            'low': clients.filter(priority='low').count(),
+            'high': filtered_clients.filter(priority='high').count(),
+            'medium': filtered_clients.filter(priority='medium').count(),
+            'low': filtered_clients.filter(priority='low').count(),
         }
 
-        # Country breakdown
+        # Country breakdown (use filtered clients)
         country_breakdown = {}
-        for country in clients.values_list('country', flat=True).distinct():
+        for country in filtered_clients.values_list('country', flat=True).distinct():
             if country:
-                country_breakdown[country] = clients.filter(country=country).count()
+                country_breakdown[country] = filtered_clients.filter(country=country).count()
 
-        # Get clients with upcoming orders (next 7 days)
-        upcoming_date = timezone.now() + timedelta(days=7)
-        upcoming_orders = clients.filter(
+        # Get clients with upcoming orders (next 7 days) - use ALL clients with predictions
+        upcoming_date = now + timedelta(days=7)
+        upcoming_orders = all_clients_with_predictions.filter(
             predicted_next_order_date__lte=upcoming_date,
-            predicted_next_order_date__gte=timezone.now()
+            predicted_next_order_date__gte=now
         ).count()
 
         return Response({
@@ -108,7 +159,10 @@ class ClientViewSet(viewsets.ModelViewSet):
             'inactive_clients': total_clients - active_clients,
             'predictions': {
                 'clients_with_predictions': clients_with_predictions,
-                'urgent_clients': urgent_clients,
+                'urgent': urgent,
+                'overdue': overdue,
+                'high': high,
+                'urgent_clients': urgent,  # Legacy field
                 'upcoming_orders_7_days': upcoming_orders,
             },
             'priority_breakdown': priority_breakdown,
@@ -402,15 +456,21 @@ class OrderViewSet(viewsets.ModelViewSet):
         date_range_days_total = (end_date - start_date).days
         orders_per_day = total_orders / date_range_days_total if date_range_days_total > 0 else 0
 
+        # Calculate fulfillment rate (total_delivered / total_ordered)
+        fulfillment_rate = (total_volume / total_ordered * 100) if total_ordered > 0 else 0
+
         overview = {
             'total_orders': total_orders,
             'total_volume_tm': float(total_volume),
             'total_ordered_tm': float(total_ordered),
             'avg_order_value_tm': float(avg_order_value),
+            'avg_order_size_tm': float(avg_order_value),  # Same as avg_order_value
             'active_clients': active_clients,
+            'unique_clients': active_clients,  # Same as active_clients
             'on_time_delivery_rate': float(on_time_rate),
             'growth_rate': float(growth_rate),
             'orders_per_day': float(orders_per_day),
+            'fulfillment_rate': float(fulfillment_rate),
         }
 
         # === MONTHLY TRENDS ===
@@ -419,15 +479,20 @@ class OrderViewSet(viewsets.ModelViewSet):
             month=TruncMonth('sales_order_creation_date')
         ).values('month').annotate(
             order_count=Count('client_order_number', distinct=True),
-            total_volume=Sum('total_amount_delivered_tm')
+            month_volume=Sum('total_amount_delivered_tm'),
+            unique_clients=Count('client', distinct=True)
         ).order_by('month')
 
         monthly_trends = []
         for item in monthly_data:
+            month_vol = float(item['month_volume'] or 0)
+            month_count = item['order_count']
             monthly_trends.append({
                 'month': item['month'].strftime('%Y-%m') if item['month'] else None,
-                'order_count': item['order_count'],
-                'total_volume_tm': float(item['total_volume'] or 0),
+                'order_count': month_count,
+                'total_volume': month_vol,
+                'avg_order_size': float(month_vol / month_count) if month_count > 0 else 0,
+                'unique_clients': item['unique_clients'],
             })
 
         # === CLIENT SEGMENTATION ===
@@ -443,20 +508,42 @@ class OrderViewSet(viewsets.ModelViewSet):
 
             if client_volume > 0:
                 client = Client.objects.get(id=client_id)
+
+                # Get last order date
+                last_order = queryset.filter(client_id=client_id).order_by('-sales_order_creation_date').first()
+                last_order_date = last_order.sales_order_creation_date.isoformat() if last_order else None
+
                 client_volumes[client_id] = {
-                    'client_id': client_id,
+                    'client_id': str(client_id),
                     'client_name': client.name,
+                    'city': client.city,
+                    'country': client.country,
+                    'total_volume': float(client_volume),
                     'total_volume_tm': float(client_volume),
                     'order_count': len(client_aggregates),
+                    'avg_order_size': float(client_volume / len(client_aggregates)) if len(client_aggregates) > 0 else 0,
                     'market_share': float(client_volume / total_volume * 100) if total_volume > 0 else 0,
+                    'last_order_date': last_order_date,
                 }
 
         # Sort by volume and get top 10
-        top_clients = sorted(client_volumes.values(), key=lambda x: x['total_volume_tm'], reverse=True)[:10]
+        top_by_volume = sorted(client_volumes.values(), key=lambda x: x['total_volume_tm'], reverse=True)[:10]
+
+        # Sort by frequency and get top 10
+        top_by_frequency = sorted(client_volumes.values(), key=lambda x: x['order_count'], reverse=True)[:10]
+
+        # Calculate repeat rate (clients with more than 1 order)
+        repeat_clients = sum(1 for cv in client_volumes.values() if cv['order_count'] > 1)
+        one_time_clients = len(client_volumes) - repeat_clients
+        repeat_rate = (repeat_clients / len(client_volumes) * 100) if len(client_volumes) > 0 else 0
 
         client_segmentation = {
-            'top_clients': top_clients,
+            'top_by_volume': top_by_volume,
+            'top_by_frequency': top_by_frequency,
             'total_clients': len(client_volumes),
+            'repeat_clients': repeat_clients,
+            'one_time_clients': one_time_clients,
+            'repeat_rate': float(repeat_rate),
         }
 
         # === PRODUCT PERFORMANCE ===
@@ -476,21 +563,20 @@ class OrderViewSet(viewsets.ModelViewSet):
 
             product_volume = sum(item['order_delivered'] or 0 for item in product_order_aggregates)
 
+            avg_order_size = float(product_volume / len(product_order_aggregates)) if len(product_order_aggregates) > 0 else 0
+
             product_volumes[product_name] = {
                 'product_name': product_name,
+                'total_volume': float(product_volume),
                 'total_volume_tm': float(product_volume),
                 'order_count': len(product_order_aggregates),
+                'avg_order_size': avg_order_size,
                 'market_share': float(product_volume / total_volume * 100) if total_volume > 0 else 0,
                 'unique_clients': product_queryset.values('client').distinct().count(),
             }
 
-        # Sort by volume
-        sorted_products = sorted(product_volumes.values(), key=lambda x: x['total_volume_tm'], reverse=True)
-
-        product_performance = {
-            'products': sorted_products,
-            'total_products': len(sorted_products),
-        }
+        # Sort by volume - return as array
+        product_performance = sorted(product_volumes.values(), key=lambda x: x['total_volume_tm'], reverse=True)
 
         # === GEOGRAPHICAL ANALYSIS ===
 
@@ -507,6 +593,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
             country_volumes[country] = {
                 'country': country,
+                'total_volume': float(country_volume),
                 'total_volume_tm': float(country_volume),
                 'order_count': len(country_aggregates),
                 'market_share': float(country_volume / total_volume * 100) if total_volume > 0 else 0,
@@ -549,16 +636,35 @@ class OrderViewSet(viewsets.ModelViewSet):
             order_date=Min('sales_order_creation_date')
         )
 
-        # Calculate average days from order to delivery
+        # Calculate average, min, max days from order to delivery
         total_days = 0
         count = 0
+        min_days = None
+        max_days = None
         for item in delivered_orders:
             if item['latest_delivery'] and item['order_date']:
                 days = (item['latest_delivery'] - item['order_date']).days
                 total_days += days
                 count += 1
+                if min_days is None or days < min_days:
+                    min_days = days
+                if max_days is None or days > max_days:
+                    max_days = days
 
         avg_delivery_days = total_days / count if count > 0 else 0
+
+        # Calculate late orders (actual > promised)
+        late_orders = queryset.filter(
+            actual_expedition_date__isnull=False,
+            promised_expedition_date__isnull=False,
+            actual_expedition_date__gt=F('promised_expedition_date')
+        ).values('client_order_number').distinct().count()
+
+        # Unknown = orders with no promised date
+        unknown_orders = queryset.filter(
+            actual_expedition_date__isnull=False,
+            promised_expedition_date__isnull=True
+        ).values('client_order_number').distinct().count()
 
         delivery_performance = {
             'fully_delivered_count': fully_delivered,
@@ -568,6 +674,46 @@ class OrderViewSet(viewsets.ModelViewSet):
             'on_time_count': on_time_orders,
             'on_time_rate': float(on_time_rate),
             'avg_delivery_days': float(avg_delivery_days),
+            'min_delivery_days': min_days if min_days is not None else 0,
+            'max_delivery_days': max_days if max_days is not None else 0,
+            'total_delivered': count,
+            'late_count': late_orders,
+            'unknown_count': unknown_orders,
+        }
+
+        # === ORDER SIZE DISTRIBUTION ===
+        # Categorize orders by size: small (≤10 tm), medium (10-50 tm), large (>50 tm)
+        small_orders = 0
+        medium_orders = 0
+        large_orders = 0
+
+        for order_num in queryset.values_list('client_order_number', flat=True).distinct():
+            order_batches = queryset.filter(client_order_number=order_num)
+            total_delivered = order_batches.aggregate(Sum('total_amount_delivered_tm'))['total_amount_delivered_tm__sum'] or 0
+
+            if total_delivered <= 10:
+                small_orders += 1
+            elif total_delivered <= 50:
+                medium_orders += 1
+            else:
+                large_orders += 1
+
+        order_size_distribution = {
+            'small_orders': {
+                'count': small_orders,
+                'percentage': float(small_orders / total_orders * 100) if total_orders > 0 else 0,
+                'description': '≤10 tm'
+            },
+            'medium_orders': {
+                'count': medium_orders,
+                'percentage': float(medium_orders / total_orders * 100) if total_orders > 0 else 0,
+                'description': '10-50 tm'
+            },
+            'large_orders': {
+                'count': large_orders,
+                'percentage': float(large_orders / total_orders * 100) if total_orders > 0 else 0,
+                'description': '>50 tm'
+            },
         }
 
         # === YEARLY BREAKDOWN ===
@@ -629,6 +775,119 @@ class OrderViewSet(viewsets.ModelViewSet):
             )['last_prediction_update__max'],
         }
 
+        # === GROWTH METRICS ===
+
+        # Split data into first and second half of the date range
+        midpoint = start_date + timedelta(days=date_range_days_total // 2)
+
+        first_half = queryset.filter(sales_order_creation_date__lt=midpoint)
+        second_half = queryset.filter(sales_order_creation_date__gte=midpoint)
+
+        first_half_aggregates = first_half.values('client_order_number').annotate(
+            order_delivered=Sum('total_amount_delivered_tm')
+        )
+        first_half_volume = sum(item['order_delivered'] or 0 for item in first_half_aggregates)
+        first_half_orders = len(first_half_aggregates)
+
+        second_half_aggregates = second_half.values('client_order_number').annotate(
+            order_delivered=Sum('total_amount_delivered_tm')
+        )
+        second_half_volume = sum(item['order_delivered'] or 0 for item in second_half_aggregates)
+        second_half_orders = len(second_half_aggregates)
+
+        volume_growth = ((second_half_volume - first_half_volume) / first_half_volume * 100) if first_half_volume > 0 else 0
+
+        growth_metrics = {
+            'volume_growth': float(volume_growth),
+            'first_half_volume': float(first_half_volume),
+            'second_half_volume': float(second_half_volume),
+            'first_half_orders': first_half_orders,
+            'second_half_orders': second_half_orders,
+        }
+
+        # === RECENT ACTIVITY ===
+        now = timezone.now()
+        seven_days_ago = now - timedelta(days=7)
+        thirty_days_ago = now - timedelta(days=30)
+
+        # Last 7 days
+        last_7_days_orders = queryset.filter(sales_order_creation_date__gte=seven_days_ago)
+        last_7_aggregates = last_7_days_orders.values('client_order_number').annotate(
+            order_delivered=Sum('total_amount_delivered_tm')
+        )
+        last_7_volume = sum(item['order_delivered'] or 0 for item in last_7_aggregates)
+
+        # Last 30 days
+        last_30_days_orders = queryset.filter(sales_order_creation_date__gte=thirty_days_ago)
+        last_30_aggregates = last_30_days_orders.values('client_order_number').annotate(
+            order_delivered=Sum('total_amount_delivered_tm')
+        )
+        last_30_volume = sum(item['order_delivered'] or 0 for item in last_30_aggregates)
+
+        recent_activity = {
+            'last_7_days': {
+                'order_count': len(last_7_aggregates),
+                'total_volume': float(last_7_volume)
+            },
+            'last_30_days': {
+                'order_count': len(last_30_aggregates),
+                'total_volume': float(last_30_volume)
+            }
+        }
+
+        # === GEOGRAPHICAL DISTRIBUTION (with cities) ===
+        # Cities
+        city_volumes = {}
+        for city, country in queryset.values_list('client__city', 'client__country').distinct():
+            if not city:
+                continue
+
+            city_queryset = queryset.filter(client__city=city, client__country=country)
+            city_aggregates = city_queryset.values('client_order_number').annotate(
+                order_delivered=Sum('total_amount_delivered_tm')
+            )
+            city_volume = sum(item['order_delivered'] or 0 for item in city_aggregates)
+
+            city_key = f"{city}_{country}"
+            city_volumes[city_key] = {
+                'city': city,
+                'country': country,
+                'total_volume': float(city_volume),
+                'order_count': len(city_aggregates),
+                'unique_clients': city_queryset.values('client').distinct().count(),
+            }
+
+        sorted_cities = sorted(city_volumes.values(), key=lambda x: x['total_volume'], reverse=True)
+
+        geographical_distribution = {
+            'by_country': sorted_countries,
+            'by_city': sorted_cities
+        }
+
+        # === SEASONAL PATTERNS ===
+        from django.db.models.functions import ExtractMonth
+
+        seasonal_data = queryset.annotate(
+            month_num=ExtractMonth('sales_order_creation_date')
+        ).values('month_num').annotate(
+            order_count=Count('client_order_number', distinct=True),
+            total_volume=Sum('total_amount_delivered_tm')
+        ).order_by('month_num')
+
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        seasonal_patterns = []
+        for item in seasonal_data:
+            month_num = item['month_num']
+            month_volume = float(item['total_volume'] or 0)
+            month_count = item['order_count']
+            seasonal_patterns.append({
+                'month': month_num,
+                'month_name': month_names[month_num - 1] if month_num else 'Unknown',
+                'order_count': month_count,
+                'total_volume': month_volume,
+                'avg_order_size': float(month_volume / month_count) if month_count > 0 else 0
+            })
+
         # === RETURN COMPLETE ANALYTICS ===
 
         return Response({
@@ -637,9 +896,14 @@ class OrderViewSet(viewsets.ModelViewSet):
             'client_segmentation': client_segmentation,
             'product_performance': product_performance,
             'geographical_analysis': geographical_analysis,
+            'geographical_distribution': geographical_distribution,
             'delivery_performance': delivery_performance,
+            'order_size_distribution': order_size_distribution,
             'yearly_breakdown': yearly_breakdown,
             'ai_predictions': ai_predictions,
+            'growth_metrics': growth_metrics,
+            'recent_activity': recent_activity,
+            'seasonal_patterns': seasonal_patterns,
             'date_range': {
                 'start_date': start_date.isoformat() if start_date else None,
                 'end_date': end_date.isoformat() if end_date else None,
