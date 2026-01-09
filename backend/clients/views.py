@@ -345,45 +345,75 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
-        """Get order statistics"""
-        queryset = self.get_queryset()
+        """
+        Get order statistics with caching.
 
-        # Aggregate by order first to avoid counting batches multiple times
-        order_aggregates = queryset.values('client_order_number').annotate(
-            order_delivered=Sum('total_amount_delivered_tm'),
-            order_ordered=Max('total_amount_ordered_tm')
+        Query Parameters:
+            force_refresh: If 'true', bypass cache and recompute (default: false)
+        """
+        from .models_analytics import AnalyticsCache
+
+        # Get query parameters
+        force_refresh = request.query_params.get('force_refresh', 'false').lower() == 'true'
+        status_filter = request.query_params.get('status', 'all')
+        search_query = request.query_params.get('search', '')
+
+        # Generate cache key based on filters
+        cache_key = f"order_statistics_{status_filter}_{search_query[:50]}"  # Limit search query in key
+
+        def compute_statistics():
+            """Compute order statistics - wrapped for caching"""
+            queryset = self.get_queryset()
+
+            # Aggregate by order first to avoid counting batches multiple times
+            order_aggregates = queryset.values('client_order_number').annotate(
+                order_delivered=Sum('total_amount_delivered_tm'),
+                order_ordered=Max('total_amount_ordered_tm')
+            )
+
+            total_orders = len(order_aggregates)
+            total_volume = sum(item['order_delivered'] or 0 for item in order_aggregates)
+
+            # Status breakdown
+            status_breakdown = {
+                'pending': queryset.filter(status='pending').values('client_order_number').distinct().count(),
+                'delivered': queryset.filter(status='delivered').values('client_order_number').distinct().count(),
+                'cancelled': queryset.filter(status='cancelled').values('client_order_number').distinct().count(),
+            }
+
+            # Recent orders (last 30 days)
+            thirty_days_ago = timezone.now() - timedelta(days=30)
+            recent_orders = queryset.filter(
+                sales_order_creation_date__gte=thirty_days_ago
+            ).values('client_order_number').distinct().count()
+
+            # Product breakdown
+            product_breakdown = {}
+            for product in queryset.values_list('product_name', flat=True).distinct():
+                if product:
+                    product_orders = queryset.filter(product_name=product).values('client_order_number').distinct().count()
+                    product_breakdown[product] = product_orders
+
+            return {
+                'total_orders': total_orders,
+                'total_volume_tm': float(total_volume),
+                'pending_orders': status_breakdown['pending'],
+                'delivered_orders': status_breakdown['delivered'],
+                'total_volume': float(total_volume),  # Alias for frontend compatibility
+                'status_breakdown': status_breakdown,
+                'recent_orders_30_days': recent_orders,
+                'product_breakdown': product_breakdown,
+            }
+
+        # Use caching to avoid expensive recomputation
+        statistics_data = AnalyticsCache.get_or_compute(
+            cache_key=cache_key,
+            compute_func=compute_statistics,
+            force_refresh=force_refresh,
+            max_age_minutes=30  # Cache for 30 minutes (more frequent than analytics)
         )
 
-        total_orders = len(order_aggregates)
-        total_volume = sum(item['order_delivered'] or 0 for item in order_aggregates)
-
-        # Status breakdown
-        status_breakdown = {
-            'pending': queryset.filter(status='pending').values('client_order_number').distinct().count(),
-            'delivered': queryset.filter(status='delivered').values('client_order_number').distinct().count(),
-            'cancelled': queryset.filter(status='cancelled').values('client_order_number').distinct().count(),
-        }
-
-        # Recent orders (last 30 days)
-        thirty_days_ago = timezone.now() - timedelta(days=30)
-        recent_orders = queryset.filter(
-            sales_order_creation_date__gte=thirty_days_ago
-        ).values('client_order_number').distinct().count()
-
-        # Product breakdown
-        product_breakdown = {}
-        for product in queryset.values_list('product_name', flat=True).distinct():
-            if product:
-                product_orders = queryset.filter(product_name=product).values('client_order_number').distinct().count()
-                product_breakdown[product] = product_orders
-
-        return Response({
-            'total_orders': total_orders,
-            'total_volume_tm': float(total_volume),
-            'status_breakdown': status_breakdown,
-            'recent_orders_30_days': recent_orders,
-            'product_breakdown': product_breakdown,
-        })
+        return Response(statistics_data)
 
     @action(detail=False, methods=['get'])
     def advanced_analytics(self, request):
