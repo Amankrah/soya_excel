@@ -22,26 +22,30 @@ import {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white overflow-x-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-green-900/20 via-[#0a0a0a] to-[#0a0a0a]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-green-900/30 via-transparent to-transparent"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-yellow-900/20 via-transparent to-transparent"></div>
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-500/10 rounded-full blur-[128px] animate-pulse"></div>
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-yellow-500/10 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-green-500/5 to-yellow-500/5 rounded-full blur-3xl"></div>
       </div>
 
       {/* Header */}
-      <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-[#0a0a0a]/80 backdrop-blur-xl">
+      <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-slate-900/80 backdrop-blur-xl">
         <div className="container mx-auto px-6">
           <div className="flex h-20 items-center justify-between">
             <div className="flex items-center gap-3">
-              <Image
-                src="/LOGO-SoyaExcel.png"
-                alt="SoyaFlow Logo"
-                width={120}
-                height={50}
-                className="h-12 w-auto object-contain"
-              />
+              <div className="bg-white rounded-xl p-2 shadow-sm">
+                <Image
+                  src="/LOGO-SoyaExcel.png"
+                  alt="SoyaFlow Logo"
+                  width={120}
+                  height={50}
+                  className="h-10 w-auto object-contain"
+                />
+              </div>
               <div className="hidden sm:block">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
                   SoyaFlow
@@ -69,85 +73,143 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center pt-20">
-        <div className="relative z-10 container mx-auto px-6 text-center">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 mb-8 backdrop-blur-sm">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-300">AI-Powered Distribution Management</span>
-          </div>
+      <section className="relative min-h-screen flex items-center pt-32 pb-20">
+        <div className="relative z-10 container mx-auto px-6 lg:px-12">
+          <div className="grid lg:grid-cols-2 gap-16 items-center max-w-7xl mx-auto">
+            {/* Left Column - Content */}
+            <div className="space-y-8">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-sm hover:bg-white/10 transition-colors">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-gray-300">AI-Powered Distribution Management</span>
+              </div>
 
-          {/* Logo */}
-          <div className="flex justify-center mb-10">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/50 to-yellow-500/50 rounded-3xl blur-2xl group-hover:blur-3xl transition-all duration-500 opacity-60"></div>
-              <div className="relative bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] rounded-3xl p-8 border border-white/10 shadow-2xl">
-                <Image
-                  src="/LOGO-SoyaExcel.png"
-                  alt="Soya Excel Logo"
-                  width={140}
-                  height={140}
-                  className="w-28 h-28 object-contain"
-                />
+              {/* Title */}
+              <div>
+                <h1 className="text-6xl lg:text-8xl font-black mb-4 tracking-tight leading-[0.9]">
+                  <span className="bg-gradient-to-r from-white via-green-400 to-yellow-400 bg-clip-text text-transparent">
+                    SoyaFlow
+                  </span>
+                </h1>
+                <div className="w-24 h-1.5 bg-gradient-to-r from-green-500 to-yellow-400 rounded-full"></div>
+              </div>
+
+              {/* Subtitle */}
+              <div className="space-y-4">
+                <p className="text-2xl lg:text-3xl text-gray-300 font-light">
+                  Smart Feed Distribution Platform
+                </p>
+                <p className="text-lg text-gray-400 leading-relaxed max-w-xl">
+                  AI-powered predictions, real-time tracking, and optimized route planning
+                  for soybean meal distribution across{' '}
+                  <span className="text-green-400 font-semibold">Canada</span>,{' '}
+                  <span className="text-yellow-400 font-semibold">USA</span> &{' '}
+                  <span className="text-white font-semibold">Spain</span>
+                </p>
+              </div>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                <Link href="/login">
+                  <Button size="lg" className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white text-lg px-10 py-6 rounded-2xl shadow-2xl shadow-green-500/40 transition-all duration-300 hover:shadow-green-500/60 hover:scale-105 font-bold w-full sm:w-auto">
+                    Launch Dashboard
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <a href="#features">
+                  <Button size="lg" variant="outline" className="border-white/30 bg-white/5 hover:bg-white/10 text-white text-lg px-10 py-6 rounded-2xl backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:border-white/50 w-full sm:w-auto">
+                    Explore Features
+                    <ChevronRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </a>
+              </div>
+
+              {/* Key Stats */}
+              <div className="grid grid-cols-3 gap-6 pt-8 border-t border-white/10">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Brain className="w-5 h-5 text-green-400" />
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">AI Models</div>
+                  </div>
+                  <div className="text-2xl font-bold text-white">XGBoost</div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Globe className="w-5 h-5 text-yellow-400" />
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Regions</div>
+                  </div>
+                  <div className="text-2xl font-bold text-white">3</div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Package className="w-5 h-5 text-blue-400" />
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Products</div>
+                  </div>
+                  <div className="text-2xl font-bold text-white">Multiple</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Title */}
-          <h1 className="text-6xl md:text-8xl font-black mb-6 tracking-tight">
-            <span className="bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent">
-              Soya
-            </span>
-            <span className="bg-gradient-to-r from-green-400 via-green-500 to-yellow-400 bg-clip-text text-transparent">
-              Flow
-            </span>
-          </h1>
+            {/* Right Column - Visual */}
+            <div className="relative lg:order-last order-first">
+              <div className="relative">
+                {/* Decorative glow background */}
+                <div className="absolute -inset-4 bg-gradient-to-br from-green-500/30 to-yellow-500/30 rounded-3xl blur-2xl opacity-50"></div>
 
-          <p className="text-2xl md:text-3xl text-gray-400 font-light mb-4">
-            Smart Feed Distribution Platform
-          </p>
+                {/* Glass Card */}
+                <div className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md border border-white/20 rounded-3xl p-12 lg:p-16 shadow-2xl">
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-green-500/40 to-yellow-500/40 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
+                    <div className="relative bg-white rounded-3xl p-10 border-2 border-white/30 shadow-xl">
+                      <Image
+                        src="/LOGO-SoyaExcel.png"
+                        alt="Soya Excel Logo"
+                        width={200}
+                        height={200}
+                        className="w-full h-auto object-contain"
+                      />
+                    </div>
+                  </div>
 
-          <p className="text-lg text-gray-500 max-w-2xl mx-auto mb-10 leading-relaxed">
-            AI-powered predictions, real-time tracking, and optimized route planning 
-            for soybean meal distribution across <span className="text-green-400">Canada</span>, <span className="text-yellow-400">USA</span> & <span className="text-white">Spain</span>
-          </p>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Link href="/login">
-              <Button size="lg" className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white text-lg px-10 py-6 rounded-2xl shadow-2xl shadow-green-500/30 transition-all duration-300 hover:shadow-green-500/50 hover:scale-105 font-semibold">
-                Launch Dashboard
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
-            <a href="#features">
-              <Button size="lg" variant="outline" className="border-white/20 bg-white/5 hover:bg-white/10 text-white text-lg px-10 py-6 rounded-2xl backdrop-blur-sm transition-all duration-300 hover:scale-105">
-                Explore Features
-                <ChevronRight className="ml-2 h-5 w-5" />
-              </Button>
-            </a>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-            {[
-              { value: '500+', label: 'Clients Managed', icon: Users },
-              { value: '95%', label: 'Prediction Accuracy', icon: Brain },
-              { value: '3', label: 'Countries', icon: Globe },
-              { value: '24/7', label: 'Real-time Tracking', icon: Clock },
-            ].map((stat, idx) => (
-              <div key={idx} className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm hover:bg-white/10 transition-all duration-300 group">
-                <stat.icon className="w-6 h-6 text-green-400 mb-3 group-hover:scale-110 transition-transform" />
-                <div className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">{stat.value}</div>
-                <div className="text-sm text-gray-500">{stat.label}</div>
+                  {/* Feature Pills */}
+                  <div className="mt-8 space-y-3">
+                    <div className="group/pill flex items-center gap-3 bg-gradient-to-r from-green-500/15 to-green-500/10 border border-green-500/30 rounded-xl px-4 py-3 backdrop-blur-sm hover:from-green-500/25 hover:to-green-500/15 transition-all">
+                      <div className="w-10 h-10 bg-green-500/25 rounded-lg flex items-center justify-center group-hover/pill:bg-green-500/35 transition-colors">
+                        <Brain className="w-5 h-5 text-green-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">AI Predictions</div>
+                        <div className="text-xs text-gray-300">ML-powered forecasting</div>
+                      </div>
+                    </div>
+                    <div className="group/pill flex items-center gap-3 bg-gradient-to-r from-yellow-500/15 to-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 backdrop-blur-sm hover:from-yellow-500/25 hover:to-yellow-500/15 transition-all">
+                      <div className="w-10 h-10 bg-yellow-500/25 rounded-lg flex items-center justify-center group-hover/pill:bg-yellow-500/35 transition-colors">
+                        <Route className="w-5 h-5 text-yellow-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">Smart Routing</div>
+                        <div className="text-xs text-gray-300">Optimized deliveries</div>
+                      </div>
+                    </div>
+                    <div className="group/pill flex items-center gap-3 bg-gradient-to-r from-blue-500/15 to-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 backdrop-blur-sm hover:from-blue-500/25 hover:to-blue-500/15 transition-all">
+                      <div className="w-10 h-10 bg-blue-500/25 rounded-lg flex items-center justify-center group-hover/pill:bg-blue-500/35 transition-colors">
+                        <BarChart3 className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">Live Analytics</div>
+                        <div className="text-xs text-gray-300">Real-time metrics</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
 
         {/* Scroll Indicator */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 border-2 border-white/20 rounded-full flex justify-center pt-2">
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 animate-bounce">
+          <div className="w-7 h-11 border-2 border-white/20 rounded-full flex justify-center pt-2">
             <div className="w-1.5 h-3 bg-green-500 rounded-full animate-pulse"></div>
           </div>
         </div>
@@ -415,19 +477,21 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="relative border-t border-white/10 bg-[#050505]">
+      <footer className="relative border-t border-white/10 bg-slate-950/80">
         <div className="container mx-auto px-6 py-16">
           <div className="grid md:grid-cols-4 gap-12">
             {/* Brand */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-4 mb-6">
-                <Image
-                  src="/LOGO-SoyaExcel.png"
-                  alt="SoyaFlow Logo"
-                  width={140}
-                  height={60}
-                  className="h-14 w-auto object-contain"
-                />
+                <div className="bg-white rounded-xl p-3 shadow-sm">
+                  <Image
+                    src="/LOGO-SoyaExcel.png"
+                    alt="SoyaFlow Logo"
+                    width={140}
+                    height={60}
+                    className="h-12 w-auto object-contain"
+                  />
+                </div>
                 <div>
                   <h3 className="text-xl font-bold text-white">SoyaFlow</h3>
                   <p className="text-xs text-gray-500">Distribution Platform</p>

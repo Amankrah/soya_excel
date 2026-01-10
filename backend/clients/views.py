@@ -249,10 +249,11 @@ class ClientViewSet(viewsets.ModelViewSet):
                 fail_count += 1
 
         return Response({
-            'success': True,
-            'updated': success_count,
-            'failed': fail_count,
-            'total': clients.count()
+            'status': 'success',
+            'message': f'Successfully updated {success_count} out of {clients.count()} clients',
+            'updated_clients': success_count,
+            'failed_clients': fail_count,
+            'total_clients': clients.count()
         })
 
     @action(detail=True, methods=['post'])
