@@ -586,8 +586,10 @@ export const routeAPI = {
     const response = await api.post(`/routes/routes/${routeId}/add_stop/`, data);
     return response.data;
   },
-  optimizeRoute: async (routeId: number) => {
-    const response = await api.post(`/routes/routes/${routeId}/optimize/`, {});
+  optimizeRoute: async (routeId: number, optimizationType?: string) => {
+    const response = await api.post(`/routes/routes/${routeId}/optimize/`, {
+      optimization_type: optimizationType || 'balanced'
+    });
     return response.data;
   },
   

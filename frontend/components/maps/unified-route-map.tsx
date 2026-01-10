@@ -4,19 +4,18 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // Removed GoogleMap component - using direct initialization instead
 import { routeAPI } from '@/lib/api';
 import { toast } from 'react-hot-toast';
-import { 
-  createDriverInfoWindowContent, 
+import {
+  createDriverInfoWindowContent,
   createStopInfoWindowContent,
-  getRouteColor,
-  decodePolyline
+  getRouteColor
 } from '@/lib/google-maps';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  Truck, 
-  Clock, 
-  RefreshCw, 
+import {
+  Truck,
+  Clock,
+  RefreshCw,
   Navigation2,
   AlertCircle,
   CheckCircle,
@@ -24,7 +23,10 @@ import {
   MapPin,
   Play,
   Pause,
-  Zap
+  Zap,
+  Share2,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface VehicleLocation {
@@ -140,12 +142,14 @@ export function UnifiedRouteMap({
   const [optimizing, setOptimizing] = useState(false);
   const [liveTrackingActive, setLiveTrackingActive] = useState(showLiveTracking);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  
+  const [linkCopied, setLinkCopied] = useState(false);
+
   // Map state - use regular Markers for better compatibility
   const stopMarkersRef = useRef<google.maps.Marker[]>([]);
   const vehicleMarkersRef = useRef<google.maps.Marker[]>([]);
   const warehouseMarkersRef = useRef<google.maps.Marker[]>([]);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const [infoWindow, setInfoWindow] = useState<google.maps.InfoWindow | null>(null);
   
   // Refs to prevent infinite loops
@@ -212,6 +216,79 @@ export function UnifiedRouteMap({
   
   // Optimization menu state
   const [showOptimizeMenu, setShowOptimizeMenu] = useState(false);
+
+  // Generate shareable Google Maps link
+  const generateShareableLink = useCallback(() => {
+    if (!route || route.stops.length === 0) return null;
+
+    // Get warehouse coordinates
+    const warehouse = route.origin_warehouse;
+    if (!warehouse?.has_coordinates) return null;
+
+    // Build waypoints array: warehouse -> stops (-> warehouse if return)
+    const waypoints: string[] = [];
+
+    // Start at warehouse
+    const origin = `${warehouse.latitude},${warehouse.longitude}`;
+
+    // Add all stops as waypoints
+    route.stops.forEach((stop) => {
+      const lat = stop.location_latitude ?? stop.client.latitude;
+      const lng = stop.location_longitude ?? stop.client.longitude;
+      if (lat && lng) {
+        waypoints.push(`${lat},${lng}`);
+      }
+    });
+
+    // Determine destination
+    let destination: string;
+    if (route.return_to_warehouse) {
+      const destWarehouse = route.destination_warehouse || warehouse;
+      destination = `${destWarehouse.latitude},${destWarehouse.longitude}`;
+    } else {
+      // Last stop is destination
+      destination = waypoints.pop() || origin;
+    }
+
+    // Build Google Maps URL
+    // Format: https://www.google.com/maps/dir/?api=1&origin=LAT,LNG&destination=LAT,LNG&waypoints=LAT1,LNG1|LAT2,LNG2&travelmode=driving
+    const baseUrl = 'https://www.google.com/maps/dir/';
+    const params = new URLSearchParams({
+      api: '1',
+      origin,
+      destination,
+      travelmode: 'driving'
+    });
+
+    if (waypoints.length > 0) {
+      params.append('waypoints', waypoints.join('|'));
+    }
+
+    return `${baseUrl}?${params.toString()}`;
+  }, [route]);
+
+  // Copy shareable link to clipboard
+  const copyShareableLink = useCallback(async () => {
+    const link = generateShareableLink();
+    if (!link) {
+      toast.error('Cannot generate link - route has no valid coordinates');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      toast.success('Google Maps link copied to clipboard!');
+
+      // Reset after 3 seconds
+      setTimeout(() => {
+        setLinkCopied(false);
+      }, 3000);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      toast.error('Failed to copy link to clipboard');
+    }
+  }, [generateShareableLink]);
 
   // Optimize route
   const optimizeRoute = async (type: 'balanced' | 'distance' | 'duration' | 'fuel_cost' | 'co2_emissions' = 'balanced') => {
@@ -477,67 +554,95 @@ export function UnifiedRouteMap({
     vehicleMarkersRef.current = newMarkers;
   }, [vehicles, liveTrackingActive, infoWindow]);
   
-  // Create route polyline
-  const createRoutePolyline = useCallback((map: google.maps.Map) => {
-    // Clear existing polyline
+  // Create route polyline using Google DirectionsService for road-following routes
+  const createRoutePolyline = useCallback(async (map: google.maps.Map) => {
+    // Clear existing polyline and directions renderer
     if (routePolylineRef.current) {
       routePolylineRef.current.setMap(null);
       routePolylineRef.current = null;
     }
-    
-    if (directions && directions.overview_polyline) {
-      // Use directions polyline
-      const path = decodePolyline(directions.overview_polyline);
-      
-      const polyline = new google.maps.Polyline({
-        path: path
-          .map(point => ({
-            lat: typeof point.lat === 'number' ? point.lat : parseFloat((point.lat as unknown) as string),
-            lng: typeof point.lng === 'number' ? point.lng : parseFloat((point.lng as unknown) as string)
-          }))
-          .filter(point => !isNaN(point.lat) && !isNaN(point.lng)),
-        geodesic: true,
-        strokeColor: getRouteColor(route?.status || 'planned'),
-        strokeOpacity: 0.8,
-        strokeWeight: 4,
+    if (directionsRendererRef.current) {
+      directionsRendererRef.current.setMap(null);
+      directionsRendererRef.current = null;
+    }
+
+    if (!route || route.stops.length === 0) return;
+
+    // Get warehouse coordinates
+    const warehouse = route.origin_warehouse;
+    if (!warehouse?.has_coordinates) return;
+
+    // Build waypoints array
+    const waypoints: google.maps.DirectionsWaypoint[] = [];
+    const stops = [...route.stops].sort((a, b) => a.sequence_number - b.sequence_number);
+
+    stops.forEach((stop) => {
+      const lat = stop.location_latitude ?? stop.client.latitude;
+      const lng = stop.location_longitude ?? stop.client.longitude;
+      if (lat && lng) {
+        waypoints.push({
+          location: new google.maps.LatLng(lat, lng),
+          stopover: true
+        });
+      }
+    });
+
+    if (waypoints.length === 0) return;
+
+    // Determine origin and destination
+    const origin = new google.maps.LatLng(warehouse.latitude!, warehouse.longitude!);
+    let destination: google.maps.LatLng;
+
+    if (route.return_to_warehouse) {
+      const destWarehouse = route.destination_warehouse || warehouse;
+      destination = new google.maps.LatLng(destWarehouse.latitude!, destWarehouse.longitude!);
+    } else {
+      // Last stop is destination, remove from waypoints
+      const lastWaypoint = waypoints.pop();
+      destination = lastWaypoint!.location as google.maps.LatLng;
+    }
+
+    // Use Google DirectionsService to get route along roads
+    const directionsService = new google.maps.DirectionsService();
+
+    try {
+      const result = await directionsService.route({
+        origin,
+        destination,
+        waypoints,
+        travelMode: google.maps.TravelMode.DRIVING,
+        optimizeWaypoints: false, // Keep our sequence
+        region: 'ca'
       });
-      
+
+      // Create DirectionsRenderer to display the route
+      const directionsRenderer = new google.maps.DirectionsRenderer({
+        map,
+        directions: result,
+        suppressMarkers: true, // We're using our own markers
+        polylineOptions: {
+          strokeColor: getRouteColor(route.status),
+          strokeOpacity: 0.8,
+          strokeWeight: 4
+        }
+      });
+
+      directionsRendererRef.current = directionsRenderer;
+    } catch (error) {
+      console.error('Error rendering route directions:', error);
+      // Fallback to simple polyline if DirectionsService fails
+      const path = waypoints.map(wp => wp.location as google.maps.LatLng);
+      const polyline = new google.maps.Polyline({
+        path: [origin, ...path, destination],
+        geodesic: true,
+        strokeColor: getRouteColor(route.status),
+        strokeOpacity: 0.6,
+        strokeWeight: 3,
+      });
       polyline.setMap(map);
       routePolylineRef.current = polyline;
-    } else if (route && route.stops.length > 1) {
-      // Create simple polyline connecting stops using same coordinate fallback logic
-      const path = route.stops
-        .sort((a, b) => a.sequence_number - b.sequence_number)
-        .map(stop => {
-          // Use same fallback logic as markers: stop coords -> client coords
-          const rawLat = stop.location_latitude ?? stop.client.latitude;
-          const rawLng = stop.location_longitude ?? stop.client.longitude;
-
-          if (rawLat == null || rawLng == null) return null;
-
-          const lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat));
-          const lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng));
-
-          return { lat, lng };
-        })
-        .filter((point): point is { lat: number; lng: number } =>
-          point !== null && !isNaN(point.lat) && !isNaN(point.lng)
-        );
-      
-      if (path.length > 1) {
-        const polyline = new google.maps.Polyline({
-          path,
-          geodesic: true,
-          strokeColor: getRouteColor(route.status),
-          strokeOpacity: 0.6,
-          strokeWeight: 3,
-        });
-        
-        polyline.setMap(map);
-        routePolylineRef.current = polyline;
-      }
     }
-  }, [directions, route]);
+  }, [route]);
   
   
   // Simple Google Maps initialization with retry logic
@@ -741,6 +846,11 @@ export function UnifiedRouteMap({
         routePolylineRef.current.setMap(null);
       }
 
+      // Clear directions renderer
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null);
+      }
+
       // Clear info window
       if (infoWindow) {
         infoWindow.close();
@@ -821,6 +931,27 @@ export function UnifiedRouteMap({
                     <Navigation2 className="h-4 w-4" />
                   )}
                   Directions
+                </Button>
+              )}
+              {route && route.stops.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyShareableLink}
+                  disabled={!route.origin_warehouse?.has_coordinates}
+                  className="gap-2"
+                >
+                  {linkCopied ? (
+                    <>
+                      <Check className="h-4 w-4 text-green-600" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="h-4 w-4" />
+                      Share Route
+                    </>
+                  )}
                 </Button>
               )}
               {route?.status === 'planned' && (
