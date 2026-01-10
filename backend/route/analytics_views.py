@@ -294,11 +294,18 @@ class RouteAnalyticsViewSet(viewsets.ViewSet):
             driver_stats = []
 
             for driver in drivers:
-                # Get routes for this driver in period
-                driver_routes = Route.objects.filter(
+                # Get routes for this driver in period via Delivery model
+                from driver.models import Delivery
+                driver_deliveries = Delivery.objects.filter(
                     driver=driver,
-                    date__gte=start_date,
-                    date__lte=end_date,
+                    route__date__gte=start_date,
+                    route__date__lte=end_date,
+                    status='completed'
+                ).select_related('route')
+
+                driver_route_ids = driver_deliveries.values_list('route_id', flat=True)
+                driver_routes = Route.objects.filter(
+                    id__in=driver_route_ids,
                     status='completed'
                 )
 
@@ -343,7 +350,7 @@ class RouteAnalyticsViewSet(viewsets.ViewSet):
 
                 driver_stats.append({
                     'driver_id': driver.id,
-                    'driver_name': driver.name,
+                    'driver_name': driver.full_name,
                     'total_routes': total_routes,
                     'total_deliveries': total_stops,
                     'on_time_rate': round(on_time_rate, 2),
@@ -415,11 +422,18 @@ class RouteAnalyticsViewSet(viewsets.ViewSet):
             vehicle_stats = []
 
             for vehicle in vehicles:
-                # Get routes for this vehicle
-                vehicle_routes = Route.objects.filter(
+                # Get routes for this vehicle via Delivery model
+                from driver.models import Delivery
+                vehicle_deliveries = Delivery.objects.filter(
                     vehicle=vehicle,
-                    date__gte=start_date,
-                    date__lte=end_date,
+                    route__date__gte=start_date,
+                    route__date__lte=end_date,
+                    status='completed'
+                ).select_related('route')
+
+                vehicle_route_ids = vehicle_deliveries.values_list('route_id', flat=True)
+                vehicle_routes = Route.objects.filter(
+                    id__in=vehicle_route_ids,
                     status='completed'
                 )
 

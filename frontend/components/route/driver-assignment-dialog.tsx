@@ -234,12 +234,12 @@ export function DriverAssignmentDialog({
                 {/* Vehicle Selection */}
                 <div className="space-y-2">
                   <Label htmlFor="vehicle">Select Vehicle (Optional)</Label>
-                  <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+                  <Select value={selectedVehicleId || "default"} onValueChange={(value) => setSelectedVehicleId(value === "default" ? "" : value)}>
                     <SelectTrigger id="vehicle">
                       <SelectValue placeholder="Choose a vehicle or use driver's vehicle" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Use driver&apos;s assigned vehicle</SelectItem>
+                      <SelectItem value="default">Use driver&apos;s assigned vehicle</SelectItem>
                       {vehicles.filter(v => v.is_available).map((vehicle) => (
                         <SelectItem key={vehicle.id} value={vehicle.id.toString()}>
                           {vehicle.vehicle_number} - {vehicle.vehicle_type} ({vehicle.capacity_tonnes}t)
@@ -415,13 +415,13 @@ export function DriverAssignmentDialog({
                         <span className="text-sm font-medium">Scan to Open Route</span>
                       </div>
                       <QRCodeSVG
-                        value={googleMapsUrls.mobile}
+                        value={googleMapsUrls.web}
                         size={200}
                         level="H"
                         includeMargin
                       />
                       <p className="text-xs text-gray-500 mt-2 text-center">
-                        Driver can scan this QR code to open the route in Google Maps
+                        Driver can scan this QR code to open the route in Google Maps with all stops
                       </p>
                     </div>
                   </div>

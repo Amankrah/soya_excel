@@ -16,7 +16,7 @@ from route.models import Route
 
 
 class DriverViewSet(viewsets.ModelViewSet):
-    queryset = Driver.objects.select_related('user', 'assigned_vehicle').prefetch_related('deliveries', 'assigned_orders')
+    queryset = Driver.objects.select_related('user', 'assigned_vehicle').prefetch_related('deliveries')
     serializer_class = DriverSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ['is_available', 'assigned_vehicle__vehicle_type']
@@ -126,16 +126,16 @@ class DriverViewSet(viewsets.ModelViewSet):
         
         return Response(metrics)
     
-    @action(detail=True, methods=['get'])
-    def assigned_orders(self, request, pk=None):
-        """Get orders assigned to this driver"""
-        driver = self.get_object()
-        orders = driver.assigned_orders.select_related('farmer', 'assigned_route').order_by('-order_date')
-
-        # Use the Order serializer from clients app
-        from clients.serializers import OrderSerializer
-        serializer = OrderSerializer(orders, many=True)
-        return Response(serializer.data)
+    # Note: Direct order-to-driver assignment not implemented in current data model
+    # Orders are assigned to Routes, and Routes have Deliveries assigned to Drivers
+    # @action(detail=True, methods=['get'])
+    # def assigned_orders(self, request, pk=None):
+    #     """Get orders assigned to this driver"""
+    #     driver = self.get_object()
+    #     orders = driver.assigned_orders.select_related('farmer', 'assigned_route').order_by('-order_date')
+    #     from clients.serializers import OrderSerializer
+    #     serializer = OrderSerializer(orders, many=True)
+    #     return Response(serializer.data)
 
     @action(detail=True, methods=['get'])
     def assigned_routes(self, request, pk=None):

@@ -25,7 +25,6 @@ import {
   Pause,
   Zap,
   Share2,
-  Copy,
   Check
 } from 'lucide-react';
 
@@ -113,6 +112,25 @@ interface Route {
   return_to_warehouse: boolean;
 }
 
+interface DirectionsStep {
+  instruction: string;
+  distance: string;
+  duration: string;
+  maneuver?: string;
+}
+
+interface DirectionsLeg {
+  start_address: string;
+  end_address: string;
+  distance: string;
+  duration: string;
+  steps?: DirectionsStep[];
+}
+
+interface Directions {
+  legs: DirectionsLeg[];
+}
+
 interface UnifiedRouteMapProps {
   routeId?: string;
   showLiveTracking?: boolean;
@@ -136,7 +154,7 @@ export function UnifiedRouteMap({
   const [mapInitialized, setMapInitialized] = useState(false);
   const [route, setRoute] = useState<Route | null>(null);
   const [vehicles, setVehicles] = useState<VehicleLocation[]>([]);
-  const [directions, setDirections] = useState<any>(null);
+  const [directions, setDirections] = useState<Directions | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingDirections, setLoadingDirections] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -1141,7 +1159,7 @@ export function UnifiedRouteMap({
           </CardHeader>
           <CardContent className="max-h-[500px] overflow-y-auto">
             <div className="space-y-6">
-              {directions.legs.map((leg: any, legIndex: number) => (
+              {directions.legs.map((leg: DirectionsLeg, legIndex: number) => (
                 <div key={legIndex} className="space-y-3">
                   {/* Leg header */}
                   <div className="flex items-start gap-3 pb-3 border-b">
@@ -1166,7 +1184,7 @@ export function UnifiedRouteMap({
 
                   {/* Steps */}
                   <div className="space-y-2 ml-4 pl-4 border-l-2 border-gray-200">
-                    {leg.steps?.map((step: any, stepIndex: number) => (
+                    {leg.steps?.map((step: DirectionsStep, stepIndex: number) => (
                       <div key={stepIndex} className="flex gap-3 py-2">
                         <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
                           <span className="text-xs font-medium text-gray-600">{stepIndex + 1}</span>
