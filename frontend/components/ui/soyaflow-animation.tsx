@@ -50,6 +50,7 @@ interface Shipment {
   clientsVisited: number; // Track how many clients this truck has visited
   maxClients: number; // Maximum clients to visit before returning to hub
   homeHub: string; // The hub this truck belongs to
+  visitedClientIds: string[]; // Track which client IDs have been visited in this trip
 }
 
 interface ScheduledDispatch {
@@ -398,13 +399,16 @@ const createTopology = (width: number, height: number): {
 const scheduleNextDispatch = (state: AnimationState): void => {
   const delay = randomRange(CONFIG.dispatchInterval.min, CONFIG.dispatchInterval.max);
   
-  // Weight toward outbound routes (80% outbound, 20% return)
-  const outboundRoutes = state.routes.filter(r => r.direction === 'outbound');
-  const returnRoutes = state.routes.filter(r => r.direction === 'return');
+  // GUIDING PRINCIPLE: All vehicle movements must start from the hub
+  // Only schedule routes that start from distribution hubs
+  const hubRoutes = state.routes.filter(r => {
+    const fromNode = state.nodes.get(r.fromId);
+    return fromNode?.role === 'distribution' && r.direction === 'outbound';
+  });
   
-  const useReturn = Math.random() < 0.2 && returnRoutes.length > 0;
-  const routePool = useReturn ? returnRoutes : outboundRoutes;
-  const route = routePool[Math.floor(Math.random() * routePool.length)];
+  if (hubRoutes.length === 0) return;
+  
+  const route = hubRoutes[Math.floor(Math.random() * hubRoutes.length)];
   
   state.dispatchQueue.push({
     routeId: route.id,
@@ -419,6 +423,12 @@ const dispatchShipment = (state: AnimationState, routeId: string): void => {
   const fromNode = state.nodes.get(route.fromId);
   if (!fromNode) return;
   
+  // GUIDING PRINCIPLE: All vehicle movements must start from the hub
+  // Only dispatch if starting from a distribution hub
+  if (fromNode.role !== 'distribution') {
+    return; // Reject dispatches that don't start from hub
+  }
+  
   // "Hub pulses slightly before routes activate"
   fromNode.pulseIntensity = 1;
   
@@ -431,13 +441,8 @@ const dispatchShipment = (state: AnimationState, routeId: string): void => {
   
   const toNode = state.nodes.get(route.toId);
   
-  // Determine home hub for this shipment
-  let homeHub = '';
-  if (fromNode.role === 'distribution') {
-    homeHub = fromNode.id;
-  } else if (toNode && toNode.role === 'distribution') {
-    homeHub = toNode.id;
-  }
+  // Determine home hub for this shipment (always the starting hub)
+  const homeHub = fromNode.id; // Since we only start from hubs
   
   // Determine max clients to visit (2-4 clients per trip)
   const maxClients = Math.floor(randomRange(2, 4.5));
@@ -450,9 +455,10 @@ const dispatchShipment = (state: AnimationState, routeId: string): void => {
     color: isReturn ? CONFIG.colors.returnFlow : CONFIG.colors.outboundFlow,
     size: isReturn ? 3 : 4,
     trail: [],
-    clientsVisited: fromNode.role === 'endpoint' ? 1 : 0, // If starting from endpoint, already visited one
+    clientsVisited: 0, // Starting fresh from hub
     maxClients: maxClients,
     homeHub: homeHub,
+    visitedClientIds: [], // No clients visited yet
   });
 };
 
@@ -517,21 +523,26 @@ const updateShipments = (state: AnimationState, dt: number): void => {
       if (toNode.role === 'endpoint') {
         shipment.clientsVisited += 1;
         
+        // Add this client to visited list (prevent revisiting)
+        const updatedVisitedClients = [...(shipment.visitedClientIds || []), toNode.id];
+        
         // Check if truck should visit more clients or return to hub
         if (shipment.clientsVisited < shipment.maxClients && shipment.homeHub) {
           // Find other endpoints from the same hub that haven't been visited
           const hubNode = state.nodes.get(shipment.homeHub);
           if (hubNode) {
             // Find endpoint-to-endpoint routes from current endpoint
+            // GUIDING PRINCIPLE: Cannot visit the same client twice in the same trip
             const nextClientRoutes = state.routes.filter(r => 
               r.fromId === toNode.id && 
               r.toId !== toNode.id && // Not the same endpoint
               r.toId.startsWith('end-') && // Must be an endpoint
-              r.direction === 'outbound'
+              r.direction === 'outbound' &&
+              !updatedVisitedClients.includes(r.toId) // Not already visited in this trip
             );
             
             if (nextClientRoutes.length > 0) {
-              // Visit another client
+              // Visit another client (that hasn't been visited yet)
               const nextRoute = nextClientRoutes[Math.floor(Math.random() * nextClientRoutes.length)];
               const nextDuration = randomRange(CONFIG.shipmentDuration.min, CONFIG.shipmentDuration.max);
               const nextSpeed = 1 / (nextDuration / 16.67);
@@ -548,6 +559,7 @@ const updateShipments = (state: AnimationState, dt: number): void => {
                 clientsVisited: shipment.clientsVisited,
                 maxClients: shipment.maxClients,
                 homeHub: shipment.homeHub,
+                visitedClientIds: updatedVisitedClients, // Track visited clients
               });
               
               // Activate next route
@@ -576,6 +588,7 @@ const updateShipments = (state: AnimationState, dt: number): void => {
                   clientsVisited: shipment.clientsVisited,
                   maxClients: shipment.maxClients,
                   homeHub: shipment.homeHub,
+                  visitedClientIds: updatedVisitedClients, // Keep track for consistency
                 });
                 
                 returnRoute.activeGlow = 1;
@@ -607,6 +620,7 @@ const updateShipments = (state: AnimationState, dt: number): void => {
                 clientsVisited: shipment.clientsVisited,
                 maxClients: shipment.maxClients,
                 homeHub: shipment.homeHub,
+                visitedClientIds: updatedVisitedClients, // Keep track for consistency
               });
               
               returnRoute.activeGlow = 1;
