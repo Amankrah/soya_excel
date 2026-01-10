@@ -403,53 +403,67 @@ interface AnimationState {
 
 const CONFIG = {
   // Timing - "Control decision every 2-3s, one delivery every 1-2s"
-  dispatchInterval: { min: 2000, max: 3000 },
-  shipmentDuration: { min: 1800, max: 2800 },
+  dispatchInterval: { min: 2200, max: 3200 },
+  shipmentDuration: { min: 2000, max: 3000 },
   
-  // Visual hierarchy - "Lower contrast than headline, enterprise-clean"
+  // Performance - "Cap active shipments to 1-2 at a time"
+  maxActiveShipments: 2,
+  
+  // Visual hierarchy - "Animation always lower contrast than headline/CTAs"
   opacity: {
-    routeInactive: 0.12,
-    routeActive: 0.35,
-    nodeGlowIdle: 0.08,
-    nodeGlowActive: 0.25,
-    shipmentTrail: 0.5,
+    routeInactive: 0.10,       // Subtle capacity lines
+    routeActive: 0.28,         // Active but not bright
+    shipmentTrail: 0.4,        // Visible but not dominant
   },
   
-  // Node sizes by role - slightly larger for clarity
+  // Glow by role - "Control strongest/slowest, hubs medium, endpoints weakest"
+  glow: {
+    control: { idle: 0.12, active: 0.35, decay: 0.008 },      // Strongest, slowest
+    distribution: { idle: 0.08, active: 0.22, decay: 0.015 }, // Medium
+    endpoint: { idle: 0.05, active: 0.15, decay: 0.025 },     // Weakest, fastest
+  },
+  
+  // Node sizes by role
   nodeRadius: {
-    control: 18,
-    distribution: 11,
-    endpoint: 7,
+    control: 16,
+    distribution: 10,
+    endpoint: 6,
   },
   
-  // Colors - Semantic meaning (2-3 active colors max)
+  // Colors - "Green dominates movement, Yellow dominates decisions"
   colors: {
-    control: '#fbbf24',        // Yellow - decision/optimization
-    controlGlow: '#f59e0b',
-    distribution: '#10b981',   // Green - feed movement
-    distributionGlow: '#059669',
-    endpoint: '#34d399',       // Light green - destinations
-    endpointGlow: '#10b981',
-    outboundFlow: '#22c55e',   // Bright green - active shipment
-    returnFlow: '#fcd34d',     // Dim yellow - feedback signal
-    routeIdle: '#134e4a',      // Muted teal - capacity exists
-    routeActive: '#059669',    // Active route glow
+    // Yellow = decisions/optimization (control only)
+    control: '#f59e0b',        // Amber - warm decision color
+    controlGlow: '#d97706',    // Darker amber for glow
+    // Green = feed movement (everything else)
+    distribution: '#10b981',   // Emerald - hub color
+    distributionGlow: '#047857',
+    endpoint: '#34d399',       // Light emerald - destinations
+    endpointGlow: '#059669',
+    // Flow colors
+    outboundFlow: '#10b981',   // Green - feed movement
+    returnFlow: '#fbbf24',     // Yellow - tracking/feedback
+    // Routes
+    routeIdle: '#0f362d',      // Very muted green - capacity exists
+    routeActive: '#047857',    // Active route
   },
   
   // Motion - "Eased acceleration/deceleration, dwell time at nodes"
   shipmentEasing: {
-    accelerationZone: 0.12,    // First 12% - accelerating from stop
-    cruiseZone: 0.76,          // Middle - constant velocity
-    decelerationZone: 0.12,    // Last 12% - "slowing for unload"
+    accelerationZone: 0.15,    // First 15% - accelerating from stop
+    cruiseZone: 0.70,          // Middle - constant velocity
+    decelerationZone: 0.15,    // Last 15% - "slowing for unload"
   },
   
-  // Trails - shorter, cleaner
-  trailLength: 8,
+  // Trails - clean, not flashy
+  trailLength: 6,
   
-  // Pulse durations (ms)
-  controlPulseDuration: 400,
-  deliveryPulseDuration: 350,
-  routeGlowFadeDuration: 800,
+  // Pulse decay rates (lower = slower fade)
+  pulseDecay: {
+    control: 0.008,      // Slowest - commanding presence
+    distribution: 0.015, // Medium
+    endpoint: 0.025,     // Fastest - quick acknowledgment
+  },
 } as const;
 
 // ============================================================================
@@ -511,7 +525,7 @@ const createTopology = (width: number, height: number): {
   const cy = height * 0.5;
   
   // === CONTROL TOWER (Center-right, visible area) ===
-  // "Emits outbound routing pulses"
+  // "Emits outbound routing pulses" - strongest glow, slowest decay
   nodes.set('control', {
     id: 'control',
     role: 'control',
@@ -523,7 +537,7 @@ const createTopology = (width: number, height: number): {
     color: CONFIG.colors.control,
     glowColor: CONFIG.colors.controlGlow,
     pulseIntensity: 0,
-    pulseDecay: 0.015,
+    pulseDecay: CONFIG.pulseDecay.control,
     label: 'HQ',
   });
   
@@ -548,7 +562,7 @@ const createTopology = (width: number, height: number): {
       color: CONFIG.colors.distribution,
       glowColor: CONFIG.colors.distributionGlow,
       pulseIntensity: 0,
-      pulseDecay: 0.02,
+      pulseDecay: CONFIG.pulseDecay.distribution,
     });
   });
   
@@ -579,7 +593,7 @@ const createTopology = (width: number, height: number): {
       color: CONFIG.colors.endpoint,
       glowColor: CONFIG.colors.endpointGlow,
       pulseIntensity: 0,
-      pulseDecay: 0.025,
+      pulseDecay: CONFIG.pulseDecay.endpoint,
     });
   });
   
@@ -710,14 +724,17 @@ const updateDispatchQueue = (state: AnimationState, dt: number): void => {
   for (let i = state.dispatchQueue.length - 1; i >= 0; i--) {
     state.dispatchQueue[i].delay -= dt * 16.67;
     if (state.dispatchQueue[i].delay <= 0) {
-      dispatchShipment(state, state.dispatchQueue[i].routeId);
+      // Only dispatch if under the cap
+      if (state.shipments.length < CONFIG.maxActiveShipments) {
+        dispatchShipment(state, state.dispatchQueue[i].routeId);
+      }
       state.dispatchQueue.splice(i, 1);
     }
   }
   
   // Ensure there's always something scheduled
-  // "Never all routes active at once" - limit concurrent shipments
-  if (state.dispatchQueue.length === 0 && state.shipments.length < 4) {
+  // "Cap active shipments to 1-2 at a time"
+  if (state.dispatchQueue.length === 0 && state.shipments.length < CONFIG.maxActiveShipments) {
     scheduleNextDispatch(state);
   }
 };
@@ -940,37 +957,42 @@ const renderNodes = (ctx: CanvasRenderingContext2D, state: AnimationState): void
   });
   
   nodesByRole.flat().forEach(node => {
-    // Subtle pulse scale - "Never flash aggressively"
-    const pulseScale = 1 + node.pulseIntensity * 0.15;
-    const glowIntensity = CONFIG.opacity.nodeGlowIdle + node.pulseIntensity * (CONFIG.opacity.nodeGlowActive - CONFIG.opacity.nodeGlowIdle);
+    // Get role-specific glow config - "Control strongest, hubs medium, endpoints weakest"
+    const glowConfig = CONFIG.glow[node.role];
+    const glowIntensity = glowConfig.idle + node.pulseIntensity * (glowConfig.active - glowConfig.idle);
     
-    // Tight outer glow - only when active, not blurry
+    // Subtle pulse scale - "Never flash aggressively"
+    const pulseScale = 1 + node.pulseIntensity * (node.role === 'control' ? 0.18 : 0.12);
+    
+    // Outer glow - role-based intensity, only when active
     if (node.pulseIntensity > 0.05) {
+      const glowRadius = node.role === 'control' ? 2.5 : node.role === 'distribution' ? 2.0 : 1.8;
       const outerGlow = ctx.createRadialGradient(
         node.x, node.y, node.radius * 0.8,
-        node.x, node.y, node.radius * 2.2
+        node.x, node.y, node.radius * glowRadius
       );
-      outerGlow.addColorStop(0, hexToRgba(node.glowColor, glowIntensity * 0.6));
-      outerGlow.addColorStop(0.6, hexToRgba(node.glowColor, glowIntensity * 0.2));
+      outerGlow.addColorStop(0, hexToRgba(node.glowColor, glowIntensity * 0.7));
+      outerGlow.addColorStop(0.5, hexToRgba(node.glowColor, glowIntensity * 0.25));
       outerGlow.addColorStop(1, hexToRgba(node.glowColor, 0));
       
       ctx.fillStyle = outerGlow;
       ctx.beginPath();
-      ctx.arc(node.x, node.y, node.radius * 2.2 * pulseScale, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, node.radius * glowRadius * pulseScale, 0, Math.PI * 2);
       ctx.fill();
     }
     
-    // Subtle ambient glow ring - always present but minimal
+    // Ambient glow ring - role-based, "Black background absorbs excess light"
+    const ambientOpacity = node.role === 'control' ? 0.12 : node.role === 'distribution' ? 0.08 : 0.05;
     const ambientGlow = ctx.createRadialGradient(
       node.x, node.y, node.radius * 0.9,
-      node.x, node.y, node.radius * 1.6
+      node.x, node.y, node.radius * 1.5
     );
-    ambientGlow.addColorStop(0, hexToRgba(node.color, 0.15));
+    ambientGlow.addColorStop(0, hexToRgba(node.color, ambientOpacity));
     ambientGlow.addColorStop(1, hexToRgba(node.color, 0));
     
     ctx.fillStyle = ambientGlow;
     ctx.beginPath();
-    ctx.arc(node.x, node.y, node.radius * 1.6, 0, Math.PI * 2);
+    ctx.arc(node.x, node.y, node.radius * 1.5, 0, Math.PI * 2);
     ctx.fill();
     
     // Sharp node core with subtle gradient
@@ -1043,6 +1065,7 @@ export function SoyaFlowDistributionMap() {
   const stateRef = useRef<AnimationState | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  const prefersReducedMotionRef = useRef<boolean>(false);
 
   const initializeState = useCallback((width: number, height: number): AnimationState => {
     const { nodes, routes } = createTopology(width, height);
@@ -1058,9 +1081,10 @@ export function SoyaFlowDistributionMap() {
       shipmentCounter: 0,
     };
     
-    // Initial dispatch to start things moving
-    scheduleNextDispatch(state);
-    scheduleNextDispatch(state);
+    // Initial dispatch to start things moving (unless reduced motion)
+    if (!prefersReducedMotionRef.current) {
+      scheduleNextDispatch(state);
+    }
     
     return state;
   }, []);
@@ -1073,6 +1097,7 @@ export function SoyaFlowDistributionMap() {
     if (!parent) return;
     
     const { clientWidth: width, clientHeight: height } = parent;
+    // Cap DPR for performance on low-end devices
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     
     canvas.width = width * dpr;
@@ -1098,6 +1123,15 @@ export function SoyaFlowDistributionMap() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
+    // "Respect prefers-reduced-motion"
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    prefersReducedMotionRef.current = mediaQuery.matches;
+    
+    const handleMotionPreference = (e: MediaQueryListEvent) => {
+      prefersReducedMotionRef.current = e.matches;
+    };
+    mediaQuery.addEventListener('change', handleMotionPreference);
+    
     handleResize();
     
     const ctx = canvas.getContext('2d');
@@ -1108,7 +1142,8 @@ export function SoyaFlowDistributionMap() {
     const animate = (timestamp: number) => {
       if (!stateRef.current) return;
       
-      const dt = Math.min((timestamp - lastTimeRef.current) / 16.67, 3);
+      // "Keep frame time boringly stable"
+      const dt = Math.min((timestamp - lastTimeRef.current) / 16.67, 2);
       lastTimeRef.current = timestamp;
       stateRef.current.time = timestamp;
       
@@ -1120,16 +1155,20 @@ export function SoyaFlowDistributionMap() {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
       
-      // Update
-      updateDispatchQueue(state, dt);
-      updateShipments(state, dt);
+      // Update (skip movement updates if reduced motion)
+      if (!prefersReducedMotionRef.current) {
+        updateDispatchQueue(state, dt);
+        updateShipments(state, dt);
+      }
       updateNodes(state, dt);
       updateRoutes(state, dt);
       
       // Render (order matters for layering)
       renderVignette(ctx, state);
       renderRoutes(ctx, state);
-      renderShipments(ctx, state);
+      if (!prefersReducedMotionRef.current) {
+        renderShipments(ctx, state);
+      }
       renderNodes(ctx, state);
       
       rafRef.current = requestAnimationFrame(animate);
@@ -1140,6 +1179,7 @@ export function SoyaFlowDistributionMap() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       window.removeEventListener('resize', handleResize);
+      mediaQuery.removeEventListener('change', handleMotionPreference);
     };
   }, [handleResize]);
 
