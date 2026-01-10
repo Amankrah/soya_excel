@@ -57,6 +57,7 @@ export default function LandingPage() {
             <nav className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
               <a href="#modules" className="text-sm text-gray-400 hover:text-white transition-colors">Modules</a>
+              <a href="#values" className="text-sm text-gray-400 hover:text-white transition-colors">Values</a>
               <a href="#about" className="text-sm text-gray-400 hover:text-white transition-colors">About</a>
             </nav>
 
@@ -346,8 +347,125 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Core Values Section */}
+      <section id="values" className="relative py-32">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2 mb-6">
+              <span className="text-lg">🌱</span>
+              <span className="text-sm text-green-400 font-medium">Our Values</span>
+            </div>
+            <h2 className="text-5xl md:text-6xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                Values from Here
+              </span>
+            </h2>
+            <p className="text-xl text-gray-500 max-w-2xl mx-auto">
+              Rooted in Québécois agriculture, committed to sustainability and community
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {[
+              {
+                icon: '🌱',
+                title: 'Agricultural Development',
+                subtitle: 'Rooted in Québec',
+                description: 'Supporting local agriculture and the soybean value chain. Valuing local products, from our lands, with our people.',
+                gradient: 'from-green-500 to-emerald-600',
+                stat: '100%',
+                statLabel: 'Local Focus',
+              },
+              {
+                icon: '♻️',
+                title: 'Sustainability',
+                subtitle: '99.8% Efficiency',
+                description: 'Minimal waste, maximum value. Almost everything that enters our plants comes out processed and ready to use.',
+                gradient: 'from-teal-500 to-cyan-600',
+                stat: '99.8%',
+                statLabel: 'Processing Rate',
+              },
+              {
+                icon: '⚡',
+                title: 'Energy Efficiency',
+                subtitle: 'Smart Systems',
+                description: 'Heat recovery systems and greywater reuse reducing our ecological footprint through continuous innovation.',
+                gradient: 'from-yellow-500 to-orange-500',
+                stat: '0.2%',
+                statLabel: 'Product Loss',
+              },
+              {
+                icon: '🤝',
+                title: 'Social Responsibility',
+                subtitle: 'Community First',
+                description: 'Supporting causes that matter — from autism support services to children\'s foundations and local sports teams.',
+                gradient: 'from-blue-500 to-indigo-600',
+                stat: '10+',
+                statLabel: 'Causes Supported',
+              },
+              {
+                icon: '💪',
+                title: 'Respect & Teamwork',
+                subtitle: 'People Built This',
+                description: 'Hardworking people built Soya Excel. We support our employees and their families, rewarding effort and dedication.',
+                gradient: 'from-purple-500 to-pink-500',
+                stat: '100%',
+                statLabel: 'Team Commitment',
+              },
+              {
+                icon: '🏭',
+                title: 'Local Processing',
+                subtitle: 'Made in Québec',
+                description: 'No more exporting raw, importing processed. Québec produces quality soybeans — we process them right here.',
+                gradient: 'from-rose-500 to-red-500',
+                stat: 'QC',
+                statLabel: 'Proudly Local',
+              },
+            ].map((value, idx) => (
+              <div
+                key={idx}
+                className="group relative bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 hover:border-white/20 transition-all duration-300 overflow-hidden"
+              >
+                {/* Gradient overlay on hover */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${value.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
+                
+                <div className="relative">
+                  <div className="flex items-start justify-between mb-4">
+                    <span className="text-4xl">{value.icon}</span>
+                    <div className="text-right">
+                      <p className={`text-2xl font-bold bg-gradient-to-r ${value.gradient} bg-clip-text text-transparent`}>
+                        {value.stat}
+                      </p>
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{value.statLabel}</p>
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-1 group-hover:text-green-400 transition-colors">
+                    {value.title}
+                  </h3>
+                  <p className="text-sm text-yellow-400 font-medium mb-3">{value.subtitle}</p>
+                  <p className="text-sm text-gray-400 leading-relaxed">{value.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Link to full values page */}
+          <div className="text-center mt-12">
+            <a
+              href="https://soyaexcel.com/en/values/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-gray-400 hover:text-green-400 transition-colors group"
+            >
+              <span>Learn more about our values</span>
+              <ExternalLink className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
-      <section className="relative py-32">
+      <section className="relative py-32 bg-gradient-to-b from-transparent via-green-950/10 to-transparent">
         <div className="container mx-auto px-6">
           <div className="relative max-w-4xl mx-auto">
             <div className="absolute inset-0 bg-gradient-to-r from-green-500/20 to-yellow-500/20 rounded-[3rem] blur-3xl"></div>
