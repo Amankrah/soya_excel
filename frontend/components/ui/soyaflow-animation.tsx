@@ -47,6 +47,9 @@ interface Shipment {
   color: string;
   size: number;
   trail: Vec2[];
+  clientsVisited: number; // Track how many clients this truck has visited
+  maxClients: number; // Maximum clients to visit before returning to hub
+  homeHub: string; // The hub this truck belongs to
 }
 
 interface ScheduledDispatch {
@@ -219,7 +222,8 @@ const createTopology = (width: number, height: number): {
     { x: width * 0.52 + offsetX, y: height * 0.78, id: 'dist-south' },
   ];
   
-  distributionPositions.forEach(pos => {
+  const hubLabels = ['North Hub', 'Central Hub', 'South Hub'];
+  distributionPositions.forEach((pos, index) => {
     nodes.set(pos.id, {
       id: pos.id,
       role: 'distribution',
@@ -233,6 +237,7 @@ const createTopology = (width: number, height: number): {
       pulseIntensity: 0,
       pulseDecay: CONFIG.pulseDecay.distribution,
       emoji: '🏭', // Factory / Warehouse / Distribution hub
+      label: hubLabels[index] || 'Hub',
     });
   });
   
@@ -326,6 +331,43 @@ const createTopology = (width: number, height: number): {
     });
   });
   
+  // Endpoint → Endpoint routes (for multi-stop deliveries within same hub)
+  // Group endpoints by their hub
+  const endpointsByHub = new Map<string, typeof endpointPositions>();
+  endpointPositions.forEach(end => {
+    if (!endpointsByHub.has(end.hub)) {
+      endpointsByHub.set(end.hub, []);
+    }
+    endpointsByHub.get(end.hub)!.push(end);
+  });
+  
+  // Create routes between endpoints in the same hub
+  endpointsByHub.forEach((endpoints, hubId) => {
+    for (let i = 0; i < endpoints.length; i++) {
+      for (let j = 0; j < endpoints.length; j++) {
+        if (i !== j) {
+          const fromEnd = nodes.get(endpoints[i].id)!;
+          const toEnd = nodes.get(endpoints[j].id)!;
+          
+          const midX = (fromEnd.x + toEnd.x) / 2;
+          const midY = (fromEnd.y + toEnd.y) / 2;
+          const perpX = -(toEnd.y - fromEnd.y) * 0.15;
+          const perpY = (toEnd.x - fromEnd.x) * 0.15;
+          
+          routes.push({
+            id: `${endpoints[i].id}-${endpoints[j].id}`,
+            fromId: endpoints[i].id,
+            toId: endpoints[j].id,
+            direction: 'outbound',
+            controlPoint: { x: midX + perpX, y: midY + perpY },
+            activeGlow: 0,
+            glowDecay: 0.012,
+          });
+        }
+      }
+    }
+  });
+  
   // Endpoint → Control (feedback/return - fewer, slower)
   // "Tracking/feedback loop"
   ['end-c1', 'end-n2', 'end-s1'].forEach(endId => {
@@ -387,6 +429,19 @@ const dispatchShipment = (state: AnimationState, routeId: string): void => {
   const duration = randomRange(CONFIG.shipmentDuration.min, CONFIG.shipmentDuration.max);
   const speed = 1 / (duration / 16.67); // Normalized to 60fps
   
+  const toNode = state.nodes.get(route.toId);
+  
+  // Determine home hub for this shipment
+  let homeHub = '';
+  if (fromNode.role === 'distribution') {
+    homeHub = fromNode.id;
+  } else if (toNode && toNode.role === 'distribution') {
+    homeHub = toNode.id;
+  }
+  
+  // Determine max clients to visit (2-4 clients per trip)
+  const maxClients = Math.floor(randomRange(2, 4.5));
+  
   state.shipments.push({
     id: state.shipmentCounter++,
     routeId,
@@ -395,6 +450,9 @@ const dispatchShipment = (state: AnimationState, routeId: string): void => {
     color: isReturn ? CONFIG.colors.returnFlow : CONFIG.colors.outboundFlow,
     size: isReturn ? 3 : 4,
     trail: [],
+    clientsVisited: fromNode.role === 'endpoint' ? 1 : 0, // If starting from endpoint, already visited one
+    maxClients: maxClients,
+    homeHub: homeHub,
   });
 };
 
@@ -455,34 +513,106 @@ const updateShipments = (state: AnimationState, dt: number): void => {
       // "Endpoint node pulses on delivery"
       toNode.pulseIntensity = 1;
       
-      // If truck delivered to an endpoint, automatically schedule return to hub
-      if (toNode.role === 'endpoint' && fromNode.role === 'distribution') {
-        // Find the return route (endpoint → hub)
-        const returnRoute = state.routes.find(r => 
-          r.fromId === toNode.id && 
-          r.toId === fromNode.id && 
-          r.direction === 'return'
-        );
+      // If truck delivered to an endpoint, decide: visit another client or return to hub
+      if (toNode.role === 'endpoint') {
+        shipment.clientsVisited += 1;
         
-        if (returnRoute) {
-          // Schedule immediate return trip (no delay)
-          const returnDuration = randomRange(CONFIG.shipmentDuration.min, CONFIG.shipmentDuration.max);
-          const returnSpeed = 1 / (returnDuration / 16.67);
-          
-          // Create return shipment
-          state.shipments.push({
-            id: state.shipmentCounter++,
-            routeId: returnRoute.id,
-            progress: 0,
-            speed: returnSpeed * 0.8, // Slightly slower return
-            color: CONFIG.colors.returnFlow,
-            size: shipment.size,
-            trail: [], // Start fresh trail
-          });
-          
-          // Activate return route
-          returnRoute.activeGlow = 1;
-          toNode.pulseIntensity = 1; // Endpoint pulses before return
+        // Check if truck should visit more clients or return to hub
+        if (shipment.clientsVisited < shipment.maxClients && shipment.homeHub) {
+          // Find other endpoints from the same hub that haven't been visited
+          const hubNode = state.nodes.get(shipment.homeHub);
+          if (hubNode) {
+            // Find endpoint-to-endpoint routes from current endpoint
+            const nextClientRoutes = state.routes.filter(r => 
+              r.fromId === toNode.id && 
+              r.toId !== toNode.id && // Not the same endpoint
+              r.toId.startsWith('end-') && // Must be an endpoint
+              r.direction === 'outbound'
+            );
+            
+            if (nextClientRoutes.length > 0) {
+              // Visit another client
+              const nextRoute = nextClientRoutes[Math.floor(Math.random() * nextClientRoutes.length)];
+              const nextDuration = randomRange(CONFIG.shipmentDuration.min, CONFIG.shipmentDuration.max);
+              const nextSpeed = 1 / (nextDuration / 16.67);
+              
+              // Continue to next client
+              state.shipments.push({
+                id: shipment.id, // Keep same ID for continuity
+                routeId: nextRoute.id,
+                progress: 0,
+                speed: nextSpeed,
+                color: CONFIG.colors.outboundFlow,
+                size: shipment.size,
+                trail: [],
+                clientsVisited: shipment.clientsVisited,
+                maxClients: shipment.maxClients,
+                homeHub: shipment.homeHub,
+              });
+              
+              // Activate next route
+              nextRoute.activeGlow = 1;
+              toNode.pulseIntensity = 1;
+            } else {
+              // No more clients available, return to hub
+              const returnRoute = state.routes.find(r => 
+                r.fromId === toNode.id && 
+                r.toId === shipment.homeHub && 
+                r.direction === 'return'
+              );
+              
+              if (returnRoute) {
+                const returnDuration = randomRange(CONFIG.shipmentDuration.min, CONFIG.shipmentDuration.max);
+                const returnSpeed = 1 / (returnDuration / 16.67);
+                
+                state.shipments.push({
+                  id: shipment.id,
+                  routeId: returnRoute.id,
+                  progress: 0,
+                  speed: returnSpeed * 0.8,
+                  color: CONFIG.colors.returnFlow,
+                  size: shipment.size,
+                  trail: [],
+                  clientsVisited: shipment.clientsVisited,
+                  maxClients: shipment.maxClients,
+                  homeHub: shipment.homeHub,
+                });
+                
+                returnRoute.activeGlow = 1;
+                toNode.pulseIntensity = 1;
+              }
+            }
+          }
+        } else {
+          // Reached max clients, return to hub
+          if (shipment.homeHub) {
+            const returnRoute = state.routes.find(r => 
+              r.fromId === toNode.id && 
+              r.toId === shipment.homeHub && 
+              r.direction === 'return'
+            );
+            
+            if (returnRoute) {
+              const returnDuration = randomRange(CONFIG.shipmentDuration.min, CONFIG.shipmentDuration.max);
+              const returnSpeed = 1 / (returnDuration / 16.67);
+              
+              state.shipments.push({
+                id: shipment.id,
+                routeId: returnRoute.id,
+                progress: 0,
+                speed: returnSpeed * 0.8,
+                color: CONFIG.colors.returnFlow,
+                size: shipment.size,
+                trail: [],
+                clientsVisited: shipment.clientsVisited,
+                maxClients: shipment.maxClients,
+                homeHub: shipment.homeHub,
+              });
+              
+              returnRoute.activeGlow = 1;
+              toNode.pulseIntensity = 1;
+            }
+          }
         }
       }
       
@@ -623,8 +753,9 @@ const renderShipments = (ctx: CanvasRenderingContext2D, state: AnimationState): 
     
     const isReturn = route.direction === 'return';
     
-    // Check if this is a hub-to-endpoint route (distribution → endpoint) or return route (endpoint → distribution)
+    // Check if this is a route that should show a truck (hub→endpoint, endpoint→endpoint, or endpoint→hub)
     const isHubToEndpoint = (fromNode.role === 'distribution' && toNode.role === 'endpoint' && !isReturn) ||
+                            (fromNode.role === 'endpoint' && toNode.role === 'endpoint' && !isReturn) || // Multi-stop: endpoint to endpoint
                             (fromNode.role === 'endpoint' && toNode.role === 'distribution' && isReturn);
     
     // Current position with easing
@@ -870,6 +1001,44 @@ const renderNodes = (ctx: CanvasRenderingContext2D, state: AnimationState): void
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
+    
+    // Add text label below the node
+    const labelText = node.label || 
+      (node.role === 'control' ? 'HQ' : 
+       node.role === 'distribution' ? 'Hub' : 
+       'Client');
+    
+    const labelFontSize = node.role === 'control' ? 10 : node.role === 'distribution' ? 9 : 8;
+    const labelY = node.y + node.radius * pulseScale * 1.8;
+    
+    // Text background for readability
+    ctx.font = `bold ${labelFontSize}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    
+    // Measure text for background
+    const textMetrics = ctx.measureText(labelText);
+    const textWidth = textMetrics.width;
+    const textHeight = labelFontSize;
+    const padding = 4;
+    
+    // Draw semi-transparent background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(
+      node.x - textWidth / 2 - padding,
+      labelY - 2,
+      textWidth + padding * 2,
+      textHeight + padding
+    );
+    
+    // Draw text label
+    ctx.fillStyle = node.role === 'control' 
+      ? '#fbbf24' // Yellow for control
+      : node.role === 'distribution'
+      ? '#10b981' // Green for distribution
+      : '#34d399'; // Light green for endpoints
+    
+    ctx.fillText(labelText, node.x, labelY);
     
     // Optional: subtle border ring for definition (lighter than before)
     if (node.pulseIntensity > 0.1) {
