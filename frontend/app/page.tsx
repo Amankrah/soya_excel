@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { SoyaFlowAnimation } from '@/components/ui/soyaflow-animation';
+import { SoyaFlowDistributionMap } from '@/components/ui/soyaflow-animation';
 import {
   Globe,
   BarChart3,
@@ -73,83 +73,72 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center pt-32 pb-20">
-        <div className="relative z-10 container mx-auto px-6 lg:px-12">
-          <div className="grid lg:grid-cols-2 gap-16 items-center max-w-7xl mx-auto">
-            {/* Left Column - Content */}
-            <div className="space-y-8">
-              {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-5 py-2.5 backdrop-blur-sm hover:bg-white/10 transition-colors">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-gray-300">AI-Powered Distribution Management</span>
-              </div>
+      {/* Hero Section - Fully Responsive */}
+      <section className="relative min-h-screen flex items-center pt-24 sm:pt-28 md:pt-32 pb-16 sm:pb-20 overflow-hidden">
+        {/* Animation Background - Full coverage */}
+        <div className="absolute inset-0 z-0">
+          <SoyaFlowDistributionMap />
+          {/* Responsive gradient overlay - less coverage on larger screens */}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/70 to-slate-900/20 md:from-slate-900/90 md:via-slate-900/50 md:to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900/40"></div>
+          {/* Mobile: stronger overlay for readability */}
+          <div className="absolute inset-0 bg-slate-900/30 md:bg-transparent"></div>
+        </div>
 
-              {/* Title */}
-              <div>
-                <h1 className="text-6xl lg:text-8xl font-black mb-4 tracking-tight leading-[0.9]">
-                  <span className="bg-gradient-to-r from-white via-green-400 to-yellow-400 bg-clip-text text-transparent">
-                    SoyaFlow
-                  </span>
-                </h1>
-                <div className="w-24 h-1.5 bg-gradient-to-r from-green-500 to-yellow-400 rounded-full"></div>
-              </div>
-
-              {/* Subtitle */}
-              <div className="space-y-4">
-                <p className="text-2xl lg:text-3xl text-gray-300 font-light">
-                  Smart Feed Distribution Platform
-                </p>
-                <p className="text-lg text-gray-400 leading-relaxed max-w-xl">
-                  AI-powered predictions, real-time tracking, and optimized route planning
-                  for soybean meal distribution across{' '}
-                  <span className="text-green-400 font-semibold">Canada</span>,{' '}
-                  <span className="text-yellow-400 font-semibold">USA</span> &{' '}
-                  <span className="text-white font-semibold">Spain</span>
-                </p>
-              </div>
-
-              {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Link href="/login">
-                  <Button size="lg" className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white text-lg px-10 py-6 rounded-2xl shadow-2xl shadow-green-500/40 transition-all duration-300 hover:shadow-green-500/60 hover:scale-105 font-bold w-full sm:w-auto">
-                    Launch Dashboard
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
-                <a href="#features">
-                  <Button size="lg" variant="outline" className="border-white/30 bg-white/5 hover:bg-white/10 text-white text-lg px-10 py-6 rounded-2xl backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:border-white/50 w-full sm:w-auto">
-                    Explore Features
-                    <ChevronRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </a>
-              </div>
+        <div className="relative z-10 container mx-auto px-4 sm:px-6 lg:px-12">
+          <div className="max-w-xl md:max-w-2xl lg:max-w-3xl">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-3 sm:px-5 py-2 sm:py-2.5 backdrop-blur-md hover:bg-white/15 transition-colors mb-6 sm:mb-8">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs sm:text-sm font-medium text-gray-200">AI-Powered Distribution Management</span>
             </div>
 
-            {/* Right Column - Visual */}
-            <div className="relative lg:order-last order-first">
-              <div className="relative">
-                {/* Decorative glow background */}
-                <div className="absolute -inset-4 bg-gradient-to-br from-green-500/30 to-yellow-500/30 rounded-3xl blur-2xl opacity-50"></div>
+            {/* Title - Responsive sizing */}
+            <div className="mb-6 sm:mb-8">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-black mb-3 sm:mb-4 tracking-tight leading-[0.9]">
+                <span className="bg-gradient-to-r from-white via-green-400 to-yellow-400 bg-clip-text text-transparent drop-shadow-2xl">
+                  SoyaFlow
+                </span>
+              </h1>
+              <div className="w-16 sm:w-20 lg:w-24 h-1 sm:h-1.5 bg-gradient-to-r from-green-500 to-yellow-400 rounded-full"></div>
+            </div>
 
-                {/* Glass Card */}
-                <div className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md border border-white/20 rounded-3xl p-12 lg:p-16 shadow-2xl">
-                  <div className="relative group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-500/40 to-yellow-500/40 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
-                    <div className="relative bg-gradient-to-br from-gray-900 to-black rounded-3xl p-10 border-2 border-white/30 shadow-xl overflow-hidden">
-                      <SoyaFlowAnimation />
-                    </div>
-                  </div>
-                </div>
-              </div>
+            {/* Subtitle - Responsive text */}
+            <div className="space-y-3 sm:space-y-4 mb-8 sm:mb-10">
+              <p className="text-xl sm:text-2xl lg:text-3xl text-white font-light drop-shadow-lg">
+                Smart Feed Distribution Platform
+              </p>
+              <p className="text-base sm:text-lg text-gray-300 leading-relaxed max-w-lg lg:max-w-xl drop-shadow-md">
+                AI-powered predictions, real-time tracking, and optimized route planning
+                for soybean meal distribution across{' '}
+                <span className="text-green-400 font-semibold">Canada</span>,{' '}
+                <span className="text-yellow-400 font-semibold">USA</span> &{' '}
+                <span className="text-white font-semibold">Spain</span>
+              </p>
+            </div>
+
+            {/* CTA Buttons - Responsive layout */}
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <Link href="/login" className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-6 rounded-xl sm:rounded-2xl shadow-2xl shadow-green-500/40 transition-all duration-300 hover:shadow-green-500/60 hover:scale-105 font-bold">
+                  Launch Dashboard
+                  <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+              </Link>
+              <a href="#features" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto border-white/30 bg-white/10 hover:bg-white/20 text-white text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-6 rounded-xl sm:rounded-2xl backdrop-blur-md transition-all duration-300 hover:scale-105 hover:border-white/50">
+                  Explore Features
+                  <ChevronRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+              </a>
             </div>
           </div>
         </div>
 
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 animate-bounce">
-          <div className="w-7 h-11 border-2 border-white/20 rounded-full flex justify-center pt-2">
-            <div className="w-1.5 h-3 bg-green-500 rounded-full animate-pulse"></div>
+        {/* Scroll Indicator - Hidden on very small screens */}
+        <div className="hidden sm:block absolute bottom-8 sm:bottom-12 left-1/2 -translate-x-1/2 animate-bounce z-10">
+          <div className="w-6 h-10 sm:w-7 sm:h-11 border-2 border-white/30 rounded-full flex justify-center pt-2 backdrop-blur-sm">
+            <div className="w-1 h-2.5 sm:w-1.5 sm:h-3 bg-green-500 rounded-full animate-pulse"></div>
           </div>
         </div>
       </section>
