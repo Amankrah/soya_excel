@@ -36,6 +36,8 @@ type DriverAssignmentRoute = {
   id: string;
   name: string;
   date: string;
+  status?: string;
+  driver_name?: string | null;
   total_distance?: number;
   estimated_duration?: number;
   stops: {
@@ -50,11 +52,13 @@ type DriverAssignmentRoute = {
 // Transform route for driver assignment dialog
 const transformRouteForAssignment = (route: Route | null): DriverAssignmentRoute | null => {
   if (!route) return null;
-  
+
   return {
     id: route.id,
     name: route.name,
     date: route.date,
+    status: route.status,
+    driver_name: route.driver_name,
     total_distance: route.total_distance,
     estimated_duration: route.estimated_duration,
     stops: route.stops.map((stop, index) => ({
@@ -1013,7 +1017,7 @@ export function RouteManagement() {
                             className="rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
                           >
                             <UserPlus className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-                            Assign Driver
+                            {route.driver_name ? 'Reassign Driver' : 'Assign Driver'}
                           </Button>
                           <Button
                             size="sm"

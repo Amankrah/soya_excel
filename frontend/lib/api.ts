@@ -712,6 +712,7 @@ export const routeAPI = {
     vehicle_id?: number;
     send_notification?: boolean;
     notification_method?: 'email' | 'sms' | 'both';
+    reassignment_reason?: string;
   }) => {
     const response = await api.post(`/routes/routes/${routeId}/assign_to_driver/`, data);
     return response.data;

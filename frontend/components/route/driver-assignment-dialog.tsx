@@ -37,6 +37,9 @@ interface Route {
   id: string;
   name: string;
   date: string;
+  status?: string;
+  driver_name?: string | null;
+  vehicle_number?: string | null;
   total_distance?: number;
   estimated_duration?: number;
   stops: {
@@ -74,8 +77,12 @@ export function DriverAssignmentDialog({
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [sendNotification, setSendNotification] = useState(true);
   const [notificationMethod, setNotificationMethod] = useState<'email' | 'sms' | 'both'>('email');
+  const [reassignmentReason, setReassignmentReason] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Check if this is a reassignment (route already has a driver assigned)
+  const isReassignment = !!route?.driver_name;
   const [assignmentResult, setAssignmentResult] = useState<{
     message: string;
     route_id: number;
@@ -127,13 +134,20 @@ export function DriverAssignmentDialog({
       return;
     }
 
+    // Validate reassignment reason if this is a reassignment
+    if (isReassignment && !reassignmentReason.trim()) {
+      toast.error('Please provide a reason for reassignment');
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await routeAPI.assignRouteToDriver(route.id, {
         driver_id: parseInt(selectedDriverId),
         vehicle_id: selectedVehicleId ? parseInt(selectedVehicleId) : undefined,
         send_notification: sendNotification,
-        notification_method: notificationMethod
+        notification_method: notificationMethod,
+        reassignment_reason: isReassignment ? reassignmentReason : undefined
       });
 
       setAssignmentResult(result);
@@ -178,7 +192,7 @@ export function DriverAssignmentDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Truck className="w-5 h-5" />
-            Assign Route to Driver
+            {isReassignment ? 'Reassign Route to Driver' : 'Assign Route to Driver'}
           </DialogTitle>
           <DialogDescription>
             {route && `${route.name} - ${route.date}`}
@@ -230,6 +244,32 @@ export function DriverAssignmentDialog({
                     </p>
                   )}
                 </div>
+
+                {/* Reassignment Warning & Reason */}
+                {isReassignment && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-yellow-900 text-sm">Reassignment Required</h4>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          This route is already assigned to <strong>{route?.driver_name}</strong>.
+                          Please provide a reason for reassignment.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reassignment-reason">Reassignment Reason *</Label>
+                      <textarea
+                        id="reassignment-reason"
+                        className="w-full min-h-[80px] px-3 py-2 text-sm border border-yellow-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        placeholder="e.g., Driver unavailable, vehicle breakdown, schedule conflict..."
+                        value={reassignmentReason}
+                        onChange={(e) => setReassignmentReason(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Vehicle Selection */}
                 <div className="space-y-2">
@@ -441,10 +481,10 @@ export function DriverAssignmentDialog({
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Assigning...
+                    {isReassignment ? 'Reassigning...' : 'Assigning...'}
                   </>
                 ) : (
-                  'Assign Route'
+                  isReassignment ? 'Reassign Route' : 'Assign Route'
                 )}
               </Button>
             </>

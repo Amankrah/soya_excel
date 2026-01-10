@@ -56,7 +56,7 @@ class RouteViewSet(viewsets.ModelViewSet):
     - Advanced editing
     """
 
-    queryset = Route.objects.all()
+    queryset = Route.objects.select_related('origin_warehouse', 'destination_warehouse', 'created_by').prefetch_related('stops', 'deliveries__driver', 'deliveries__vehicle')
     serializer_class = RouteSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ['status', 'date', 'route_type']
@@ -792,19 +792,39 @@ class RouteViewSet(viewsets.ModelViewSet):
             "driver_id": 123,
             "vehicle_id": 456,  # optional
             "send_notification": true,  # optional
-            "notification_method": "email|sms|both"  # optional
+            "notification_method": "email|sms|both",  # optional
+            "reassignment_reason": "string"  # required if route status is 'active' (reassignment)
         }
         """
-        from driver.models import Driver, Vehicle
+        from driver.models import Driver, Vehicle, Delivery
         from .google_maps_integration import GoogleMapsRouteSharing
 
         route = self.get_object()
 
-        if route.status not in ['planned', 'draft']:
+        if route.status not in ['planned', 'draft', 'active']:
             return Response(
                 {'error': f'Cannot assign {route.status} routes'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # Check if this is a reassignment (route already has a delivery/driver assigned)
+        existing_delivery = Delivery.objects.filter(route=route).first()
+        is_reassignment = existing_delivery is not None
+
+        if is_reassignment:
+            reassignment_reason = request.data.get('reassignment_reason', '').strip()
+            if not reassignment_reason:
+                return Response(
+                    {
+                        'error': 'Reassignment reason is required',
+                        'message': 'This route is already assigned to a driver. Please provide a reason for reassignment.',
+                        'current_assignment': {
+                            'driver': existing_delivery.driver.full_name if existing_delivery and existing_delivery.driver else None,
+                            'vehicle': existing_delivery.vehicle.vehicle_number if existing_delivery and existing_delivery.vehicle else None
+                        } if existing_delivery else None
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         driver_id = request.data.get('driver_id')
         if not driver_id:
@@ -829,22 +849,41 @@ class RouteViewSet(viewsets.ModelViewSet):
                     # Link to route via driver model
                     route.assigned_vehicle_type = vehicle.vehicle_type
 
-                # Update route status
-                if route.status == 'draft':
-                    route.status = 'planned'
+                # Handle delivery assignment
+                vehicle = Vehicle.objects.get(id=vehicle_id) if vehicle_id else driver.assigned_vehicle
 
-                route.save()
+                if is_reassignment:
+                    # Update existing delivery for reassignment
+                    if existing_delivery:
+                        existing_delivery.driver = driver
+                        existing_delivery.vehicle = vehicle
+                        existing_delivery.status = 'assigned'
+                        existing_delivery.save()
+                        delivery = existing_delivery
+                    else:
+                        # No existing delivery found, create new one
+                        delivery = Delivery.objects.create(
+                            route=route,
+                            driver=driver,
+                            vehicle=vehicle,
+                            status='assigned'
+                        )
 
-                # Create Delivery record to link driver to route
-                from driver.models import Delivery
-                delivery, created = Delivery.objects.get_or_create(
-                    route=route,
-                    driver=driver,
-                    defaults={
-                        'vehicle': Vehicle.objects.get(id=vehicle_id) if vehicle_id else driver.assigned_vehicle,
-                        'status': 'assigned'
-                    }
-                )
+                    # Log reassignment reason
+                    logger.info(f"Route {route.id} reassigned to driver {driver.full_name}. Reason: {request.data.get('reassignment_reason')}")
+                else:
+                    # First assignment - create new delivery
+                    delivery = Delivery.objects.create(
+                        route=route,
+                        driver=driver,
+                        vehicle=vehicle,
+                        status='assigned'
+                    )
+
+                # Update route vehicle type if provided
+                if vehicle_id:
+                    route.assigned_vehicle_type = vehicle.vehicle_type
+                    route.save()
 
                 # Generate Google Maps links
                 maps_service = GoogleMapsRouteSharing()
