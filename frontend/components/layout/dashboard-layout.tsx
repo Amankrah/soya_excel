@@ -34,12 +34,50 @@ import {
   BarChart3,
   Radio,
   ChevronRight,
-  Sparkles,
   ExternalLink,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+
+// Soya Excel Core Values from https://soyaexcel.com/en/values/
+const coreValues = [
+  {
+    title: 'Agricultural Development',
+    subtitle: 'Rooted in Québec',
+    description: 'Supporting local agriculture and the soybean value chain',
+    icon: '🌱',
+    color: 'from-green-500 to-emerald-600',
+  },
+  {
+    title: 'Sustainability',
+    subtitle: '99.8% Efficiency',
+    description: 'Minimal waste, maximum value from every harvest',
+    icon: '♻️',
+    color: 'from-teal-500 to-cyan-600',
+  },
+  {
+    title: 'Social Responsibility',
+    subtitle: 'Community First',
+    description: 'Supporting causes that matter to our team and families',
+    icon: '🤝',
+    color: 'from-blue-500 to-indigo-600',
+  },
+  {
+    title: 'Respect & Teamwork',
+    subtitle: 'People Built This',
+    description: 'Rewarding dedication and commitment to excellence',
+    icon: '💪',
+    color: 'from-yellow-500 to-orange-500',
+  },
+  {
+    title: 'Local Processing',
+    subtitle: 'Made in Québec',
+    description: 'From our lands, with our people — valuing means processing',
+    icon: '🏭',
+    color: 'from-purple-500 to-pink-500',
+  },
+];
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Overview & KPIs', color: 'from-green-500 to-emerald-600' },
@@ -55,6 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [currentValueIndex, setCurrentValueIndex] = useState(0);
   const { user, logout } = useAuthStore();
 
   useEffect(() => {
@@ -69,6 +108,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     updateTime();
     const timer = setInterval(updateTime, 1000); // Update every second
     return () => clearInterval(timer);
+  }, []);
+
+  // Cycle through core values every 5 seconds
+  useEffect(() => {
+    const valueTimer = setInterval(() => {
+      setCurrentValueIndex((prev) => (prev + 1) % coreValues.length);
+    }, 5000);
+    return () => clearInterval(valueTimer);
   }, []);
 
   const handleLogout = async () => {
@@ -184,22 +231,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </nav>
       
-      {/* Quick Actions */}
+      {/* Core Values Carousel */}
       <div className="px-4 py-3 border-t border-white/5">
+        <p className="px-1 text-[9px] font-bold uppercase tracking-[0.15em] text-gray-600 mb-2">
+          Our Values
+        </p>
+        <div 
+          className={`relative overflow-hidden rounded-xl bg-gradient-to-r ${coreValues[currentValueIndex].color} p-[1px]`}
+        >
+          <div className="bg-[#0a0f14] rounded-xl p-3">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">{coreValues[currentValueIndex].icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-white truncate">
+                  {coreValues[currentValueIndex].title}
+                </p>
+                <p className="text-[10px] text-yellow-400 font-medium">
+                  {coreValues[currentValueIndex].subtitle}
+                </p>
+                <p className="text-[9px] text-gray-500 mt-1 line-clamp-2">
+                  {coreValues[currentValueIndex].description}
+                </p>
+              </div>
+            </div>
+            {/* Progress dots */}
+            <div className="flex justify-center gap-1.5 mt-3">
+              {coreValues.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentValueIndex(idx)}
+                  className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                    idx === currentValueIndex 
+                      ? 'bg-white w-4' 
+                      : 'bg-white/30 hover:bg-white/50'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* Link to values page */}
         <a
-          href="https://sasellab.com/"
+          href="https://soyaexcel.com/en/values/"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r from-green-500/10 to-yellow-500/10 hover:from-green-500/20 hover:to-yellow-500/20 transition-all group"
+          className="flex items-center justify-center gap-1 mt-2 text-[9px] text-gray-500 hover:text-green-400 transition-colors"
         >
-          <div className="p-1.5 bg-white/10 rounded-lg">
-            <Sparkles className="h-4 w-4 text-yellow-400" />
-          </div>
-          <div className="flex-1">
-            <span className="text-xs font-medium text-white block">SASEL Lab</span>
-            <span className="text-[10px] text-gray-500">McGill University</span>
-          </div>
-          <ExternalLink className="h-3 w-3 text-gray-500 group-hover:text-green-400 transition-colors" />
+          Learn more about our values <ExternalLink className="h-2.5 w-2.5" />
         </a>
       </div>
       
