@@ -41,8 +41,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--eps-km',
             type=float,
-            default=50.0,
-            help='DBSCAN: Maximum distance in km between points (default: 50)'
+            default=25.0,
+            help='DBSCAN: Maximum distance in km between points (default: 25)'
         )
         parser.add_argument(
             '--min-samples',
@@ -53,8 +53,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--n-clusters',
             type=int,
-            default=10,
-            help='KMeans: Number of clusters to create (default: 10)'
+            default=15,
+            help='KMeans: Number of clusters to create (default: 15)'
         )
         parser.add_argument(
             '--include-inactive',

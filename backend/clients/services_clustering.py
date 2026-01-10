@@ -44,9 +44,11 @@ class ClientClusteringService:
     """
     
     # Default clustering parameters
-    DEFAULT_DBSCAN_EPS_KM = 50.0  # 50km radius for clustering
+    # For Quebec routes, 25km radius creates practical delivery clusters
+    # This results in clusters that can be covered in a single day's route
+    DEFAULT_DBSCAN_EPS_KM = 25.0  # 25km radius for clustering (was 50km - too large)
     DEFAULT_DBSCAN_MIN_SAMPLES = 2  # Minimum 2 clients per cluster
-    DEFAULT_KMEANS_CLUSTERS = 10  # Default number of clusters for KMeans
+    DEFAULT_KMEANS_CLUSTERS = 15  # Default number of clusters for KMeans (increased from 10)
     
     # Earth's radius in km for haversine calculations
     EARTH_RADIUS_KM = 6371.0
