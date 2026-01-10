@@ -80,12 +80,21 @@ export default function ClientsPage() {
     fetchStatistics();
   }, [currentPage, searchTerm, filterPriority]);
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
+  // Handle filter change with page reset
+  const handleFilterChange = (newFilter: string) => {
+    if (newFilter !== filterPriority) {
+      setFilterPriority(newFilter);
+      setCurrentPage(1);
+    }
+  };
+
+  // Handle search change with page reset
+  const handleSearchChange = (newSearch: string) => {
+    setSearchTerm(newSearch);
     if (currentPage !== 1) {
       setCurrentPage(1);
     }
-  }, [searchTerm, filterPriority]);
+  };
 
   const fetchStatistics = async () => {
     try {
@@ -241,62 +250,15 @@ export default function ClientsPage() {
           </Button>
         </div>
 
-        {/* Search and Filter */}
-        <div className="flex gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, city, or country..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              variant={filterPriority === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterPriority('all')}
-            >
-              All
-            </Button>
-            <Button
-              variant={filterPriority === 'overdue' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterPriority('overdue')}
-              className={filterPriority === 'overdue' ? 'bg-orange-600 hover:bg-orange-700' : ''}
-            >
-              Overdue
-            </Button>
-            <Button
-              variant={filterPriority === 'urgent' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterPriority('urgent')}
-            >
-              Urgent (&le;3d)
-            </Button>
-            <Button
-              variant={filterPriority === 'high' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterPriority('high')}
-            >
-              High (&le;7d)
-            </Button>
-            <Button
-              variant={filterPriority === 'medium' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterPriority('medium')}
-            >
-              Medium (&le;14d)
-            </Button>
-            <Button
-              variant={filterPriority === 'low' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterPriority('low')}
-            >
-              Low (&gt;14d)
-            </Button>
-          </div>
+        {/* Search */}
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, city, or country..."
+            value={searchTerm}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-10"
+          />
         </div>
 
         {/* Info Banner */}
@@ -359,6 +321,53 @@ export default function ClientsPage() {
               <p className="text-xs text-muted-foreground">Ordering in 4-7 days</p>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant={filterPriority === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('all')}
+          >
+            All
+          </Button>
+          <Button
+            variant={filterPriority === 'overdue' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('overdue')}
+            className={filterPriority === 'overdue' ? 'bg-orange-600 hover:bg-orange-700' : ''}
+          >
+            Overdue
+          </Button>
+          <Button
+            variant={filterPriority === 'urgent' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('urgent')}
+          >
+            Urgent (≤3d)
+          </Button>
+          <Button
+            variant={filterPriority === 'high' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('high')}
+          >
+            High (≤7d)
+          </Button>
+          <Button
+            variant={filterPriority === 'medium' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('medium')}
+          >
+            Medium (≤14d)
+          </Button>
+          <Button
+            variant={filterPriority === 'low' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('low')}
+          >
+            Low (&gt;14d)
+          </Button>
         </div>
 
         {/* Clients Table */}

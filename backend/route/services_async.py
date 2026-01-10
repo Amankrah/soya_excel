@@ -253,12 +253,15 @@ class AsyncGoogleMapsService:
                         'destination': destination,
                         'mode': 'driving',
                         'units': 'metric',
-                        'optimize_waypoints': 'true' if optimize else 'false',
                         'key': self.api_key
                     }
 
                     if intermediate:
-                        params['waypoints'] = '|'.join(intermediate)
+                        # Google Maps API requires 'optimize:true|' prefix for waypoint optimization
+                        if optimize:
+                            params['waypoints'] = 'optimize:true|' + '|'.join(intermediate)
+                        else:
+                            params['waypoints'] = '|'.join(intermediate)
 
                     url = f"{self.base_url}/directions/json"
 
@@ -392,6 +395,18 @@ class DistributionPlanService:
                 clusters = self._cluster_kmeans(coordinates, n_clusters=n_routes)
 
             # Create routes for each cluster
+            # Get the primary warehouse for routing
+            from route.models import Warehouse
+            warehouse = await sync_to_async(
+                lambda: Warehouse.objects.filter(is_primary=True, is_active=True).first()
+            )()
+            
+            if not warehouse or not warehouse.latitude or not warehouse.longitude:
+                return {
+                    'success': False,
+                    'error': 'No warehouse with coordinates configured'
+                }
+
             routes_data = []
             for cluster_id in set(clusters):
                 if cluster_id == -1:  # DBSCAN noise points
@@ -402,31 +417,71 @@ class DistributionPlanService:
                 if not cluster_clients:
                     continue
 
-                # Build route waypoints
+                # Build route waypoints with warehouse as origin and destination
+                # This ensures ALL clients are intermediate waypoints that can be optimized
                 waypoints = [
+                    # Warehouse as origin
                     {
+                        'lat': float(warehouse.latitude),
+                        'lng': float(warehouse.longitude),
+                        'is_warehouse': True,
+                        'warehouse_id': warehouse.id
+                    }
+                ]
+                
+                # Add all clients as intermediate waypoints
+                for c in cluster_clients:
+                    waypoints.append({
                         'lat': float(c.latitude),
                         'lng': float(c.longitude),
                         'client_id': c.id,
                         'client_name': c.name
-                    }
-                    for c in cluster_clients
-                ]
+                    })
+                
+                # Warehouse as destination (round trip)
+                waypoints.append({
+                    'lat': float(warehouse.latitude),
+                    'lng': float(warehouse.longitude),
+                    'is_warehouse': True,
+                    'warehouse_id': warehouse.id
+                })
 
-                # Optimize route
+                # Optimize route - Google Maps will optimize the intermediate client waypoints
                 optimization_result = await self.maps_service.optimize_route_directions(
                     waypoints,
                     optimize=True
                 )
 
                 if optimization_result and optimization_result.get('success'):
+                    # waypoint_order now contains optimized order for ALL clients
+                    waypoint_order = optimization_result.get('waypoint_order', [])
+                    client_ids = [c.id for c in cluster_clients]
+                    client_names = [c.name for c in cluster_clients]
+                    
+                    # Debug output (using print to ensure visibility)
+                    print(f"\n{'='*60}")
+                    print(f"=== ROUTE OPTIMIZATION DEBUG ===")
+                    print(f"{'='*60}")
+                    print(f"Original client order: {list(zip(client_ids, client_names))}")
+                    print(f"Google waypoint_order: {waypoint_order}")
+                    print(f"Number of clients: {len(client_ids)}, waypoint_order length: {len(waypoint_order)}")
+                    
+                    # Reorder client_ids based on Google's optimized waypoint_order
+                    if waypoint_order and len(waypoint_order) == len(client_ids):
+                        optimized_client_ids = [client_ids[i] for i in waypoint_order]
+                        optimized_names = [client_names[i] for i in waypoint_order]
+                        print(f"REORDERED - Optimized client order: {list(zip(optimized_client_ids, optimized_names))}")
+                    else:
+                        optimized_client_ids = client_ids
+                        print(f"NOT REORDERED - Using original order. waypoint_order={waypoint_order}, len(client_ids)={len(client_ids)}")
+                    
                     routes_data.append({
                         'cluster_id': int(cluster_id),
-                        'clients': [c.id for c in cluster_clients],
+                        'clients': optimized_client_ids,  # Now in optimized order
                         'client_count': len(cluster_clients),
                         'total_distance_km': optimization_result['total_distance'],
                         'estimated_duration_minutes': optimization_result['total_duration'],
-                        'waypoint_order': optimization_result['waypoint_order'],
+                        'waypoint_order': waypoint_order,
                         'optimized_sequence': waypoints,
                         'overview_polyline': optimization_result['overview_polyline']
                     })

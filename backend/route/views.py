@@ -445,8 +445,12 @@ class RouteViewSet(viewsets.ModelViewSet):
                     created_by=user
                 )
 
-                # Create stops
-                for seq, client_id in enumerate(route_data['clients'], 1):
+                # route_data['clients'] is already in Google Maps optimized order
+                # (reordering now happens in DistributionPlanService.create_distribution_plan)
+                ordered_client_ids = route_data['clients']
+                
+                # Create stops in the optimized order
+                for seq, client_id in enumerate(ordered_client_ids, 1):
                     client = Client.objects.get(id=client_id)
                     pending_order = client.orders.filter(status__in=['pending', 'confirmed']).first()
 

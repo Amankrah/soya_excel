@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -18,8 +18,9 @@ class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'country', 'priority', 'has_contract']
-    search_fields = ['name', 'city', 'postal_code', 'address', 'account_manager']
+    search_fields = ['name', 'city', 'postal_code', 'address', 'account_manager', 'country']
     ordering_fields = ['name', 'created_at', 'predicted_next_order_date', 'historical_monthly_usage']
 
     def get_queryset(self):
@@ -73,6 +74,31 @@ class ClientViewSet(viewsets.ModelViewSet):
                 predicted_next_order_date__isnull=False,
                 predicted_next_order_date__lte=urgent_date
             )
+
+        # Filter by days until predicted order (days_min and days_max)
+        # These filters work on the number of days until the predicted order date
+        now = timezone.now()
+        days_min = self.request.query_params.get('days_min')
+        days_max = self.request.query_params.get('days_max')
+
+        if days_min is not None or days_max is not None:
+            queryset = queryset.filter(predicted_next_order_date__isnull=False)
+
+            if days_max is not None:
+                days_max_int = int(days_max)
+                if days_max_int < 0:
+                    # Overdue: predicted date is in the past
+                    queryset = queryset.filter(predicted_next_order_date__lt=now)
+                else:
+                    # Filter by max days (predicted date <= now + max_days)
+                    max_date = now + timedelta(days=days_max_int)
+                    queryset = queryset.filter(predicted_next_order_date__lte=max_date)
+
+            if days_min is not None:
+                days_min_int = int(days_min)
+                # Filter by min days (predicted date >= now + min_days)
+                min_date = now + timedelta(days=days_min_int)
+                queryset = queryset.filter(predicted_next_order_date__gte=min_date)
 
         # Filter by has coordinates
         has_coordinates = self.request.query_params.get('has_coordinates')

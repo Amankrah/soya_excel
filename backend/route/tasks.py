@@ -191,14 +191,9 @@ def create_distribution_plan_task(
                 )
 
                 # Create stops for each client in optimized order
-                waypoint_order = route_data.get('waypoint_order', [])
+                # route_data['clients'] is already in Google Maps optimized order
+                # (reordering now happens in DistributionPlanService.create_distribution_plan)
                 client_ids_ordered = route_data['clients']
-
-                if waypoint_order:
-                    # Reorder based on optimization
-                    client_ids_ordered = [client_ids_ordered[0]] + \
-                                         [client_ids_ordered[i + 1] for i in waypoint_order] + \
-                                         [client_ids_ordered[-1]]
 
                 for seq, client_id in enumerate(client_ids_ordered, start=1):
                     client = Client.objects.get(id=client_id)
