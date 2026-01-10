@@ -31,7 +31,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, MapPin, Calendar, TrendingUp, Users, AlertTriangle, Clock, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { 
+  Search, 
+  MapPin, 
+  Calendar, 
+  TrendingUp, 
+  Users, 
+  AlertTriangle, 
+  Clock, 
+  ChevronLeft, 
+  ChevronRight, 
+  Info,
+  Sparkles,
+  RefreshCw,
+  Eye,
+  Brain,
+  ArrowRight,
+  Filter,
+} from 'lucide-react';
 
 interface Client {
   id: string;
@@ -164,7 +181,11 @@ export default function ClientsPage() {
   const getPriorityBadge = (client: Client) => {
     // Check if client has a predicted order date
     if (!client.predicted_next_order_date || client.days_until_predicted_order === null) {
-      return <Badge variant="outline">No Prediction</Badge>;
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+          No Prediction
+        </span>
+      );
     }
 
     const days = client.days_until_predicted_order;
@@ -172,24 +193,36 @@ export default function ClientsPage() {
     // Timeline-based badges matching the filter ranges
     if (days < 0) {
       return (
-        <Badge variant="destructive" className="bg-orange-600">
-          <AlertTriangle className="h-3 w-3 mr-1" />
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+          <AlertTriangle className="h-3 w-3" />
           Overdue
-        </Badge>
+        </span>
       );
     } else if (days <= 3) {
       return (
-        <Badge variant="destructive">
-          <AlertTriangle className="h-3 w-3 mr-1" />
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+          <AlertTriangle className="h-3 w-3" />
           Urgent
-        </Badge>
+        </span>
       );
     } else if (days <= 7) {
-      return <Badge variant="secondary" className="bg-red-100 text-red-800">High</Badge>;
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-200">
+          High
+        </span>
+      );
     } else if (days <= 14) {
-      return <Badge variant="default">Medium</Badge>;
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+          Medium
+        </span>
+      );
     } else {
-      return <Badge variant="outline">Low</Badge>;
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+          Low
+        </span>
+      );
     }
   };
 
@@ -234,248 +267,306 @@ export default function ClientsPage() {
   const startIndex = (currentPage - 1) * clientsPerPage;
   const endIndex = Math.min(startIndex + clientsPerPage, totalCount);
 
+  const filterButtons = [
+    { key: 'all', label: 'All Clients', color: 'bg-gray-900 hover:bg-gray-800' },
+    { key: 'overdue', label: 'Overdue', color: 'bg-orange-600 hover:bg-orange-700' },
+    { key: 'urgent', label: 'Urgent (≤3d)', color: 'bg-red-600 hover:bg-red-700' },
+    { key: 'high', label: 'High (≤7d)', color: 'bg-yellow-600 hover:bg-yellow-700' },
+    { key: 'medium', label: 'Medium (≤14d)', color: 'bg-green-600 hover:bg-green-700' },
+    { key: 'low', label: 'Low (>14d)', color: 'bg-gray-500 hover:bg-gray-600' },
+  ];
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Clients</h2>
-            <p className="text-muted-foreground">
+        {/* Page Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="soya-fade-in">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-green-600 to-green-700 shadow-lg shadow-green-600/20">
+                <Users className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex items-center gap-2 bg-yellow-100 rounded-full px-3 py-1">
+                <Sparkles className="h-3.5 w-3.5 text-yellow-600" />
+                <span className="text-xs font-semibold text-yellow-700">AI-Powered</span>
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900">Client Predictions</h1>
+            <p className="text-gray-500 mt-1">
               AI-powered reorder predictions for small/medium order clients (≤10 tonnes per order)
             </p>
           </div>
-          <Button onClick={fetchClients} variant="outline">
-            <Clock className="h-4 w-4 mr-2" />
-            Refresh
+          <Button 
+            onClick={fetchClients} 
+            className="soya-button-outline group soya-fade-in soya-stagger-1"
+          >
+            <RefreshCw className="h-4 w-4 mr-2 transition-transform group-hover:rotate-180 duration-500" />
+            Refresh Data
           </Button>
         </div>
 
-        {/* Search */}
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by name, city, or country..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
         {/* Info Banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-blue-900 mb-1">About AI Predictions</h3>
-              <p className="text-sm text-blue-800">
-                <strong>Only clients with valid predictions are shown below.</strong> Predictions are generated for clients with at least 3 small/medium orders (≤10 tonnes each).
-                The AI model was trained specifically on small and medium order patterns.
-                Clients who primarily order in bulk (&gt;10 tonnes) cannot receive predictions and are not displayed.
-              </p>
+        <div className="soya-fade-in soya-stagger-2">
+          <div className="bg-gradient-to-r from-green-50 to-yellow-50 border border-green-200 rounded-xl p-5">
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Brain className="h-5 w-5 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-green-900 mb-1">About AI Predictions</h3>
+                <p className="text-sm text-green-800">
+                  <strong>Only clients with valid predictions are shown below.</strong> Predictions are generated for clients with at least 3 small/medium orders (≤10 tonnes each).
+                  The AI model was trained specifically on small and medium order patterns.
+                  Clients who primarily order in bulk (&gt;10 tonnes) cannot receive predictions.
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Clients with Predictions</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{statistics.totalClients}</div>
-              <p className="text-xs text-muted-foreground">All clients with AI predictions</p>
+        {/* Stats Cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 soya-fade-in soya-stagger-3">
+          <Card className="soya-card border-0 overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-green-500/5 rounded-full -mr-10 -mt-10"></div>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Total Clients</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1">{statistics.totalClients}</p>
+                  <p className="text-xs text-gray-400 mt-1">With AI predictions</p>
+                </div>
+                <div className="p-3 bg-gradient-to-br from-green-600 to-green-700 rounded-xl shadow-lg shadow-green-600/20">
+                  <Users className="h-6 w-6 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Urgent Orders</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{statistics.urgentCount}</div>
-              <p className="text-xs text-muted-foreground">Ordering within 3 days</p>
+          <Card className="soya-card border-0 overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/5 rounded-full -mr-10 -mt-10"></div>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Urgent Orders</p>
+                  <p className="text-3xl font-bold text-red-600 mt-1">{statistics.urgentCount}</p>
+                  <p className="text-xs text-gray-400 mt-1">Within 3 days</p>
+                </div>
+                <div className="p-3 bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg shadow-red-500/20">
+                  <AlertTriangle className="h-6 w-6 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-              <Clock className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{statistics.overdueCount}</div>
-              <p className="text-xs text-muted-foreground">Past predicted date</p>
+          <Card className="soya-card border-0 overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-orange-500/5 rounded-full -mr-10 -mt-10"></div>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Overdue</p>
+                  <p className="text-3xl font-bold text-orange-600 mt-1">{statistics.overdueCount}</p>
+                  <p className="text-xs text-gray-400 mt-1">Past predicted date</p>
+                </div>
+                <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg shadow-orange-500/20">
+                  <Clock className="h-6 w-6 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">High Priority</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{statistics.highCount}</div>
-              <p className="text-xs text-muted-foreground">Ordering in 4-7 days</p>
+          <Card className="soya-card border-0 overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-yellow-500/5 rounded-full -mr-10 -mt-10"></div>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">High Priority</p>
+                  <p className="text-3xl font-bold text-yellow-600 mt-1">{statistics.highCount}</p>
+                  <p className="text-xs text-gray-400 mt-1">4-7 days</p>
+                </div>
+                <div className="p-3 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl shadow-lg shadow-yellow-500/20">
+                  <TrendingUp className="h-6 w-6 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filter Buttons */}
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            variant={filterPriority === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilterChange('all')}
-          >
-            All
-          </Button>
-          <Button
-            variant={filterPriority === 'overdue' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilterChange('overdue')}
-            className={filterPriority === 'overdue' ? 'bg-orange-600 hover:bg-orange-700' : ''}
-          >
-            Overdue
-          </Button>
-          <Button
-            variant={filterPriority === 'urgent' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilterChange('urgent')}
-          >
-            Urgent (≤3d)
-          </Button>
-          <Button
-            variant={filterPriority === 'high' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilterChange('high')}
-          >
-            High (≤7d)
-          </Button>
-          <Button
-            variant={filterPriority === 'medium' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilterChange('medium')}
-          >
-            Medium (≤14d)
-          </Button>
-          <Button
-            variant={filterPriority === 'low' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleFilterChange('low')}
-          >
-            Low (&gt;14d)
-          </Button>
-        </div>
+        {/* Search and Filters */}
+        <Card className="soya-card border-0 soya-fade-in soya-stagger-4">
+          <CardContent className="p-5">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="Search by name, city, or country..."
+                  value={searchTerm}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pl-10 h-11 border-gray-200 focus:border-green-500 focus:ring-green-500/20"
+                />
+              </div>
+              
+              {/* Filter Buttons */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 text-gray-500 mr-2">
+                  <Filter className="h-4 w-4" />
+                  <span className="text-sm font-medium hidden sm:inline">Filter:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {filterButtons.map((btn) => (
+                    <Button
+                      key={btn.key}
+                      size="sm"
+                      onClick={() => handleFilterChange(btn.key)}
+                      className={`rounded-full transition-all duration-200 ${
+                        filterPriority === btn.key
+                          ? `${btn.color} text-white shadow-md`
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {btn.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Clients Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>All Clients</CardTitle>
-            <CardDescription>
-              AI-predicted next order dates based on historical ordering patterns for small/medium orders (≤10 tonnes). Predictions shown only for clients with ≥3 qualifying orders.
-            </CardDescription>
+        <Card className="soya-card border-0 shadow-lg">
+          <CardHeader className="border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl">All Clients</CardTitle>
+                <CardDescription className="mt-1">
+                  AI-predicted next order dates based on historical ordering patterns
+                </CardDescription>
+              </div>
+              <Badge className="soya-badge-success">
+                {totalCount} clients
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Client Name</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Predicted Next Order</TableHead>
-                  <TableHead>Days Until Order</TableHead>
-                  <TableHead>Monthly Usage</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {client.name}
-                        {client.has_contract && (
-                          <Badge variant="outline" className="text-xs">
-                            Contract
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        <div>
-                          <p className="text-sm">{client.city}</p>
-                          <p className="text-xs text-muted-foreground">{client.country}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getPriorityBadge(client)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(client.predicted_next_order_date)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          client.days_until_predicted_order !== null &&
-                          client.days_until_predicted_order < 0
-                            ? 'text-orange-600 font-semibold'
-                            : client.is_urgent
-                            ? 'text-red-600 font-semibold'
-                            : ''
-                        }
-                      >
-                        {getDaysDisplay(client)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {client.historical_monthly_usage
-                        ? `${client.historical_monthly_usage} tm/mo`
-                        : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm" onClick={() => viewClientDetails(client)}>
-                        View Details
-                      </Button>
-                    </TableCell>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
+                    <TableHead className="font-semibold text-gray-700">Client Name</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Location</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Priority</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Predicted Order</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Days Until</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Monthly Usage</TableHead>
+                    <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredClients.map((client, index) => (
+                    <TableRow 
+                      key={client.id}
+                      className="hover:bg-green-50/50 transition-colors duration-150"
+                      style={{ animationDelay: `${index * 30}ms` }}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-900">{client.name}</span>
+                          {client.has_contract && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                              Contract
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{client.city}</p>
+                            <p className="text-xs text-gray-500">{client.country}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getPriorityBadge(client)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-400" />
+                          <span className="text-gray-700">{formatDate(client.predicted_next_order_date)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`font-medium ${
+                            client.days_until_predicted_order !== null &&
+                            client.days_until_predicted_order < 0
+                              ? 'text-orange-600'
+                              : client.is_urgent
+                              ? 'text-red-600'
+                              : 'text-gray-700'
+                          }`}
+                        >
+                          {getDaysDisplay(client)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-gray-700">
+                          {client.historical_monthly_usage
+                            ? `${client.historical_monthly_usage} tm/mo`
+                            : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => viewClientDetails(client)}
+                          className="hover:bg-green-100 hover:text-green-700 group"
+                        >
+                          <Eye className="h-4 w-4 mr-1.5" />
+                          Details
+                          <ArrowRight className="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-4 border-t">
-                <div className="text-sm text-gray-600">
-                  Showing {startIndex + 1}-{endIndex} of {totalCount} clients
-                </div>
+              <div className="flex items-center justify-between p-4 border-t border-gray-100">
+                <p className="text-sm text-gray-600">
+                  Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+                  <span className="font-medium">{endIndex}</span> of{' '}
+                  <span className="font-medium">{totalCount}</span> clients
+                </p>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1 || loading}
+                    className="rounded-lg"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
                   </Button>
-                  <div className="text-sm text-gray-600">
-                    Page {currentPage} of {totalPages}
+                  <div className="flex items-center gap-1 px-3">
+                    <span className="text-sm font-medium text-gray-900">{currentPage}</span>
+                    <span className="text-sm text-gray-400">/</span>
+                    <span className="text-sm text-gray-500">{totalPages}</span>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages || loading}
+                    className="rounded-lg"
                   >
                     Next
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
               </div>
@@ -485,95 +576,112 @@ export default function ClientsPage() {
 
         {/* Client Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl rounded-2xl">
             <DialogHeader>
-              <DialogTitle>{selectedClient?.name}</DialogTitle>
-              <DialogDescription>Client details and prediction information</DialogDescription>
+              <DialogTitle className="text-xl font-bold">{selectedClient?.name}</DialogTitle>
+              <DialogDescription>Client details and AI prediction information</DialogDescription>
             </DialogHeader>
             {selectedClient && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-semibold mb-2">Location Information</h4>
+              <div className="space-y-6 mt-4">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+                      <MapPin className="h-4 w-4 text-green-600" />
+                      Location Information
+                    </h4>
                     <div className="space-y-2 text-sm">
-                      <div className="flex items-start gap-2">
-                        <MapPin className="h-4 w-4 mt-0.5" />
-                        <div>
-                          <p>{selectedClient.address || 'No address'}</p>
-                          <p className="text-muted-foreground">
-                            {selectedClient.city}, {selectedClient.country}
-                          </p>
-                          <p className="text-muted-foreground">{selectedClient.postal_code}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+                      <p className="text-gray-700">{selectedClient.address || 'No address'}</p>
+                      <p className="text-gray-600">
+                        {selectedClient.city}, {selectedClient.country}
+                      </p>
+                      <p className="text-gray-500">{selectedClient.postal_code}</p>
+                      <div className="flex items-center gap-2 mt-3">
                         {getPriorityBadge(selectedClient)}
                         {selectedClient.has_contract && (
-                          <Badge variant="outline">Long-term Contract</Badge>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            Long-term Contract
+                          </span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <h4 className="font-semibold mb-2">Business Metrics</h4>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+                      <TrendingUp className="h-4 w-4 text-yellow-600" />
+                      Business Metrics
+                    </h4>
                     <div className="space-y-2 text-sm">
                       <p>
-                        <span className="font-medium">Monthly Usage:</span>{' '}
-                        {selectedClient.historical_monthly_usage
-                          ? `${selectedClient.historical_monthly_usage} tonnes`
-                          : 'Not calculated'}
+                        <span className="text-gray-500">Monthly Usage:</span>{' '}
+                        <span className="font-medium text-gray-900">
+                          {selectedClient.historical_monthly_usage
+                            ? `${selectedClient.historical_monthly_usage} tonnes`
+                            : 'Not calculated'}
+                        </span>
                       </p>
                       <p>
-                        <span className="font-medium">Total Orders:</span> {selectedClient.orders_count}
+                        <span className="text-gray-500">Total Orders:</span>{' '}
+                        <span className="font-medium text-gray-900">{selectedClient.orders_count}</span>
                       </p>
                       <p>
-                        <span className="font-medium">Prediction Accuracy:</span>{' '}
-                        {selectedClient.prediction_accuracy_score
-                          ? `${selectedClient.prediction_accuracy_score}%`
-                          : 'N/A'}
+                        <span className="text-gray-500">Prediction Accuracy:</span>{' '}
+                        <span className="font-medium text-gray-900">
+                          {selectedClient.prediction_accuracy_score
+                            ? `${selectedClient.prediction_accuracy_score}%`
+                            : 'N/A'}
+                        </span>
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <h4 className="font-semibold mb-2">AI Prediction</h4>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Predicted Next Order:</span>
-                      <span className="text-lg font-bold">
+                <div className="bg-gradient-to-br from-green-50 to-yellow-50 border border-green-200 rounded-xl p-5">
+                  <h4 className="font-semibold mb-4 flex items-center gap-2 text-gray-900">
+                    <Brain className="h-4 w-4 text-green-600" />
+                    AI Prediction
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Predicted Next Order</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">
                         {formatDate(selectedClient.predicted_next_order_date)}
-                      </span>
+                      </p>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Time Until Order:</span>
-                      <span className="text-lg font-semibold">{getDaysDisplay(selectedClient)}</span>
-                    </div>
-                    {selectedClient.prediction_confidence_lower &&
-                      selectedClient.prediction_confidence_upper && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Confidence Interval:</span>
-                          <span className="text-sm">
-                            {typeof selectedClient.prediction_confidence_lower === 'number'
-                              ? selectedClient.prediction_confidence_lower.toFixed(1)
-                              : selectedClient.prediction_confidence_lower} -{' '}
-                            {typeof selectedClient.prediction_confidence_upper === 'number'
-                              ? selectedClient.prediction_confidence_upper.toFixed(1)
-                              : selectedClient.prediction_confidence_upper} days
-                          </span>
-                        </div>
-                      )}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Last Updated:</span>
-                      <span className="text-sm text-muted-foreground">
-                        {formatDate(selectedClient.last_prediction_update)}
-                      </span>
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Until Order</p>
+                      <p className={`text-2xl font-bold mt-1 ${
+                        selectedClient.days_until_predicted_order !== null && selectedClient.days_until_predicted_order < 0
+                          ? 'text-orange-600'
+                          : selectedClient.is_urgent
+                          ? 'text-red-600'
+                          : 'text-green-700'
+                      }`}>
+                        {getDaysDisplay(selectedClient)}
+                      </p>
                     </div>
                   </div>
+                  {selectedClient.prediction_confidence_lower &&
+                    selectedClient.prediction_confidence_upper && (
+                      <div className="mt-4 bg-white rounded-lg p-3 shadow-sm">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence Interval</p>
+                        <p className="text-sm font-medium text-gray-700 mt-1">
+                          {typeof selectedClient.prediction_confidence_lower === 'number'
+                            ? selectedClient.prediction_confidence_lower.toFixed(1)
+                            : selectedClient.prediction_confidence_lower} -{' '}
+                          {typeof selectedClient.prediction_confidence_upper === 'number'
+                            ? selectedClient.prediction_confidence_upper.toFixed(1)
+                            : selectedClient.prediction_confidence_upper} days
+                        </p>
+                      </div>
+                    )}
+                  <p className="text-xs text-gray-500 mt-4">
+                    Last Updated: {formatDate(selectedClient.last_prediction_update)}
+                  </p>
                 </div>
 
-                <div className="pt-4 flex gap-2">
+                <div className="flex gap-3 pt-2">
                   <Button
+                    className="soya-button-primary flex-1"
                     onClick={async () => {
                       try {
                         await clientAPI.updateClientPrediction(selectedClient.id);
@@ -587,9 +695,14 @@ export default function ClientsPage() {
                       }
                     }}
                   >
+                    <RefreshCw className="h-4 w-4 mr-2" />
                     Update Prediction
                   </Button>
-                  <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsDetailOpen(false)}
+                    className="flex-1"
+                  >
                     Close
                   </Button>
                 </div>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from 'react-hot-toast';
 
@@ -13,13 +14,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "Soya Excel - Feed Distribution Management System",
-  description: "Professional soybean meal distribution management system for Soya Excel across Canada, USA & Spain",
-  keywords: ["Soya Excel", "feed distribution", "soybean meal", "management system", "agriculture"],
+  title: "SoyaFlow | Smart Feed Distribution Platform",
+  description: "AI-powered feed distribution management platform for Soya Excel. Optimize routes, predict orders, and track deliveries in real-time across Canada, USA & Spain.",
+  keywords: ["SoyaFlow", "Soya Excel", "feed distribution", "soybean meal", "route optimization", "AI predictions", "logistics management", "agriculture tech"],
   authors: [{ name: "Soya Excel" }],
   creator: "Soya Excel",
   publisher: "Soya Excel",
+  openGraph: {
+    title: "SoyaFlow | Smart Feed Distribution Platform",
+    description: "AI-powered feed distribution management for efficient soybean meal delivery",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -30,7 +42,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${dmSans.variable} antialiased font-sans`}
       >
         {children}
         <Toaster
@@ -38,30 +50,38 @@ export default function RootLayout({
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#1A1A1A',
+              background: '#171717',
               color: '#fff',
-              borderRadius: '12px',
-              border: '1px solid #4A4A4A',
+              borderRadius: '16px',
+              border: '1px solid #404040',
+              padding: '16px',
+              fontSize: '14px',
+              fontWeight: 500,
+              boxShadow: '0 10px 40px -10px rgba(0,0,0,0.4)',
             },
             success: {
               duration: 3000,
               style: {
-                background: '#2D5016',
+                background: 'linear-gradient(135deg, #2D5016 0%, #22420d 100%)',
                 border: '1px solid #4A7C59',
+              },
+              iconTheme: {
+                primary: '#FFD700',
+                secondary: '#2D5016',
               },
             },
             error: {
               duration: 4000,
               style: {
-                background: '#DC2626',
-                border: '1px solid #EF4444',
+                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                border: '1px solid #ef4444',
               },
             },
             loading: {
               style: {
-                background: '#FFD700',
-                color: '#1A1A1A',
-                border: '1px solid #FFE55C',
+                background: 'linear-gradient(135deg, #FFD700 0%, #e6b800 100%)',
+                color: '#171717',
+                border: '1px solid #ffe033',
               },
             },
           }}

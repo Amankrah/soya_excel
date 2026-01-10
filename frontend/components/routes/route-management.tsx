@@ -616,11 +616,11 @@ export function RouteManagement() {
   // Get status color
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'planned': return 'bg-blue-100 text-blue-800';
-      case 'completed': return 'bg-gray-100 text-gray-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-yellow-100 text-yellow-800';
+      case 'active': return 'bg-gradient-to-r from-green-500 to-green-600 text-white border-0 shadow-sm shadow-green-500/30';
+      case 'planned': return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 shadow-sm shadow-blue-500/30';
+      case 'completed': return 'bg-gray-200 text-gray-700 border-0';
+      case 'cancelled': return 'bg-red-100 text-red-700 border-0';
+      default: return 'bg-yellow-100 text-yellow-700 border-0';
     }
   };
 
@@ -633,15 +633,24 @@ export function RouteManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 soya-fade-in">
         <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-green-600 to-green-700 shadow-lg shadow-green-600/20">
+              <RouteIcon className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex items-center gap-2 bg-green-100 rounded-full px-3 py-1">
+              <Zap className="h-3.5 w-3.5 text-green-600" />
+              <span className="text-xs font-semibold text-green-700">Optimized</span>
+            </div>
+          </div>
           <h1 className="text-3xl font-bold text-gray-900">Route Management</h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-1 text-gray-500">
             Plan, optimize, and manage soybean meal delivery routes
           </p>
         </div>
         <Button
-          variant="outline"
+          className="soya-button-secondary group"
           onClick={() => setShowDistributionPlanner(true)}
         >
           <Users className="h-4 w-4 mr-2" />
@@ -651,9 +660,12 @@ export function RouteManagement() {
 
       {/* Date Selector and Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg">Route Date</CardTitle>
+        <Card className="lg:col-span-1 soya-card border-0 shadow-lg">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-green-600" />
+              Route Date
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="relative mb-4">
@@ -748,81 +760,94 @@ export function RouteManagement() {
               <div className="text-gray-500">Loading routes...</div>
             </div>
           ) : routes.length === 0 ? (
-            <Card className="h-64">
+            <Card className="h-64 soya-card border-0 shadow-lg">
               <CardContent className="flex items-center justify-center h-full">
                 <div className="text-center">
-                  <RouteIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mb-4">
+                    <RouteIcon className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
                     No routes for {new Date(selectedDate).toLocaleDateString()}
                   </h3>
-                  <p className="text-gray-600 mb-4">
+                  <p className="text-gray-500 mb-6 max-w-sm">
                     Use the distribution planner to create optimized delivery routes.
                   </p>
                   <Button
+                    className="soya-button-primary"
                     onClick={() => setShowDistributionPlanner(true)}
                   >
                     <Users className="h-4 w-4 mr-2" />
-                    Distribution Planner
+                    Create Routes
                   </Button>
                 </div>
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {routes.map((route) => (
-                <Card key={route.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {routes.map((route, index) => (
+                <Card 
+                  key={route.id} 
+                  className="soya-card border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <CardHeader className="pb-3 border-b border-gray-100">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{route.name}</CardTitle>
-                      <Badge className={getStatusColor(route.status)}>
+                      <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-green-700 transition-colors">
+                        {route.name}
+                      </CardTitle>
+                      <Badge className={`${getStatusColor(route.status)} font-semibold`}>
                         {route.status}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Truck className="h-4 w-4" />
-                        {route.driver_name || 'No driver assigned'}
+                    <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <div className="p-1 rounded bg-gray-100">
+                          <Truck className="h-3.5 w-3.5 text-gray-600" />
+                        </div>
+                        <span>{route.driver_name || 'Unassigned'}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(route.date).toLocaleDateString()}
+                      <div className="flex items-center gap-1.5">
+                        <div className="p-1 rounded bg-gray-100">
+                          <Calendar className="h-3.5 w-3.5 text-gray-600" />
+                        </div>
+                        <span>{new Date(route.date).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </CardHeader>
 
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 pt-4">
                     {/* Route Stats */}
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <div className="text-lg font-semibold text-gray-900">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-gradient-to-br from-green-50 to-white rounded-xl p-3 text-center border border-green-100">
+                        <div className="text-2xl font-bold text-green-700">
                           {route.stops.length}
                         </div>
-                        <div className="text-xs text-gray-600">Stops</div>
+                        <div className="text-xs font-medium text-green-600 mt-0.5">Stops</div>
                       </div>
-                      <div>
-                        <div className="text-lg font-semibold text-gray-900">
-                          {route.total_distance ? `${route.total_distance}km` : 'N/A'}
+                      <div className="bg-gradient-to-br from-yellow-50 to-white rounded-xl p-3 text-center border border-yellow-100">
+                        <div className="text-2xl font-bold text-yellow-700">
+                          {route.total_distance ? `${route.total_distance}` : '—'}
                         </div>
-                        <div className="text-xs text-gray-600">Distance</div>
+                        <div className="text-xs font-medium text-yellow-600 mt-0.5">km</div>
                       </div>
-                      <div>
-                        <div className="text-lg font-semibold text-gray-900">
-                          {route.estimated_duration ? `${Math.round(route.estimated_duration / 60)}h` : 'N/A'}
+                      <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-3 text-center border border-gray-200">
+                        <div className="text-2xl font-bold text-gray-700">
+                          {route.estimated_duration ? `${Math.round(route.estimated_duration / 60)}` : '—'}
                         </div>
-                        <div className="text-xs text-gray-600">Duration</div>
+                        <div className="text-xs font-medium text-gray-500 mt-0.5">hours</div>
                       </div>
                     </div>
 
                     {/* Progress Bar */}
                     {route.status === 'active' && (
-                      <div className="space-y-2">
+                      <div className="space-y-2 bg-green-50 rounded-lg p-3">
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Progress</span>
-                          <span className="font-medium">{Math.round(getProgress(route))}%</span>
+                          <span className="text-green-700 font-medium">Progress</span>
+                          <span className="font-bold text-green-800">{Math.round(getProgress(route))}%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-green-200 rounded-full h-2.5 overflow-hidden">
                           <div
-                            className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                            className="bg-gradient-to-r from-green-500 to-green-600 h-full rounded-full transition-all duration-500 ease-out"
                             style={{ width: `${Math.min(100, Math.max(0, getProgress(route)))}%` }}
                           ></div>
                         </div>
@@ -840,7 +865,7 @@ export function RouteManagement() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-2 pt-2 border-t flex-wrap">
+                    <div className="flex gap-2 pt-3 border-t border-gray-100 flex-wrap">
                       {(route.status === 'draft' || route.status === 'planned' || route.status === 'active') && (
                         <>
                           <Button
@@ -848,8 +873,9 @@ export function RouteManagement() {
                             size="sm"
                             onClick={() => handleOptimizeRoute(route.id)}
                             title={route.status === 'active' ? 'Reoptimize active route' : 'Optimize route'}
+                            className="rounded-lg hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300 transition-colors"
                           >
-                            <Zap className="h-3 w-3 mr-1" />
+                            <Zap className="h-3.5 w-3.5 mr-1.5 text-yellow-600" />
                             {route.status === 'active' ? 'Reoptimize' : 'Optimize'}
                           </Button>
                           <Button
@@ -857,8 +883,9 @@ export function RouteManagement() {
                             size="sm"
                             onClick={() => handleEditRoute(route)}
                             title={route.status === 'active' ? 'Edit stops (add/remove)' : 'Edit route'}
+                            className="rounded-lg hover:bg-gray-100 transition-colors"
                           >
-                            <Edit className="h-3 w-3 mr-1" />
+                            <Edit className="h-3.5 w-3.5 mr-1.5" />
                             {route.status === 'active' ? 'Edit Stops' : 'Edit'}
                           </Button>
                         </>
@@ -873,16 +900,17 @@ export function RouteManagement() {
                               setSelectedRouteForAssignment(route);
                               setShowDriverAssignmentDialog(true);
                             }}
+                            className="rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
                           >
-                            <UserPlus className="h-3 w-3 mr-1" />
+                            <UserPlus className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
                             Assign Driver
                           </Button>
                           <Button
-                            variant="default"
                             size="sm"
                             onClick={() => handleActivateRoute(route.id)}
+                            className="rounded-lg bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-sm shadow-green-600/30"
                           >
-                            <Play className="h-3 w-3 mr-1" />
+                            <Play className="h-3.5 w-3.5 mr-1.5" />
                             Activate
                           </Button>
                         </>
@@ -893,8 +921,9 @@ export function RouteManagement() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleCompleteRoute(route.id)}
+                          className="rounded-lg hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-colors"
                         >
-                          <CheckCircle className="h-3 w-3 mr-1" />
+                          <CheckCircle className="h-3.5 w-3.5 mr-1.5 text-green-600" />
                           Complete
                         </Button>
                       )}

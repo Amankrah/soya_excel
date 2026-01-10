@@ -547,10 +547,11 @@ class RouteAnalyticsViewSet(viewsets.ViewSet):
                 by_type[opt_type]['distance_saved'] += float(opt.distance_savings or 0)
                 by_type[opt_type]['time_saved'] += opt.time_savings or 0
 
-            # Estimate cost savings
-            # Assuming $1.50/km fuel cost and $50/hour driver cost
-            fuel_cost_per_km = 1.50
-            driver_cost_per_hour = 50.0
+            # Estimate cost savings - Quebec rates for heavy truck (2024-2026)
+            # Fuel: ~40L/100km at $1.70/L diesel = $0.68/km
+            # Driver: $26/hr base + ~35% employer costs (CPP, EI, CNESST, benefits) = $35/hr
+            fuel_cost_per_km = 0.70  # CAD per km (Quebec diesel rates)
+            driver_cost_per_hour = 35.0  # CAD per hour (loaded cost with benefits)
 
             estimated_fuel_savings = float(total_distance_saved) * fuel_cost_per_km
             estimated_driver_cost_savings = (total_time_saved / 60.0) * driver_cost_per_hour

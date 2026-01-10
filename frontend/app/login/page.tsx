@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuthStore } from '@/lib/store';
 import { useAuth } from '@/lib/hooks/useAuth';
 import Image from 'next/image';
+import { Leaf, Lock, User, ArrowRight, Truck, MapPin, BarChart3 } from 'lucide-react';
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -23,7 +24,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isLoading: authLoading } = useAuth(false); // Don't require auth, redirect if authenticated
+  const { isLoading: authLoading } = useAuth(false);
   const [isLoading, setIsLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
 
@@ -39,7 +40,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(data.username, data.password);
-      toast.success('Login successful!');
+      toast.success('Welcome back!');
       router.push('/dashboard');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid credentials';
@@ -51,121 +52,227 @@ export default function LoginPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center soya-gradient">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-yellow-400 mx-auto mb-4"></div>
-          <p className="text-white text-lg font-medium">Loading Soya Excel...</p>
+      <div className="min-h-screen flex items-center justify-center soya-gradient-animated">
+        <div className="text-center soya-fade-in">
+          <div className="relative mb-6">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center mx-auto shadow-2xl shadow-yellow-500/30">
+              <Leaf className="h-10 w-10 text-gray-900" />
+            </div>
+            <div className="absolute inset-0 rounded-2xl bg-yellow-400/20 animate-ping"></div>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">SoyaFlow</h2>
+          <p className="text-gray-400">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center soya-gradient relative overflow-hidden">
-      {/* Background decorative elements */}
+    <div className="min-h-screen flex soya-gradient-animated relative overflow-hidden">
+      {/* Decorative Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-yellow-400/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-green-600/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-yellow-500/5 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-green-500/5 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
+        <div className="absolute top-1/2 left-1/4 w-[300px] h-[300px] bg-yellow-500/3 rounded-full blur-3xl"></div>
+        
+        {/* Geometric patterns */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-20 left-20 w-32 h-32 border border-white/20 rounded-2xl transform rotate-12"></div>
+          <div className="absolute top-40 right-40 w-24 h-24 border border-white/20 rounded-xl transform -rotate-12"></div>
+          <div className="absolute bottom-32 left-1/3 w-20 h-20 border border-white/20 rounded-lg transform rotate-45"></div>
+        </div>
       </div>
-      
-      <div className="relative z-10 w-full max-w-md">
-        {/* Logo and Branding */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-6">
-            <div className="bg-white rounded-2xl p-4 shadow-2xl">
+
+      {/* Left Side - Branding & Features */}
+      <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-between p-12">
+        {/* Logo & Brand */}
+        <div className="soya-fade-in">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-2xl p-3 shadow-xl shadow-yellow-500/20">
               <Image
                 src="/LOGO-SoyaExcel.png"
-                alt="Soya Excel Logo"
-                width={120}
-                height={120}
-                className="w-24 h-24 object-contain"
+                alt="SoyaFlow Logo"
+                width={48}
+                height={48}
+                className="w-12 h-12 object-contain"
               />
             </div>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Soya Excel</h1>
-          <p className="text-yellow-200 text-lg font-medium">Feed Distribution Management System</p>
-          <div className="flex justify-center items-center gap-2 mt-3">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-            <div className="w-3 h-3 bg-black rounded-full"></div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">SoyaFlow</h1>
+              <p className="text-yellow-400 font-medium">Distribution Platform</p>
+            </div>
           </div>
         </div>
-        
-        {/* Login Card */}
-        <Card className="soya-card border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl font-bold text-gray-800">Manager Login</CardTitle>
-            <CardDescription className="text-gray-600">
-              Enter your credentials to access the management dashboard
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-gray-700 font-medium">Username</Label>
-                <div className="relative">
+
+        {/* Hero Content */}
+        <div className="flex-1 flex flex-col justify-center max-w-lg">
+          <h2 className="text-5xl font-bold text-white mb-6 leading-tight soya-fade-in soya-stagger-1">
+            Smart Feed
+            <span className="block text-gradient-gold">Distribution</span>
+          </h2>
+          <p className="text-xl text-gray-300 mb-10 soya-fade-in soya-stagger-2">
+            AI-powered route optimization and predictive analytics for 
+            efficient soybean meal distribution across North America.
+          </p>
+
+          {/* Feature Pills */}
+          <div className="flex flex-wrap gap-3 soya-fade-in soya-stagger-3">
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+              <Truck className="h-4 w-4 text-yellow-400" />
+              <span className="text-sm text-white font-medium">Route Optimization</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+              <MapPin className="h-4 w-4 text-green-400" />
+              <span className="text-sm text-white font-medium">Live Tracking</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+              <BarChart3 className="h-4 w-4 text-yellow-400" />
+              <span className="text-sm text-white font-medium">AI Predictions</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Stats */}
+        <div className="grid grid-cols-3 gap-6 pt-8 border-t border-white/10 soya-fade-in soya-stagger-4">
+          <div>
+            <p className="text-3xl font-bold text-white">500+</p>
+            <p className="text-sm text-gray-400">Active Clients</p>
+          </div>
+          <div>
+            <p className="text-3xl font-bold text-yellow-400">98%</p>
+            <p className="text-sm text-gray-400">On-time Delivery</p>
+          </div>
+          <div>
+            <p className="text-3xl font-bold text-green-400">24/7</p>
+            <p className="text-sm text-gray-400">Live Support</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Side - Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12 relative z-10">
+        <div className="w-full max-w-md">
+          {/* Mobile Logo */}
+          <div className="lg:hidden text-center mb-8 soya-fade-in">
+            <div className="flex justify-center mb-4">
+              <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-2xl p-4 shadow-xl shadow-yellow-500/30">
+                <Image
+                  src="/LOGO-SoyaExcel.png"
+                  alt="SoyaFlow Logo"
+                  width={64}
+                  height={64}
+                  className="w-16 h-16 object-contain"
+                />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-1">SoyaFlow</h1>
+            <p className="text-yellow-400/80">Distribution Platform</p>
+          </div>
+          
+          {/* Login Card */}
+          <Card className="soya-card-glass border-0 shadow-2xl soya-scale-in">
+            <CardHeader className="text-center pb-2 pt-8">
+              <div className="mx-auto w-12 h-12 rounded-xl bg-gradient-to-br from-green-600 to-green-700 flex items-center justify-center mb-4 shadow-lg shadow-green-600/30">
+                <Lock className="h-6 w-6 text-white" />
+              </div>
+              <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
+              <CardDescription className="text-gray-600">
+                Sign in to access your management dashboard
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="p-8 pt-6">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-gray-700 font-medium flex items-center gap-2">
+                    <User className="h-4 w-4 text-gray-400" />
+                    Username
+                  </Label>
                   <Input
                     id="username"
                     type="text"
                     placeholder="Enter your username"
-                    className="border-2 border-gray-200 focus:border-green-500 focus:ring-green-500/20 rounded-lg py-3 px-4 transition-all duration-200"
+                    className="soya-input h-12"
                     {...register('username')}
                     disabled={isLoading}
                   />
+                  {errors.username && (
+                    <p className="text-sm text-red-600 flex items-center gap-2 mt-1">
+                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                      {errors.username.message}
+                    </p>
+                  )}
                 </div>
-                {errors.username && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                    {errors.username.message}
-                  </p>
-                )}
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-700 font-medium">Password</Label>
-                <div className="relative">
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-gray-700 font-medium flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-gray-400" />
+                    Password
+                  </Label>
                   <Input
                     id="password"
                     type="password"
                     placeholder="Enter your password"
-                    className="border-2 border-gray-200 focus:border-green-500 focus:ring-green-500/20 rounded-lg py-3 px-4 transition-all duration-200"
+                    className="soya-input h-12"
                     {...register('password')}
                     disabled={isLoading}
                   />
+                  {errors.password && (
+                    <p className="text-sm text-red-600 flex items-center gap-2 mt-1">
+                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                      {errors.password.message}
+                    </p>
+                  )}
                 </div>
-                {errors.password && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                    {errors.password.message}
-                  </p>
-                )}
+
+                <Button
+                  type="submit"
+                  className="w-full soya-button-primary h-12 text-base group"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="soya-spinner w-5 h-5 border-2"></div>
+                      <span>Signing in...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2">
+                      <span>Sign In</span>
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  )}
+                </Button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-white px-4 text-xs text-gray-400 uppercase tracking-wider">
+                    Secure Login
+                  </span>
+                </div>
               </div>
 
-              <Button
-                type="submit"
-                className="w-full soya-button-primary py-3 text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Logging in...
-                  </div>
-                ) : (
-                  'Login to Dashboard'
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+              {/* Brand Colors */}
+              <div className="flex items-center justify-center gap-3">
+                <div className="w-3 h-3 bg-green-600 rounded-full shadow-sm shadow-green-600/50"></div>
+                <div className="w-3 h-3 bg-yellow-400 rounded-full shadow-sm shadow-yellow-400/50"></div>
+                <div className="w-3 h-3 bg-gray-900 rounded-full"></div>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Footer */}
-        <div className="text-center mt-8">
-          <p className="text-white/70 text-sm">
-            © 2024 Soya Excel. All rights reserved.
-          </p>
+          {/* Footer */}
+          <div className="text-center mt-8">
+            <p className="text-white/50 text-sm">
+              © 2026 SoyaFlow by Soya Excel. All rights reserved.
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
-} 
+}

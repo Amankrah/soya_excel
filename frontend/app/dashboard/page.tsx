@@ -10,6 +10,10 @@ import {
   BarChart3,
   Navigation,
   Clock,
+  TrendingUp,
+  Sparkles,
+  ArrowRight,
+  Zap,
 } from 'lucide-react';
 import { clientAPI, managerAPI } from '@/lib/api';
 import { toast } from 'react-hot-toast';
@@ -45,51 +49,89 @@ interface StatsCardProps {
   icon: React.ComponentType<{ className?: string }>;
   alertLevel?: 'normal' | 'warning' | 'urgent';
   linkTo?: string;
+  trend?: string;
+  index?: number;
 }
 
-// Stats Card Component
-function StatsCard({ title, value, description, icon: Icon, alertLevel = 'normal', linkTo }: StatsCardProps) {
+// Premium Stats Card Component
+function StatsCard({ title, value, description, icon: Icon, alertLevel = 'normal', linkTo, trend, index = 0 }: StatsCardProps) {
   const getCardStyle = () => {
     switch (alertLevel) {
       case 'urgent':
-        return 'border-red-200 bg-gradient-to-br from-red-50 to-red-100';
+        return 'border-red-200 bg-gradient-to-br from-red-50 via-white to-red-50';
       case 'warning':
-        return 'border-yellow-200 bg-gradient-to-br from-yellow-50 to-yellow-100';
+        return 'border-yellow-200 bg-gradient-to-br from-yellow-50 via-white to-yellow-50';
       default:
-        return 'border-gray-200 bg-gradient-to-br from-white to-gray-50';
+        return 'border-gray-100 bg-white';
     }
   };
 
-  const getIconColor = () => {
+  const getIconStyle = () => {
     switch (alertLevel) {
-      case 'urgent': return 'text-red-600 bg-red-100';
-      case 'warning': return 'text-yellow-600 bg-yellow-100';
-      default: return 'text-green-600 bg-green-100';
+      case 'urgent': 
+        return 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30';
+      case 'warning': 
+        return 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-gray-900 shadow-lg shadow-yellow-500/30';
+      default: 
+        return 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-lg shadow-green-600/30';
     }
   };
 
   const content = (
-    <Card className={`border-2 ${getCardStyle()} hover:shadow-lg transition-all duration-300 ${linkTo ? 'cursor-pointer hover:scale-105' : ''}`}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-sm font-semibold text-gray-700">{title}</CardTitle>
-        <div className={`p-2 rounded-lg ${getIconColor()}`}>
+    <Card 
+      className={`group relative border ${getCardStyle()} hover:shadow-xl transition-all duration-300 overflow-hidden ${linkTo ? 'cursor-pointer' : ''}`}
+      style={{ animationDelay: `${index * 100}ms` }}
+    >
+      {/* Background decoration */}
+      <div className="absolute top-0 right-0 w-24 h-24 opacity-5">
+        <Icon className="w-full h-full" />
+      </div>
+      
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+        <div className={`p-3 rounded-xl ${getIconStyle()}`}>
           <Icon className="h-5 w-5" />
         </div>
+        {linkTo && (
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <ArrowRight className="h-5 w-5 text-gray-400" />
+          </div>
+        )}
       </CardHeader>
-      <CardContent>
-        <div className={`text-3xl font-bold ${alertLevel === 'urgent' ? 'text-red-700' : alertLevel === 'warning' ? 'text-yellow-700' : 'text-gray-800'}`}>
-          {value}
+      
+      <CardContent className="pt-2">
+        <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
+        <div className="flex items-end gap-2">
+          <span className={`text-4xl font-bold ${
+            alertLevel === 'urgent' ? 'text-red-700' : 
+            alertLevel === 'warning' ? 'text-yellow-700' : 
+            'text-gray-900'
+          }`}>
+            {value}
+          </span>
+          {trend && (
+            <span className="flex items-center text-sm font-medium text-green-600 mb-1">
+              <TrendingUp className="h-3 w-3 mr-0.5" />
+              {trend}
+            </span>
+          )}
         </div>
-        <p className="text-sm text-gray-600 mt-1">{description}</p>
+        <p className="text-sm text-gray-500 mt-2">{description}</p>
       </CardContent>
+      
+      {/* Hover effect bar */}
+      <div className={`absolute bottom-0 left-0 right-0 h-1 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ${
+        alertLevel === 'urgent' ? 'bg-red-500' :
+        alertLevel === 'warning' ? 'bg-yellow-500' :
+        'bg-green-600'
+      }`} />
     </Card>
   );
 
   if (linkTo) {
-    return <Link href={linkTo}>{content}</Link>;
+    return <Link href={linkTo} className="soya-fade-in" style={{ animationDelay: `${index * 100}ms` }}>{content}</Link>;
   }
 
-  return content;
+  return <div className="soya-fade-in" style={{ animationDelay: `${index * 100}ms` }}>{content}</div>;
 }
 
 export default function DashboardPage() {
@@ -138,9 +180,14 @@ export default function DashboardPage() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mx-auto mb-4"></div>
+          <div className="text-center soya-fade-in">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-green-600 to-green-700 flex items-center justify-center mx-auto shadow-xl">
+                <Zap className="h-8 w-8 text-yellow-400 animate-pulse" />
+              </div>
+            </div>
             <p className="text-gray-600 text-lg font-medium">Loading dashboard...</p>
+            <p className="text-gray-400 text-sm mt-1">Fetching your latest data</p>
           </div>
         </div>
       </DashboardLayout>
@@ -150,38 +197,60 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        {/* Header */}
-        <div className="text-center relative">
-          <div className="absolute right-0 top-0">
-            <Button
-              onClick={() => setShowPredictionModal(true)}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              <Brain className="h-4 w-4 mr-2" />
-              Update Predictions
-            </Button>
+        {/* Header Section */}
+        <div className="relative">
+          {/* Background card */}
+          <div className="absolute inset-0 soya-gradient rounded-2xl opacity-95"></div>
+          
+          <div className="relative px-8 py-10 rounded-2xl overflow-hidden">
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-green-500/10 rounded-full blur-3xl"></div>
+            
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="soya-fade-in">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1.5">
+                    <Sparkles className="h-4 w-4 text-yellow-400" />
+                    <span className="text-sm font-medium text-yellow-400">AI-Powered</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50"></div>
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full shadow-sm shadow-yellow-400/50"></div>
+                    <div className="w-2 h-2 bg-white/80 rounded-full"></div>
+                  </div>
+                </div>
+                <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                  Welcome to SoyaFlow
+                </h1>
+                <p className="text-lg text-gray-300 max-w-xl">
+                  Smart distribution management with AI predictions and route optimization
+                </p>
+              </div>
+              
+              <div className="soya-fade-in soya-stagger-2">
+                <Button
+                  onClick={() => setShowPredictionModal(true)}
+                  className="soya-button-secondary group"
+                >
+                  <Brain className="h-5 w-5 mr-2 transition-transform group-hover:scale-110" />
+                  Update AI Predictions
+                  <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-            <div className="w-2 h-2 bg-black rounded-full"></div>
-          </div>
-          <h2 className="text-4xl font-bold tracking-tight text-gray-800 mb-3">
-            Distribution Dashboard
-          </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            AI-powered distribution management with reorder predictions for small/medium order clients
-          </p>
         </div>
 
         {/* Stats Overview - 4 Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title="Total Clients"
             value={statistics.totalClients}
-            description="Active clients"
+            description="Active clients in system"
             icon={Users}
             linkTo="/dashboard/clients"
+            index={0}
           />
           <StatsCard
             title="Urgent Orders"
@@ -190,6 +259,7 @@ export default function DashboardPage() {
             icon={AlertTriangle}
             alertLevel={statistics.urgentCount > 0 ? 'urgent' : 'normal'}
             linkTo="/dashboard/clients"
+            index={1}
           />
           <StatsCard
             title="Overdue"
@@ -198,49 +268,58 @@ export default function DashboardPage() {
             icon={Clock}
             alertLevel={statistics.overdueCount > 0 ? 'urgent' : 'normal'}
             linkTo="/dashboard/clients"
+            index={2}
           />
           <StatsCard
             title="High Priority"
             value={statistics.highCount}
             description="Ordering in 4-7 days"
             icon={Brain}
+            alertLevel={statistics.highCount > 5 ? 'warning' : 'normal'}
             linkTo="/dashboard/clients"
+            index={3}
           />
         </div>
 
-        {/* Main Tabs - 2 Core Features */}
-        <Tabs defaultValue="analytics" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-lg h-12">
-            <TabsTrigger
-              value="analytics"
-              className="data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-md flex items-center gap-2"
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span>Order Analytics</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="routes"
-              className="data-[state=active]:bg-white data-[state=active]:text-green-600 data-[state=active]:shadow-sm rounded-md flex items-center gap-2"
-            >
-              <Navigation className="h-4 w-4" />
-              <span>Route Optimization</span>
-            </TabsTrigger>
-          </TabsList>
+        {/* Main Tabs */}
+        <Card className="soya-card border-0 shadow-lg soya-fade-in soya-stagger-3">
+          <Tabs defaultValue="analytics" className="w-full">
+            <CardHeader className="border-b border-gray-100 pb-0">
+              <TabsList className="grid w-full max-w-md grid-cols-2 bg-gray-100/80 p-1 rounded-xl h-12">
+                <TabsTrigger
+                  value="analytics"
+                  className="data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm rounded-lg flex items-center gap-2 font-medium transition-all"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Order Analytics</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="routes"
+                  className="data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm rounded-lg flex items-center gap-2 font-medium transition-all"
+                >
+                  <Navigation className="h-4 w-4" />
+                  <span>Route Planning</span>
+                </TabsTrigger>
+              </TabsList>
+            </CardHeader>
 
-          {/* Tab 1: Order Analytics */}
-          <TabsContent value="analytics">
-            <OrderAnalytics />
-          </TabsContent>
+            <CardContent className="p-6">
+              {/* Tab 1: Order Analytics */}
+              <TabsContent value="analytics" className="mt-0">
+                <OrderAnalytics />
+              </TabsContent>
 
-          {/* Tab 2: Route Optimization */}
-          <TabsContent value="routes">
-            <RouteOptimization
-              activeRoutes={dashboardData?.active_routes || 0}
-              availableDrivers={dashboardData?.available_drivers || 0}
-              totalClients={statistics.totalClients}
-            />
-          </TabsContent>
-        </Tabs>
+              {/* Tab 2: Route Optimization */}
+              <TabsContent value="routes" className="mt-0">
+                <RouteOptimization
+                  activeRoutes={dashboardData?.active_routes || 0}
+                  availableDrivers={dashboardData?.available_drivers || 0}
+                  totalClients={statistics.totalClients}
+                />
+              </TabsContent>
+            </CardContent>
+          </Tabs>
+        </Card>
       </div>
 
       {/* Prediction Update Modal */}
@@ -249,7 +328,7 @@ export default function DashboardPage() {
           onClose={() => setShowPredictionModal(false)}
           onSuccess={() => {
             setShowPredictionModal(false);
-            fetchDashboardData(); // Refresh data after update
+            fetchDashboardData();
           }}
         />
       )}
