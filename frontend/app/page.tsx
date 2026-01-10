@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
+import { SoyaFlowAnimation } from '@/components/ui/soyaflow-animation';
 import {
   Globe,
   BarChart3,
@@ -123,31 +124,6 @@ export default function LandingPage() {
                   </Button>
                 </a>
               </div>
-
-              {/* Key Stats */}
-              <div className="grid grid-cols-3 gap-6 pt-8 border-t border-white/10">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain className="w-5 h-5 text-green-400" />
-                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">AI Models</div>
-                  </div>
-                  <div className="text-2xl font-bold text-white">XGBoost</div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Globe className="w-5 h-5 text-yellow-400" />
-                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Regions</div>
-                  </div>
-                  <div className="text-2xl font-bold text-white">3</div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Package className="w-5 h-5 text-blue-400" />
-                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Products</div>
-                  </div>
-                  <div className="text-2xl font-bold text-white">Multiple</div>
-                </div>
-              </div>
             </div>
 
             {/* Right Column - Visual */}
@@ -160,45 +136,8 @@ export default function LandingPage() {
                 <div className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md border border-white/20 rounded-3xl p-12 lg:p-16 shadow-2xl">
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-green-500/40 to-yellow-500/40 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
-                    <div className="relative bg-white rounded-3xl p-10 border-2 border-white/30 shadow-xl">
-                      <Image
-                        src="/LOGO-SoyaExcel.png"
-                        alt="Soya Excel Logo"
-                        width={200}
-                        height={200}
-                        className="w-full h-auto object-contain"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Feature Pills */}
-                  <div className="mt-8 space-y-3">
-                    <div className="group/pill flex items-center gap-3 bg-gradient-to-r from-green-500/15 to-green-500/10 border border-green-500/30 rounded-xl px-4 py-3 backdrop-blur-sm hover:from-green-500/25 hover:to-green-500/15 transition-all">
-                      <div className="w-10 h-10 bg-green-500/25 rounded-lg flex items-center justify-center group-hover/pill:bg-green-500/35 transition-colors">
-                        <Brain className="w-5 h-5 text-green-400" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-white">AI Predictions</div>
-                        <div className="text-xs text-gray-300">ML-powered forecasting</div>
-                      </div>
-                    </div>
-                    <div className="group/pill flex items-center gap-3 bg-gradient-to-r from-yellow-500/15 to-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 backdrop-blur-sm hover:from-yellow-500/25 hover:to-yellow-500/15 transition-all">
-                      <div className="w-10 h-10 bg-yellow-500/25 rounded-lg flex items-center justify-center group-hover/pill:bg-yellow-500/35 transition-colors">
-                        <Route className="w-5 h-5 text-yellow-400" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-white">Smart Routing</div>
-                        <div className="text-xs text-gray-300">Optimized deliveries</div>
-                      </div>
-                    </div>
-                    <div className="group/pill flex items-center gap-3 bg-gradient-to-r from-blue-500/15 to-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 backdrop-blur-sm hover:from-blue-500/25 hover:to-blue-500/15 transition-all">
-                      <div className="w-10 h-10 bg-blue-500/25 rounded-lg flex items-center justify-center group-hover/pill:bg-blue-500/35 transition-colors">
-                        <BarChart3 className="w-5 h-5 text-blue-400" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-white">Live Analytics</div>
-                        <div className="text-xs text-gray-300">Real-time metrics</div>
-                      </div>
+                    <div className="relative bg-gradient-to-br from-gray-900 to-black rounded-3xl p-10 border-2 border-white/30 shadow-xl overflow-hidden">
+                      <SoyaFlowAnimation />
                     </div>
                   </div>
                 </div>
