@@ -30,7 +30,6 @@ import {
   Settings,
   LogOut,
   Menu,
-  Bell,
   Navigation2,
   BarChart3,
   Radio,
@@ -200,18 +199,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             {/* Right side actions */}
             <div className="flex items-center gap-3">
-              {/* Notifications */}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="relative hover:bg-gray-100 rounded-xl h-10 w-10"
-              >
-                <Bell className="h-5 w-5 text-gray-600" />
-                <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-gradient-to-br from-red-500 to-red-600 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">
-                  3
-                </span>
-              </Button>
-
               {/* User Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

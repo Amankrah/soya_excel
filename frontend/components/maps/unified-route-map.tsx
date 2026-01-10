@@ -134,7 +134,7 @@ export function UnifiedRouteMap({
   const [mapInitialized, setMapInitialized] = useState(false);
   const [route, setRoute] = useState<Route | null>(null);
   const [vehicles, setVehicles] = useState<VehicleLocation[]>([]);
-  const [directions, setDirections] = useState<{ overview_polyline: string } | null>(null);
+  const [directions, setDirections] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingDirections, setLoadingDirections] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -998,7 +998,75 @@ export function UnifiedRouteMap({
           </div>
         </CardContent>
       </Card>
-      
+
+      {/* Turn-by-turn Directions */}
+      {directions && directions.legs && directions.legs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Navigation2 className="h-5 w-5 text-blue-600" />
+              Turn-by-Turn Directions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="max-h-[500px] overflow-y-auto">
+            <div className="space-y-6">
+              {directions.legs.map((leg: any, legIndex: number) => (
+                <div key={legIndex} className="space-y-3">
+                  {/* Leg header */}
+                  <div className="flex items-start gap-3 pb-3 border-b">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-bold text-blue-600">{legIndex + 1}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">{leg.start_address}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">to {leg.end_address}</p>
+                      <div className="flex gap-3 mt-2 text-xs text-gray-600">
+                        <span className="flex items-center gap-1">
+                          <RouteIcon className="h-3 w-3" />
+                          {leg.distance}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {leg.duration}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Steps */}
+                  <div className="space-y-2 ml-4 pl-4 border-l-2 border-gray-200">
+                    {leg.steps?.map((step: any, stepIndex: number) => (
+                      <div key={stepIndex} className="flex gap-3 py-2">
+                        <div className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-medium text-gray-600">{stepIndex + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <div
+                            className="text-sm text-gray-700"
+                            dangerouslySetInnerHTML={{ __html: step.instruction }}
+                          />
+                          <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                            <span>{step.distance}</span>
+                            <span>•</span>
+                            <span>{step.duration}</span>
+                            {step.maneuver && (
+                              <>
+                                <span>•</span>
+                                <span className="capitalize">{step.maneuver.replace(/-/g, ' ')}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* No route data warning */}
       {!loading && !route && (
         <Card className="border-gray-200 bg-gray-50">

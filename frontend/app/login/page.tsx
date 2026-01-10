@@ -131,22 +131,6 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-
-        {/* Footer Stats */}
-        <div className="grid grid-cols-3 gap-6 pt-8 border-t border-white/10 soya-fade-in soya-stagger-4">
-          <div>
-            <p className="text-3xl font-bold text-white">500+</p>
-            <p className="text-sm text-gray-400">Active Clients</p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold text-yellow-400">98%</p>
-            <p className="text-sm text-gray-400">On-time Delivery</p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold text-green-400">24/7</p>
-            <p className="text-sm text-gray-400">Live Support</p>
-          </div>
-        </div>
       </div>
 
       {/* Right Side - Login Form */}

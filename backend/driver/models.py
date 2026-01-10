@@ -66,7 +66,7 @@ class Vehicle(models.Model):
 
 class Driver(models.Model):
     """Model representing a delivery driver"""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile', null=True, blank=True)
     staff_id = models.CharField(max_length=50, unique=True)
     full_name = models.CharField(max_length=200)
     phone_number = models.CharField(max_length=20)
@@ -124,9 +124,9 @@ class Delivery(models.Model):
         ('delayed', 'Delayed'),
     ]
     
-    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name='deliveries')
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name='deliveries', null=True, blank=True)
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='deliveries', null=True, blank=True)
-    route = models.ForeignKey('route.Route', on_delete=models.CASCADE, related_name='deliveries')
+    route = models.ForeignKey('route.Route', on_delete=models.CASCADE, related_name='deliveries', null=True, blank=True)
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='assigned')
     assigned_date = models.DateTimeField(auto_now_add=True)
@@ -172,9 +172,9 @@ class Delivery(models.Model):
 
 class DeliveryItem(models.Model):
     """Model for individual delivery items within a delivery"""
-    delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE, related_name='items')
-    order = models.ForeignKey('clients.Order', on_delete=models.CASCADE)
-    farmer = models.ForeignKey('clients.Client', on_delete=models.CASCADE)
+    delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE, related_name='items', null=True, blank=True)
+    order = models.ForeignKey('clients.Order', on_delete=models.CASCADE, null=True, blank=True)
+    farmer = models.ForeignKey('clients.Client', on_delete=models.CASCADE, null=True, blank=True)
     
     # Delivery details
     quantity_planned = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Planned quantity in tonnes")
