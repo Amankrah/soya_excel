@@ -33,27 +33,43 @@ import {
   Navigation2,
   BarChart3,
   Radio,
-  Leaf,
   ChevronRight,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Overview & KPIs' },
-  { name: 'Clients', href: '/dashboard/clients', icon: Users, description: 'AI Predictions' },
-  { name: 'Orders', href: '/dashboard/orders', icon: Package, description: 'Order Management' },
-  { name: 'Routes', href: '/dashboard/routes', icon: Navigation2, description: 'Route Planning' },
-  { name: 'Live Tracking', href: '/dashboard/live-tracking', icon: Radio, description: 'Real-time GPS' },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, description: 'Reports & Insights' },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Overview & KPIs', color: 'from-green-500 to-emerald-600' },
+  { name: 'Clients', href: '/dashboard/clients', icon: Users, description: 'AI Predictions', color: 'from-blue-500 to-indigo-600' },
+  { name: 'Orders', href: '/dashboard/orders', icon: Package, description: 'Order Management', color: 'from-yellow-500 to-orange-500' },
+  { name: 'Routes', href: '/dashboard/routes', icon: Navigation2, description: 'Route Planning', color: 'from-purple-500 to-pink-500' },
+  { name: 'Live Tracking', href: '/dashboard/live-tracking', icon: Radio, description: 'Real-time GPS', color: 'from-red-500 to-rose-600' },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, description: 'Reports & Insights', color: 'from-cyan-500 to-teal-600' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState<string>('');
   const { user, logout } = useAuthStore();
+
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentTime(new Date().toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true 
+      }));
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000); // Update every second
+    return () => clearInterval(timer);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -79,108 +95,148 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return user.username || 'Manager';
   };
 
+  const getCurrentPageName = () => {
+    const currentNav = navigation.find(item => item.href === pathname);
+    return currentNav?.name || 'Dashboard';
+  };
+
+  const getCurrentPageDescription = () => {
+    const currentNav = navigation.find(item => item.href === pathname);
+    return currentNav?.description || 'Overview & KPIs';
+  };
+
   const SidebarContent = ({ isMobile = false }: { isMobile?: boolean }) => (
-    <div className="flex flex-col h-full soya-gradient-sidebar">
+    <div className="flex flex-col h-full bg-gradient-to-b from-[#0f1419] via-[#0a0f14] to-[#050a0f]">
       {/* Brand Header */}
-      <div className="p-5 border-b border-white/10">
-        <div className="flex items-center gap-3">
+      <div className="p-5 border-b border-white/5">
+        <Link href="/" className="flex items-center gap-3 group">
           <div className="relative">
-            <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-xl p-2 shadow-lg shadow-yellow-500/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/30 to-yellow-500/30 rounded-xl blur-md group-hover:blur-lg transition-all"></div>
+            <div className="relative bg-white rounded-xl p-1.5 shadow-xl">
               <Image
                 src="/LOGO-SoyaExcel.png"
                 alt="SoyaFlow Logo"
-                width={36}
-                height={36}
-                className="w-9 h-9 object-contain"
+                width={40}
+                height={40}
+                className="w-10 h-10 object-contain"
               />
             </div>
-            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900 soya-status-online"></div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0f1419] animate-pulse"></div>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">SoyaFlow</h2>
-            <p className="text-xs text-yellow-400/80 font-medium">Distribution Platform</p>
+            <h2 className="text-xl font-bold text-white tracking-tight group-hover:text-green-400 transition-colors">SoyaFlow</h2>
+            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Distribution Platform</p>
           </div>
-        </div>
+        </Link>
       </div>
       
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <div className="mb-4">
-          <p className="px-4 text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-2">
-            Main Menu
+      <nav className="flex-1 px-3 py-6 overflow-y-auto">
+        <div className="mb-6">
+          <p className="px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600 mb-3">
+            Navigation
           </p>
         </div>
-        {navigation.map((item, index) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={() => isMobile && setIsMobileMenuOpen(false)}
-              className={`group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 ${
-                isActive
-                  ? 'soya-nav-item-active'
-                  : 'soya-nav-item'
-              }`}
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <div className={`p-1.5 rounded-lg transition-colors duration-200 ${
-                isActive 
-                  ? 'bg-black/10' 
-                  : 'bg-white/5 group-hover:bg-white/10'
-              }`}>
-                <Icon className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="block truncate">{item.name}</span>
-                {!isMobile && (
-                  <span className={`text-[10px] truncate block transition-opacity duration-200 ${
-                    isActive ? 'opacity-70' : 'opacity-0 group-hover:opacity-50'
-                  }`}>
-                    {item.description}
-                  </span>
+        <div className="space-y-1">
+          {navigation.map((item, index) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => isMobile && setIsMobileMenuOpen(false)}
+                className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-green-500/20 to-green-600/10 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                {/* Active indicator */}
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-green-400 to-green-600 rounded-r-full shadow-lg shadow-green-500/50"></div>
                 )}
-              </div>
-              {isActive && (
-                <ChevronRight className="h-4 w-4 opacity-50" />
-              )}
-            </Link>
-          );
-        })}
+                
+                <div className={`p-2 rounded-lg transition-all duration-300 ${
+                  isActive 
+                    ? `bg-gradient-to-br ${item.color} shadow-lg` 
+                    : 'bg-white/5 group-hover:bg-white/10'
+                }`}>
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="block truncate font-medium">{item.name}</span>
+                  {!isMobile && (
+                    <span className={`text-[10px] truncate block transition-all duration-300 ${
+                      isActive ? 'text-green-400/70' : 'text-transparent group-hover:text-gray-500'
+                    }`}>
+                      {item.description}
+                    </span>
+                  )}
+                </div>
+                {isActive && (
+                  <ChevronRight className="h-4 w-4 text-green-400" />
+                )}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
       
+      {/* Quick Actions */}
+      <div className="px-4 py-3 border-t border-white/5">
+        <a
+          href="https://sasellab.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r from-green-500/10 to-yellow-500/10 hover:from-green-500/20 hover:to-yellow-500/20 transition-all group"
+        >
+          <div className="p-1.5 bg-white/10 rounded-lg">
+            <Sparkles className="h-4 w-4 text-yellow-400" />
+          </div>
+          <div className="flex-1">
+            <span className="text-xs font-medium text-white block">SASEL Lab</span>
+            <span className="text-[10px] text-gray-500">McGill University</span>
+          </div>
+          <ExternalLink className="h-3 w-3 text-gray-500 group-hover:text-green-400 transition-colors" />
+        </a>
+      </div>
+      
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-white/10">
-        <div className="flex items-center justify-between mb-3">
+      <div className="p-4 border-t border-white/5">
+        <div className="flex items-center justify-between px-2 py-2 rounded-lg bg-white/5">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-xs text-gray-400">System Online</span>
+            <div className="relative">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="absolute inset-0 w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
+            </div>
+            <span className="text-[10px] text-gray-500 font-medium">System Online</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+            <div className="w-2 h-2 bg-gray-800 rounded-full border border-gray-600"></div>
           </div>
         </div>
-        <div className="flex items-center justify-center gap-3 py-2 px-3 rounded-lg bg-white/5">
-          <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow-sm shadow-green-500/50"></div>
-          <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full shadow-sm shadow-yellow-400/50"></div>
-          <div className="w-2.5 h-2.5 bg-gray-900 rounded-full border border-gray-600"></div>
-          <span className="text-xs text-gray-500 ml-2">SoyaFlow v2.1</span>
-        </div>
+        <p className="text-center text-[9px] text-gray-600 mt-2 font-medium">SoyaFlow v2.1 • Soya Excel</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f8fafc]">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full bg-white border-b border-gray-200 shadow-sm">
+      <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-xl border-b border-gray-200/50">
         <div className="flex h-16 items-center px-4 lg:px-6">
           {/* Mobile Menu */}
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden hover:bg-gray-100 mr-2">
+              <Button variant="ghost" size="icon" className="lg:hidden hover:bg-gray-100 mr-2 rounded-xl">
                 <Menu className="h-5 w-5 text-gray-600" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
+            <SheetContent side="left" className="w-72 p-0 border-0">
               <SidebarContent isMobile={true} />
             </SheetContent>
           </Sheet>
@@ -188,62 +244,87 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex flex-1 items-center justify-between">
             {/* Logo - visible on mobile */}
             <div className="flex items-center gap-3 lg:hidden">
-              <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-lg p-1.5">
-                <Leaf className="h-5 w-5 text-yellow-400" />
-              </div>
+              <Image
+                src="/LOGO-SoyaExcel.png"
+                alt="SoyaFlow Logo"
+                width={32}
+                height={32}
+                className="w-8 h-8 object-contain"
+              />
               <span className="text-lg font-bold text-gray-900">SoyaFlow</span>
             </div>
 
-            {/* Spacer for desktop */}
-            <div className="hidden lg:block" />
+            {/* Page Title - Desktop */}
+            <div className="hidden lg:flex items-center gap-4">
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">{getCurrentPageName()}</h1>
+                <p className="text-xs text-gray-500">{getCurrentPageDescription()}</p>
+              </div>
+            </div>
             
             {/* Right side actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {/* Live Time Display */}
+              <div className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-xl">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-gray-600">{currentTime}</span>
+              </div>
+              
+              {/* Divider */}
+              <div className="hidden md:block w-px h-8 bg-gray-200 mx-2"></div>
+              
               {/* User Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
                     variant="ghost" 
-                    className="relative flex items-center gap-3 h-10 pl-2 pr-4 rounded-xl hover:bg-gray-100 transition-colors"
+                    className="relative flex items-center gap-3 h-10 pl-2 pr-3 rounded-xl hover:bg-gray-100 transition-all duration-200"
                   >
-                    <Avatar className="h-8 w-8 ring-2 ring-green-500/20">
-                      <AvatarImage src="/avatar.png" alt={getFullName(user)} />
-                      <AvatarFallback className="bg-gradient-to-br from-green-600 to-green-700 text-white font-semibold text-sm">
-                        {getInitials(getFullName(user))}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="hidden md:block text-left">
+                    <div className="relative">
+                      <Avatar className="h-8 w-8 ring-2 ring-green-500/30 ring-offset-2 ring-offset-white">
+                        <AvatarImage src="/avatar.png" alt={getFullName(user)} />
+                        <AvatarFallback className="bg-gradient-to-br from-green-600 to-green-700 text-white font-bold text-sm">
+                          {getInitials(getFullName(user))}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                    </div>
+                    <div className="hidden lg:block text-left">
                       <p className="text-sm font-semibold text-gray-900">{getFullName(user)}</p>
-                      <p className="text-xs text-gray-500">Manager</p>
+                      <p className="text-[10px] text-gray-500 font-medium">Manager</p>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 rounded-xl shadow-lg" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal p-3">
+                <DropdownMenuContent className="w-64 rounded-2xl shadow-xl border-gray-200 p-2" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal p-3 rounded-xl bg-gradient-to-br from-green-50 to-yellow-50">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-gradient-to-br from-green-600 to-green-700 text-white font-semibold">
+                      <Avatar className="h-12 w-12 ring-2 ring-green-500/20">
+                        <AvatarFallback className="bg-gradient-to-br from-green-600 to-green-700 text-white font-bold text-lg">
                           {getInitials(getFullName(user))}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="text-sm font-semibold">{getFullName(user)}</p>
+                        <p className="text-sm font-bold text-gray-900">{getFullName(user)}</p>
                         <p className="text-xs text-gray-500">{user?.email}</p>
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-semibold rounded-full">
+                          <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                          Active
+                        </span>
                       </div>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="hover:bg-gray-100 rounded-lg mx-1 cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
+                  <DropdownMenuSeparator className="my-2" />
+                  <DropdownMenuItem className="hover:bg-gray-100 rounded-xl p-3 cursor-pointer">
+                    <Settings className="mr-3 h-4 w-4 text-gray-500" />
+                    <span className="font-medium">Settings</span>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  <DropdownMenuSeparator className="my-2" />
                   <DropdownMenuItem 
                     onClick={handleLogout} 
-                    className="hover:bg-red-50 text-red-600 rounded-lg mx-1 cursor-pointer"
+                    className="hover:bg-red-50 text-red-600 rounded-xl p-3 cursor-pointer"
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
+                    <LogOut className="mr-3 h-4 w-4" />
+                    <span className="font-medium">Log out</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -254,14 +335,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Sidebar - Desktop */}
-        <aside className="hidden lg:flex w-64 flex-col">
+        <aside className="hidden lg:flex w-64 flex-col border-r border-gray-200/50">
           <SidebarContent />
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100">
-          <div className="container mx-auto p-6 max-w-7xl">
-            {children}
+        <main className="flex-1 overflow-y-auto">
+          <div className="min-h-full bg-gradient-to-br from-gray-50 via-white to-gray-50">
+            <div className="container mx-auto p-6 max-w-7xl">
+              {children}
+            </div>
           </div>
         </main>
       </div>

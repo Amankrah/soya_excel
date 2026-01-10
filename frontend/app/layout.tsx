@@ -1,36 +1,57 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { DM_Sans } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from 'react-hot-toast';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-});
-
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SoyaFlow | Smart Feed Distribution Platform",
-  description: "AI-powered feed distribution management platform for Soya Excel. Optimize routes, predict orders, and track deliveries in real-time across Canada, USA & Spain.",
-  keywords: ["SoyaFlow", "Soya Excel", "feed distribution", "soybean meal", "route optimization", "AI predictions", "logistics management", "agriculture tech"],
-  authors: [{ name: "Soya Excel" }],
-  creator: "Soya Excel",
+  title: "SoyaFlow | AI-Powered Feed Distribution Platform",
+  description: "Smart feed distribution management platform for Soya Excel. AI-powered reorder predictions, optimized route planning, and real-time tracking across Canada, USA & Spain. Developed by SASEL Lab at McGill University.",
+  keywords: [
+    "SoyaFlow",
+    "Soya Excel",
+    "feed distribution",
+    "soybean meal",
+    "route optimization",
+    "AI predictions",
+    "logistics management",
+    "agriculture tech",
+    "SASEL Lab",
+    "McGill University",
+    "sustainable food systems",
+    "RITA Consortium"
+  ],
+  authors: [
+    { name: "Emmanuel Amankrah Kwofie", url: "https://www.eakwofie.com/" },
+    { name: "SASEL Lab", url: "https://sasellab.com/" }
+  ],
+  creator: "SASEL Lab - McGill University",
   publisher: "Soya Excel",
   openGraph: {
-    title: "SoyaFlow | Smart Feed Distribution Platform",
-    description: "AI-powered feed distribution management for efficient soybean meal delivery",
+    title: "SoyaFlow | AI-Powered Feed Distribution Platform",
+    description: "Smart feed distribution management with AI predictions, route optimization, and real-time tracking. Developed by SASEL Lab at McGill University.",
     type: "website",
+    siteName: "SoyaFlow",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SoyaFlow | AI-Powered Feed Distribution",
+    description: "Smart soybean meal distribution management platform",
+  },
+  robots: {
+    index: false, // Internal platform
+    follow: false,
   },
 };
 
@@ -40,9 +61,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="scroll-smooth">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${dmSans.variable} antialiased font-sans`}
+        className={`${inter.variable} ${jetbrainsMono.variable} antialiased font-sans bg-white`}
+        style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
       >
         {children}
         <Toaster
