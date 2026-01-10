@@ -79,6 +79,17 @@ interface Client {
   days_until_predicted_order: number | null;
   priority: string | null;
   is_urgent: boolean;
+  // Cluster fields
+  cluster_id: number | null;
+  cluster_label: string | null;
+  cluster_method: string | null;
+  cluster_distance_to_centroid: number | null;
+}
+
+interface ClusterSummary {
+  cluster_id: number;
+  cluster_label: string;
+  client_count: number;
 }
 
 interface Route {
@@ -165,6 +176,11 @@ export function RouteManagement() {
   // Client filtering state (for Distribution Planner)
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [clientPriorityFilter, setClientPriorityFilter] = useState<string>('all');
+  const [clientClusterFilter, setClientClusterFilter] = useState<string>('all');
+
+  // Cluster data
+  const [clusters, setClusters] = useState<ClusterSummary[]>([]);
+  const [unclusteredCount, setUnclusteredCount] = useState(0);
 
   // Driver assignment dialog state
   const [showDriverAssignmentDialog, setShowDriverAssignmentDialog] = useState(false);
@@ -203,6 +219,13 @@ export function RouteManagement() {
       console.log('Clients with coordinates:', clients.length);
 
       setAvailableClients(clients);
+
+      // Extract cluster data
+      if (clientsData.clusters) {
+        setClusters(clientsData.clusters);
+        setUnclusteredCount(clientsData.unclustered_count || 0);
+        console.log('Clusters loaded:', clientsData.clusters.length, 'Unclustered:', clientsData.unclustered_count);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load route data');
@@ -547,7 +570,7 @@ export function RouteManagement() {
     setEditSelectedClients(new Set());
   };
 
-  // Filter clients based on search and priority (for Distribution Planner)
+  // Filter clients based on search, priority, and cluster (for Distribution Planner)
   const filteredClients = availableClients.filter(client => {
     // Search filter
     const matchesSearch = clientSearchTerm === '' ||
@@ -575,8 +598,51 @@ export function RouteManagement() {
       }
     }
 
-    return matchesSearch && matchesPriority;
+    // Cluster filter
+    let matchesCluster = true;
+    if (clientClusterFilter !== 'all') {
+      if (clientClusterFilter === 'unclustered') {
+        matchesCluster = client.cluster_id === null;
+      } else {
+        matchesCluster = client.cluster_id === parseInt(clientClusterFilter);
+      }
+    }
+
+    return matchesSearch && matchesPriority && matchesCluster;
   });
+
+  // Group filtered clients by cluster for display
+  const clientsByCluster = filteredClients.reduce((acc, client) => {
+    const clusterId = client.cluster_id ?? 'unclustered';
+    if (!acc[clusterId]) {
+      acc[clusterId] = {
+        label: client.cluster_label || (clusterId === 'unclustered' ? 'Unclustered' : `Cluster ${clusterId}`),
+        clients: []
+      };
+    }
+    acc[clusterId].clients.push(client);
+    return acc;
+  }, {} as Record<string | number, { label: string; clients: Client[] }>);
+
+  // Helper to select all clients in a cluster
+  const selectCluster = (clusterId: number | string) => {
+    const clusterClients = clientClusterFilter === 'all' 
+      ? availableClients.filter(c => clusterId === 'unclustered' ? c.cluster_id === null : c.cluster_id === clusterId)
+      : filteredClients.filter(c => clusterId === 'unclustered' ? c.cluster_id === null : c.cluster_id === clusterId);
+    const newSelected = new Set(selectedClients);
+    clusterClients.forEach(c => newSelected.add(c.id));
+    setSelectedClients(newSelected);
+  };
+
+  // Helper to deselect all clients in a cluster
+  const deselectCluster = (clusterId: number | string) => {
+    const clusterClients = availableClients.filter(c => 
+      clusterId === 'unclustered' ? c.cluster_id === null : c.cluster_id === clusterId
+    );
+    const newSelected = new Set(selectedClients);
+    clusterClients.forEach(c => newSelected.delete(c.id));
+    setSelectedClients(newSelected);
+  };
 
   // Filter clients for Edit Route modal
   const editFilteredClients = availableClients.filter(client => {
@@ -1056,60 +1122,193 @@ export function RouteManagement() {
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   </div>
 
+                  {/* Cluster Filter Dropdown */}
+                  {clusters.length > 0 && (
+                    <div className="bg-gradient-to-br from-green-50 to-yellow-50 rounded-lg p-3 border border-green-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Geographic Clusters
+                        </label>
+                        <Badge variant="outline" className="text-xs bg-white">
+                          {clusters.length} regions
+                        </Badge>
+                      </div>
+                      <select
+                        value={clientClusterFilter}
+                        onChange={(e) => setClientClusterFilter(e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                        title="Filter by geographic cluster"
+                      >
+                        <option value="all">All Clusters ({availableClients.length})</option>
+                        {clusters.map((cluster) => (
+                          <option key={cluster.cluster_id} value={cluster.cluster_id}>
+                            {cluster.cluster_label || `Cluster ${cluster.cluster_id}`} ({cluster.client_count})
+                          </option>
+                        ))}
+                        {unclusteredCount > 0 && (
+                          <option value="unclustered">Unclustered ({unclusteredCount})</option>
+                        )}
+                      </select>
+                      {clientClusterFilter !== 'all' && (
+                        <div className="mt-2 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => selectCluster(clientClusterFilter === 'unclustered' ? 'unclustered' : parseInt(clientClusterFilter))}
+                            className="flex-1 text-xs bg-green-100 border-green-300 hover:bg-green-200"
+                          >
+                            Select All in Cluster
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deselectCluster(clientClusterFilter === 'unclustered' ? 'unclustered' : parseInt(clientClusterFilter))}
+                            className="flex-1 text-xs"
+                          >
+                            Deselect Cluster
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Priority Filter Buttons */}
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant={clientPriorityFilter === 'all' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setClientPriorityFilter('all')}
-                    >
-                      All
-                    </Button>
-                    <Button
-                      variant={clientPriorityFilter === 'overdue' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setClientPriorityFilter('overdue')}
-                      className={clientPriorityFilter === 'overdue' ? 'bg-orange-600 hover:bg-orange-700' : ''}
-                    >
-                      Overdue
-                    </Button>
-                    <Button
-                      variant={clientPriorityFilter === 'urgent' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setClientPriorityFilter('urgent')}
-                    >
-                      Urgent (≤3d)
-                    </Button>
-                    <Button
-                      variant={clientPriorityFilter === 'high' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setClientPriorityFilter('high')}
-                    >
-                      High (4-7d)
-                    </Button>
-                    <Button
-                      variant={clientPriorityFilter === 'medium' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setClientPriorityFilter('medium')}
-                    >
-                      Medium (8-14d)
-                    </Button>
-                    <Button
-                      variant={clientPriorityFilter === 'low' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setClientPriorityFilter('low')}
-                    >
-                      Low (&gt;14d)
-                    </Button>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Filter by Priority</label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant={clientPriorityFilter === 'all' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setClientPriorityFilter('all')}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant={clientPriorityFilter === 'overdue' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setClientPriorityFilter('overdue')}
+                        className={clientPriorityFilter === 'overdue' ? 'bg-orange-600 hover:bg-orange-700' : ''}
+                      >
+                        Overdue
+                      </Button>
+                      <Button
+                        variant={clientPriorityFilter === 'urgent' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setClientPriorityFilter('urgent')}
+                      >
+                        Urgent (≤3d)
+                      </Button>
+                      <Button
+                        variant={clientPriorityFilter === 'high' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setClientPriorityFilter('high')}
+                      >
+                        High (4-7d)
+                      </Button>
+                      <Button
+                        variant={clientPriorityFilter === 'medium' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setClientPriorityFilter('medium')}
+                      >
+                        Medium (8-14d)
+                      </Button>
+                      <Button
+                        variant={clientPriorityFilter === 'low' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setClientPriorityFilter('low')}
+                      >
+                        Low (&gt;14d)
+                      </Button>
+                    </div>
                   </div>
 
+                  {/* Client List - Grouped by Cluster */}
                   <div className="border rounded-lg p-2 max-h-96 overflow-y-auto">
                     {filteredClients.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                         <p>No clients match your filters</p>
                       </div>
+                    ) : clientClusterFilter === 'all' && clusters.length > 0 ? (
+                      /* Grouped by cluster view */
+                      <div className="space-y-3">
+                        {Object.entries(clientsByCluster).map(([clusterId, { label, clients }]) => (
+                          <div key={clusterId} className="border rounded-lg overflow-hidden">
+                            <div className="bg-gradient-to-r from-green-100 to-yellow-50 px-3 py-2 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-green-600" />
+                                <span className="font-medium text-sm text-green-800">{label}</span>
+                                <Badge variant="outline" className="text-xs bg-white">
+                                  {clients.length} clients
+                                </Badge>
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    selectCluster(clusterId === 'unclustered' ? 'unclustered' : parseInt(clusterId));
+                                  }}
+                                  className="h-6 px-2 text-xs text-green-700 hover:bg-green-200"
+                                >
+                                  +All
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deselectCluster(clusterId === 'unclustered' ? 'unclustered' : parseInt(clusterId));
+                                  }}
+                                  className="h-6 px-2 text-xs text-gray-600 hover:bg-gray-200"
+                                >
+                                  -All
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="divide-y">
+                              {clients.map((client) => (
+                                <div
+                                  key={client.id}
+                                  className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                                  onClick={() => toggleClientSelection(client.id)}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedClients.has(client.id)}
+                                    onChange={() => toggleClientSelection(client.id)}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                    aria-label={`Select ${client.name}`}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-sm truncate">{client.name}</div>
+                                    <div className="text-xs text-gray-500 truncate">
+                                      {client.city}, {client.country}
+                                    </div>
+                                  </div>
+                                  {client.days_until_predicted_order !== null && (
+                                    <Badge className={`text-xs shrink-0 ${
+                                      client.days_until_predicted_order < 0 ? 'bg-orange-100 text-orange-700' :
+                                      client.days_until_predicted_order <= 3 ? 'bg-red-100 text-red-700' :
+                                      client.days_until_predicted_order <= 7 ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {client.days_until_predicted_order < 0
+                                        ? `${Math.abs(client.days_until_predicted_order)}d late`
+                                        : `${client.days_until_predicted_order}d`
+                                      }
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
+                      /* Flat list view (when cluster is selected or no clusters) */
                       <div className="space-y-2">
                         {filteredClients.map((client) => (
                           <div
@@ -1128,6 +1327,9 @@ export function RouteManagement() {
                               <div className="font-medium">{client.name}</div>
                               <div className="text-xs text-gray-500">
                                 {client.city}, {client.country}
+                                {client.cluster_label && (
+                                  <span className="ml-2 text-green-600">• {client.cluster_label}</span>
+                                )}
                               </div>
                               {client.days_until_predicted_order !== null && (
                                 <div className={`text-xs mt-1 ${
@@ -1149,8 +1351,42 @@ export function RouteManagement() {
                     )}
                   </div>
 
-                  <div className="text-sm text-gray-600">
-                    Selected: {selectedClients.size} / {availableClients.length} clients
+                  {/* Selection Summary */}
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">Selected Clients</span>
+                      <span className="text-lg font-bold text-green-700">
+                        {selectedClients.size} / {availableClients.length}
+                      </span>
+                    </div>
+                    {selectedClients.size > 0 && clusters.length > 0 && (
+                      <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
+                        <div className="font-medium text-gray-600">Selection by Cluster:</div>
+                        {clusters.map(cluster => {
+                          const count = availableClients.filter(
+                            c => c.cluster_id === cluster.cluster_id && selectedClients.has(c.id)
+                          ).length;
+                          if (count === 0) return null;
+                          return (
+                            <div key={cluster.cluster_id} className="flex justify-between">
+                              <span>{cluster.cluster_label || `Cluster ${cluster.cluster_id}`}</span>
+                              <span className="font-medium text-green-600">{count}</span>
+                            </div>
+                          );
+                        })}
+                        {(() => {
+                          const unclusteredSelected = availableClients.filter(
+                            c => c.cluster_id === null && selectedClients.has(c.id)
+                          ).length;
+                          return unclusteredSelected > 0 ? (
+                            <div className="flex justify-between">
+                              <span>Unclustered</span>
+                              <span className="font-medium text-gray-600">{unclusteredSelected}</span>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    )}
                   </div>
                 </div>
 

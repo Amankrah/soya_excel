@@ -80,12 +80,35 @@ class Client(models.Model):
         help_text="Historical accuracy of predictions for this client (0-100)"
     )
 
+    # Geographic Clustering fields (for distribution planning optimization)
+    cluster_id = models.IntegerField(
+        null=True, blank=True, db_index=True,
+        help_text="Cluster ID from geographic clustering algorithm"
+    )
+    cluster_label = models.CharField(
+        max_length=100, blank=True,
+        help_text="Human-readable cluster label (e.g., 'Montreal Region', 'Quebec City Area')"
+    )
+    cluster_method = models.CharField(
+        max_length=20, blank=True,
+        help_text="Clustering method used: 'dbscan' or 'kmeans'"
+    )
+    cluster_distance_to_centroid = models.DecimalField(
+        max_digits=10, decimal_places=4, null=True, blank=True,
+        help_text="Distance in km from client to cluster centroid"
+    )
+    cluster_updated_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When cluster assignment was last updated"
+    )
+
     class Meta:
         ordering = ['name']
         indexes = [
             models.Index(fields=['name']),
             models.Index(fields=['city', 'country']),
             models.Index(fields=['is_active']),
+            models.Index(fields=['cluster_id']),
         ]
 
     def __str__(self):

@@ -277,6 +277,134 @@ class ClientViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    @action(detail=False, methods=['get'])
+    def cluster_summary(self, request):
+        """
+        Get summary of current client clustering state.
+        
+        Returns statistics about existing clusters for distribution planning.
+        """
+        from clients.services_clustering import ClientClusteringService
+        
+        service = ClientClusteringService()
+        summary = service.get_cluster_summary()
+        
+        return Response(summary)
+
+    @action(detail=False, methods=['post'])
+    def update_clusters(self, request):
+        """
+        Run clustering algorithm to update client cluster assignments.
+        
+        Parameters (in request body):
+            method: 'dbscan' or 'kmeans' (default: 'dbscan')
+            eps_km: DBSCAN - max distance in km (default: 50)
+            min_samples: DBSCAN - min clients per cluster (default: 2)
+            n_clusters: KMeans - number of clusters (default: 10)
+            active_only: Only cluster active clients (default: true)
+        """
+        from clients.services_clustering import ClientClusteringService
+        
+        service = ClientClusteringService()
+        
+        # Get parameters from request
+        method = request.data.get('method', 'dbscan')
+        eps_km = request.data.get('eps_km', 50.0)
+        min_samples = request.data.get('min_samples', 2)
+        n_clusters = request.data.get('n_clusters', 10)
+        active_only = request.data.get('active_only', True)
+        
+        result = service.cluster_all_clients(
+            method=method,
+            eps_km=float(eps_km) if eps_km else None,
+            min_samples=int(min_samples) if min_samples else None,
+            n_clusters=int(n_clusters) if n_clusters else None,
+            active_only=active_only
+        )
+        
+        if result['success']:
+            return Response(result)
+        else:
+            return Response(
+                result,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=False, methods=['get'])
+    def by_cluster(self, request):
+        """
+        Get clients grouped by cluster for distribution planning.
+        
+        Query Parameters:
+            cluster_id: Get clients in specific cluster (optional)
+            include_unclustered: Include unclustered clients (default: false)
+        """
+        from clients.services_clustering import ClientClusteringService
+        
+        cluster_id = request.query_params.get('cluster_id')
+        include_unclustered = request.query_params.get('include_unclustered', 'false').lower() == 'true'
+        
+        if cluster_id is not None:
+            # Get specific cluster
+            service = ClientClusteringService()
+            clients = service.get_clients_by_cluster(int(cluster_id))
+            return Response({
+                'cluster_id': int(cluster_id),
+                'clients': clients,
+                'count': len(clients)
+            })
+        
+        # Get all clusters
+        from django.db.models import Count, Avg
+        
+        clusters_data = Client.objects.filter(
+            is_active=True,
+            cluster_id__isnull=False
+        ).values(
+            'cluster_id', 'cluster_label'
+        ).annotate(
+            client_count=Count('id'),
+            avg_distance=Avg('cluster_distance_to_centroid')
+        ).order_by('cluster_id')
+        
+        result = {
+            'clusters': list(clusters_data),
+            'total_clusters': len(clusters_data)
+        }
+        
+        if include_unclustered:
+            unclustered = Client.objects.filter(
+                is_active=True,
+                cluster_id__isnull=True,
+                latitude__isnull=False,
+                longitude__isnull=False
+            ).count()
+            result['unclustered_count'] = unclustered
+        
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def cluster_suggestions(self, request):
+        """
+        Get suggested optimal clustering parameters based on client distribution.
+        
+        Query Parameters:
+            max_clients_per_route: Max clients per route (default: 10)
+            max_distance_km: Max route distance in km (default: 300)
+        """
+        from clients.services_clustering import ClientClusteringService
+        
+        max_clients = int(request.query_params.get('max_clients_per_route', 10))
+        max_distance = int(request.query_params.get('max_distance_km', 300))
+        
+        service = ClientClusteringService()
+        suggestions = service.suggest_optimal_clusters(
+            max_clients_per_route=max_clients,
+            max_distance_km=max_distance
+        )
+        
+        return Response(suggestions)
+
 
 class OrderViewSet(viewsets.ModelViewSet):
     """ViewSet for Order model with batch aggregation support"""

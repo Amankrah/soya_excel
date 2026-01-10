@@ -403,18 +403,55 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def available_clients(self, request):
-        """Get all active clients with geocoded coordinates"""
+        """Get all active clients with geocoded coordinates, grouped by cluster"""
         from clients.serializers import ClientListSerializer
+        from django.db.models import Count
+
+        # Get filter parameters
+        cluster_id = request.query_params.get('cluster_id')
+        include_unclustered = request.query_params.get('include_unclustered', 'true').lower() == 'true'
 
         clients = Client.objects.filter(
             is_active=True,
             latitude__isnull=False,
             longitude__isnull=False
-        ).order_by('name')
+        )
+
+        # Filter by cluster if specified
+        if cluster_id is not None:
+            if cluster_id == '-1' or cluster_id == 'unclustered':
+                clients = clients.filter(cluster_id__isnull=True)
+            else:
+                clients = clients.filter(cluster_id=int(cluster_id))
+        elif not include_unclustered:
+            clients = clients.filter(cluster_id__isnull=False)
+
+        clients = clients.order_by('cluster_id', 'name')
+
+        # Get cluster summary for sidebar
+        cluster_summary = Client.objects.filter(
+            is_active=True,
+            latitude__isnull=False,
+            longitude__isnull=False,
+            cluster_id__isnull=False
+        ).values('cluster_id', 'cluster_label').annotate(
+            client_count=Count('id')
+        ).order_by('cluster_id')
+
+        # Get unclustered count
+        unclustered_count = Client.objects.filter(
+            is_active=True,
+            latitude__isnull=False,
+            longitude__isnull=False,
+            cluster_id__isnull=True
+        ).count()
 
         return Response({
             'count': clients.count(),
-            'results': ClientListSerializer(clients, many=True).data
+            'results': ClientListSerializer(clients, many=True).data,
+            'clusters': list(cluster_summary),
+            'unclustered_count': unclustered_count,
+            'total_clustered': sum(c['client_count'] for c in cluster_summary)
         })
 
     def _persist_distribution_plan(self, plan_result: Dict, date, user) -> List[Dict]:

@@ -40,6 +40,10 @@ class ClientSerializer(serializers.ModelSerializer):
             'last_prediction_update', 'prediction_accuracy_score',
             'days_until_predicted_order', 'is_urgent',
 
+            # Geographic Clustering fields
+            'cluster_id', 'cluster_label', 'cluster_method',
+            'cluster_distance_to_centroid', 'cluster_updated_at',
+
             # Metadata
             'created_at', 'updated_at', 'is_active',
 
@@ -53,7 +57,9 @@ class ClientSerializer(serializers.ModelSerializer):
             'predicted_next_order_days', 'predicted_next_order_date',
             'prediction_confidence_lower', 'prediction_confidence_upper',
             'last_prediction_update', 'prediction_accuracy_score',
-            'days_until_predicted_order', 'is_urgent', 'orders_count'
+            'days_until_predicted_order', 'is_urgent', 'orders_count',
+            'cluster_id', 'cluster_label', 'cluster_method',
+            'cluster_distance_to_centroid', 'cluster_updated_at'
         ]
 
     def get_orders_count(self, obj):
@@ -78,7 +84,10 @@ class ClientListSerializer(serializers.ModelSerializer):
             'prediction_confidence_lower', 'prediction_confidence_upper',
             'last_prediction_update', 'prediction_accuracy_score',
             'historical_monthly_usage', 'is_urgent',
-            'is_active', 'orders_count'
+            'is_active', 'orders_count',
+            # Clustering fields
+            'cluster_id', 'cluster_label', 'cluster_method',
+            'cluster_distance_to_centroid', 'cluster_updated_at'
         ]
 
     def get_orders_count(self, obj):
