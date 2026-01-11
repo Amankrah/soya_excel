@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Truck, X, Play, Pause, RotateCcw, MapPin, Clock, User, Car } from 'lucide-react';
@@ -287,14 +287,19 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     }
   }, [simulationData, initializeMap]);
 
-  // Helper function to find the closest path index for a waypoint
-  const findClosestPathIndex = useCallback((waypoint: Waypoint, path: google.maps.LatLng[]): number => {
+  // Helper function to find the closest path index for a waypoint, searching from a minimum index
+  const findClosestPathIndexFrom = useCallback((
+    waypoint: Waypoint, 
+    path: google.maps.LatLng[], 
+    fromIndex: number = 0
+  ): number => {
     if (path.length === 0) return 0;
     
-    let closestIndex = 0;
+    let closestIndex = fromIndex;
     let closestDistance = Infinity;
     
-    for (let i = 0; i < path.length; i++) {
+    // Search only from fromIndex onwards to ensure forward progression
+    for (let i = fromIndex; i < path.length; i++) {
       const pathPoint = path[i];
       const distance = Math.sqrt(
         Math.pow(pathPoint.lat() - waypoint.latitude, 2) +
@@ -307,6 +312,34 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     }
     return closestIndex;
   }, []);
+
+  // Pre-calculate path indices for all waypoints in sequence order
+  // This ensures the vehicle always moves forward along the path
+  const waypointPathIndices = useMemo(() => {
+    if (!simulationData || directionsPath.length === 0) return new Map<string, number>();
+    
+    const indices = new Map<string, number>();
+    let lastIndex = 0;
+    
+    for (const wp of simulationData.waypoints) {
+      // For warehouse return, use the end of the path
+      if (wp.type === 'warehouse_return') {
+        indices.set(wp.id, directionsPath.length - 1);
+      } else {
+        // Find closest point from the last index onwards (forward only)
+        const pathIndex = findClosestPathIndexFrom(wp, directionsPath, lastIndex);
+        indices.set(wp.id, pathIndex);
+        lastIndex = pathIndex;
+      }
+    }
+    
+    return indices;
+  }, [simulationData, directionsPath, findClosestPathIndexFrom]);
+
+  // Helper to get waypoint path index from pre-calculated map
+  const getWaypointPathIndex = useCallback((waypoint: Waypoint): number => {
+    return waypointPathIndices.get(waypoint.id) ?? 0;
+  }, [waypointPathIndices]);
 
   // Calculate the effective total duration from the last waypoint's departure time
   const getEffectiveTotalDuration = useCallback(() => {
@@ -353,8 +386,8 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
         currentLocationWaypoint = wp;
         isAtStopLocal = true;
 
-        // Position vehicle at this waypoint
-        const waypointPathIndex = findClosestPathIndex(wp, directionsPath);
+        // Position vehicle at this waypoint using pre-calculated index
+        const waypointPathIndex = getWaypointPathIndex(wp);
         currentPos = directionsPath[waypointPathIndex];
 
         // Find next delivery stop after this one
@@ -377,9 +410,9 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
           const timeIntoSegment = elapsedTime - scaledDeparture;
           const segmentProgress = segmentTravelTime > 0 ? timeIntoSegment / segmentTravelTime : 0;
 
-          // Find path indices for current and next waypoints
-          const currentWpPathIndex = findClosestPathIndex(wp, directionsPath);
-          const nextWpPathIndex = findClosestPathIndex(nextWp, directionsPath);
+          // Find path indices for current and next waypoints using pre-calculated indices
+          const currentWpPathIndex = getWaypointPathIndex(wp);
+          const nextWpPathIndex = getWaypointPathIndex(nextWp);
 
           // Interpolate position along the path segment
           const pathSegmentLength = nextWpPathIndex - currentWpPathIndex;
@@ -463,7 +496,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     if (!currentLocationWaypoint && waypoints.length > 0) {
       currentLocationWaypoint = waypoints[0];
       isAtStopLocal = true;
-      const waypointPathIndex = findClosestPathIndex(waypoints[0], directionsPath);
+      const waypointPathIndex = getWaypointPathIndex(waypoints[0]);
       currentPos = directionsPath[waypointPathIndex];
 
       // Find first delivery stop
@@ -522,7 +555,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     setCurrentWaypoint(currentLocationWaypoint);
     setNextWaypoint(nextStopWaypoint);
     setProgress((elapsedTime / effectiveTotalDuration) * 100);
-  }, [simulationData, directionsPath, findClosestPathIndex, getEffectiveTotalDuration]);
+  }, [simulationData, directionsPath, getWaypointPathIndex, getEffectiveTotalDuration]);
 
   // Animation loop
   useEffect(() => {
