@@ -411,21 +411,24 @@ class RouteSimulationService:
 
         Args:
             waypoints: List of waypoint dictionaries
-            elapsed_seconds: Time elapsed in simulation
-            total_duration_seconds: Total simulation duration
+            elapsed_seconds: Time elapsed in REAL route time (not simulation time)
+            total_duration_seconds: Total REAL route duration
 
         Returns:
             Dictionary with current_waypoint_index and next_stop_index
         """
         current_waypoint_idx = None
         next_stop_idx = None
+        is_in_transit = False
 
         # Find which waypoint we're currently at or heading to
         for i, wp in enumerate(waypoints):
-            # If we're at or servicing this waypoint
+            # If we're at or servicing this waypoint (between arrival and departure)
             if elapsed_seconds >= wp['arrival_time_seconds'] and elapsed_seconds < wp['departure_time_seconds']:
                 current_waypoint_idx = i
-                # Find next delivery stop after this one
+                is_in_transit = False
+
+                # Find next delivery stop after this one (skip warehouse starts)
                 for j in range(i + 1, len(waypoints)):
                     if waypoints[j]['type'] in ['delivery_stop', 'warehouse_return']:
                         next_stop_idx = j
@@ -434,19 +437,24 @@ class RouteSimulationService:
             # If we've left this waypoint, check if we're in transit to the next
             elif elapsed_seconds >= wp['departure_time_seconds']:
                 if i + 1 < len(waypoints) and elapsed_seconds < waypoints[i + 1]['arrival_time_seconds']:
-                    # In transit between waypoints
+                    # In transit between this waypoint and the next
                     current_waypoint_idx = i  # Just left this waypoint
-                    # Find next delivery stop
+                    is_in_transit = True
+
+                    # The "next stop" should be where we're heading (i+1 if it's a delivery stop)
+                    # Otherwise keep looking ahead
                     for j in range(i + 1, len(waypoints)):
                         if waypoints[j]['type'] in ['delivery_stop', 'warehouse_return']:
                             next_stop_idx = j
                             break
                     break
 
-        # If no current waypoint found, we're at the start
+        # If no current waypoint found, we're at the start (warehouse)
         if current_waypoint_idx is None and waypoints:
             current_waypoint_idx = 0
-            # Find first delivery stop
+            is_in_transit = False
+
+            # Find first delivery stop (not the warehouse)
             for j in range(1, len(waypoints)):
                 if waypoints[j]['type'] == 'delivery_stop':
                     next_stop_idx = j
@@ -456,8 +464,7 @@ class RouteSimulationService:
             'current_waypoint_index': current_waypoint_idx,
             'next_stop_index': next_stop_idx,
             'progress_percentage': (elapsed_seconds / total_duration_seconds * 100) if total_duration_seconds > 0 else 0,
-            'is_in_transit': current_waypoint_idx is not None and waypoints and
-                           elapsed_seconds >= waypoints[current_waypoint_idx]['departure_time_seconds'] if current_waypoint_idx < len(waypoints) else False
+            'is_in_transit': is_in_transit
         }
 
     def _get_simulation_instructions(self, route: Route, speed: float) -> str:
