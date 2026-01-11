@@ -83,6 +83,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
   const [currentLocationName, setCurrentLocationName] = useState<string>('');
   const [etaToNextStop, setEtaToNextStop] = useState<number | null>(null);
   const [distanceToNextStop, setDistanceToNextStop] = useState<number | null>(null);
+  const [isAtStop, setIsAtStop] = useState(false);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -287,26 +288,206 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     }
   }, [simulationData, initializeMap]);
 
+  // Helper function to find the closest path index for a waypoint
+  const findClosestPathIndex = useCallback((waypoint: Waypoint, path: google.maps.LatLng[]): number => {
+    if (path.length === 0) return 0;
+    
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+    
+    for (let i = 0; i < path.length; i++) {
+      const pathPoint = path[i];
+      const distance = Math.sqrt(
+        Math.pow(pathPoint.lat() - waypoint.latitude, 2) +
+        Math.pow(pathPoint.lng() - waypoint.longitude, 2)
+      );
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = i;
+      }
+    }
+    return closestIndex;
+  }, []);
+
+  // Calculate the effective total duration from the last waypoint's departure time
+  const getEffectiveTotalDuration = useCallback(() => {
+    if (!simulationData) return 0;
+    const waypoints = simulationData.waypoints;
+    const speedMultiplier = simulationData.simulation_config.speed_multiplier;
+    
+    if (waypoints.length === 0) return simulationData.simulation_config.total_simulation_duration_seconds;
+    
+    // Use the last waypoint's departure time as the true end of simulation
+    const lastWaypoint = waypoints[waypoints.length - 1];
+    const scaledLastDeparture = lastWaypoint.departure_time_seconds / speedMultiplier;
+    
+    // Return the max of configured duration and actual waypoint-based duration
+    return Math.max(
+      simulationData.simulation_config.total_simulation_duration_seconds,
+      scaledLastDeparture
+    );
+  }, [simulationData]);
+
   // Update vehicle position callback
   const updateVehiclePosition = useCallback((elapsedTime: number) => {
     if (!simulationData || !vehicleMarkerRef.current || directionsPath.length === 0) return;
 
     const waypoints = simulationData.waypoints;
-    const totalDuration = simulationData.simulation_config.total_simulation_duration_seconds;
+    const speedMultiplier = simulationData.simulation_config.speed_multiplier;
+    const effectiveTotalDuration = getEffectiveTotalDuration();
 
-    // Calculate progress along the entire route based on time
-    const overallProgress = Math.min(elapsedTime / totalDuration, 1);
-    const targetIndex = Math.floor(overallProgress * (directionsPath.length - 1));
-
-    // Get current position from directions path
+    let currentLocationWaypoint: Waypoint | null = null;
+    let nextStopWaypoint: Waypoint | null = null;
+    let isAtStopLocal = false;
     let currentPos: google.maps.LatLng | null = null;
-    if (targetIndex >= 0 && targetIndex < directionsPath.length) {
-      currentPos = directionsPath[targetIndex];
+
+    // Find which segment we're in based on SCALED waypoint times
+    for (let i = 0; i < waypoints.length; i++) {
+      const wp = waypoints[i];
+
+      // Scale waypoint times to simulation time
+      const scaledArrival = wp.arrival_time_seconds / speedMultiplier;
+      const scaledDeparture = wp.departure_time_seconds / speedMultiplier;
+
+      // Check if we're currently at or servicing this waypoint
+      if (elapsedTime >= scaledArrival && elapsedTime < scaledDeparture) {
+        currentLocationWaypoint = wp;
+        isAtStopLocal = true;
+
+        // Position vehicle at this waypoint
+        const waypointPathIndex = findClosestPathIndex(wp, directionsPath);
+        currentPos = directionsPath[waypointPathIndex];
+
+        // Find next delivery stop after this one
+        for (let j = i + 1; j < waypoints.length; j++) {
+          if (waypoints[j].type === 'delivery_stop' || waypoints[j].type === 'warehouse_return') {
+            nextStopWaypoint = waypoints[j];
+            break;
+          }
+        }
+        break;
+      }
+      // Check if we're in transit to the next waypoint
+      else if (elapsedTime >= scaledDeparture && i + 1 < waypoints.length) {
+        const nextWp = waypoints[i + 1];
+        const nextScaledArrival = nextWp.arrival_time_seconds / speedMultiplier;
+
+        if (elapsedTime < nextScaledArrival) {
+          // Calculate progress within this transit segment
+          const segmentTravelTime = nextScaledArrival - scaledDeparture;
+          const timeIntoSegment = elapsedTime - scaledDeparture;
+          const segmentProgress = segmentTravelTime > 0 ? timeIntoSegment / segmentTravelTime : 0;
+
+          // Find path indices for current and next waypoints
+          const currentWpPathIndex = findClosestPathIndex(wp, directionsPath);
+          const nextWpPathIndex = findClosestPathIndex(nextWp, directionsPath);
+
+          // Interpolate position along the path segment
+          const pathSegmentLength = nextWpPathIndex - currentWpPathIndex;
+          const targetPathIndex = Math.min(
+            currentWpPathIndex + Math.floor(segmentProgress * pathSegmentLength),
+            directionsPath.length - 1
+          );
+          
+          currentPos = directionsPath[Math.max(0, targetPathIndex)];
+
+          // Find next delivery stop
+          for (let j = i + 1; j < waypoints.length; j++) {
+            if (waypoints[j].type === 'delivery_stop' || waypoints[j].type === 'warehouse_return') {
+              nextStopWaypoint = waypoints[j];
+              break;
+            }
+          }
+
+          // Create a placeholder waypoint for in-transit display
+          currentLocationWaypoint = {
+            ...wp,
+            name: nextStopWaypoint ? `En route to ${nextStopWaypoint.name}` : 'In transit',
+            type: 'in_transit',
+            cumulative_distance_km: wp.cumulative_distance_km + 
+              (nextWp.cumulative_distance_km - wp.cumulative_distance_km) * segmentProgress,
+          };
+
+          // Geocoding for in-transit location name
+          if (currentPos) {
+            const pathIndexKey = Math.floor(targetPathIndex / 50);
+
+            if (geocodeCacheRef.current.has(pathIndexKey)) {
+              setCurrentLocationName(geocodeCacheRef.current.get(pathIndexKey)!);
+            } else if (lastGeocodedIndexRef.current !== pathIndexKey) {
+              lastGeocodedIndexRef.current = pathIndexKey;
+
+              if (!geocoderRef.current && window.google) {
+                geocoderRef.current = new google.maps.Geocoder();
+              }
+
+              if (geocoderRef.current) {
+                geocoderRef.current.geocode(
+                  { location: currentPos },
+                  (results, status) => {
+                    if (status === 'OK' && results && results[0]) {
+                      const streetAddress = results[0].address_components.find(
+                        (component) => component.types.includes('route')
+                      );
+                      const locality = results[0].address_components.find(
+                        (component) => component.types.includes('locality')
+                      );
+
+                      let locationName = 'In transit';
+                      if (streetAddress) {
+                        locationName = streetAddress.long_name;
+                        if (locality) {
+                          locationName += `, ${locality.long_name}`;
+                        }
+                      } else if (results[0].formatted_address) {
+                        locationName = results[0].formatted_address.split(',').slice(0, 2).join(',');
+                      }
+
+                      geocodeCacheRef.current.set(pathIndexKey, locationName);
+                      setCurrentLocationName(locationName);
+                    } else {
+                      const fallbackName = nextStopWaypoint ? `En route to ${nextStopWaypoint.name}` : 'In transit';
+                      geocodeCacheRef.current.set(pathIndexKey, fallbackName);
+                      setCurrentLocationName(fallbackName);
+                    }
+                  }
+                );
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    // Fallback if no waypoint matched (at the start)
+    if (!currentLocationWaypoint && waypoints.length > 0) {
+      currentLocationWaypoint = waypoints[0];
+      isAtStopLocal = true;
+      const waypointPathIndex = findClosestPathIndex(waypoints[0], directionsPath);
+      currentPos = directionsPath[waypointPathIndex];
+
+      // Find first delivery stop
+      for (let i = 1; i < waypoints.length; i++) {
+        if (waypoints[i].type === 'delivery_stop') {
+          nextStopWaypoint = waypoints[i];
+          break;
+        }
+      }
+    }
+
+    // Update vehicle marker position and heading
+    if (currentPos && vehicleMarkerRef.current) {
       vehicleMarkerRef.current.setPosition(currentPos);
 
+      // Find current path index for heading calculation
+      const currentPathIndex = directionsPath.findIndex(
+        p => p.lat() === currentPos!.lat() && p.lng() === currentPos!.lng()
+      );
+      
       // Calculate heading if we have next point
-      if (targetIndex + 1 < directionsPath.length) {
-        const nextPos = directionsPath[targetIndex + 1];
+      if (currentPathIndex >= 0 && currentPathIndex + 1 < directionsPath.length) {
+        const nextPos = directionsPath[currentPathIndex + 1];
         const heading = google.maps.geometry.spherical.computeHeading(currentPos, nextPos);
 
         const icon = vehicleMarkerRef.current.getIcon() as google.maps.Symbol;
@@ -320,127 +501,9 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
       mapRef.current?.panTo(currentPos);
     }
 
-    // Determine current waypoint and next stop based on SCALED simulation time
-    // Scale waypoint times from real route time to simulation time
-    const speedMultiplier = simulationData.simulation_config.speed_multiplier;
-
-    let currentLocationWaypoint: Waypoint | null = null;
-    let nextStopWaypoint: Waypoint | null = null;
-    let isAtStop = false;
-
-    // Find which waypoint we're at based on scaled time
-    for (let i = 0; i < waypoints.length; i++) {
-      const wp = waypoints[i];
-
-      // Scale waypoint times to simulation time
-      const scaledArrival = wp.arrival_time_seconds / speedMultiplier;
-      const scaledDeparture = wp.departure_time_seconds / speedMultiplier;
-
-      // Check if we're currently at or servicing this waypoint
-      if (elapsedTime >= scaledArrival && elapsedTime < scaledDeparture) {
-        currentLocationWaypoint = wp;
-        isAtStop = true;
-
-        // Find next delivery stop after this one
-        for (let j = i + 1; j < waypoints.length; j++) {
-          if (waypoints[j].type === 'delivery_stop' || waypoints[j].type === 'warehouse_return') {
-            nextStopWaypoint = waypoints[j];
-            break;
-          }
-        }
-        break;
-      }
-      // Check if we're in transit to the next waypoint
-      else if (elapsedTime >= scaledDeparture) {
-        if (i + 1 < waypoints.length) {
-          const nextWp = waypoints[i + 1];
-          const nextScaledArrival = nextWp.arrival_time_seconds / speedMultiplier;
-
-          if (elapsedTime < nextScaledArrival) {
-            // We're in transit - find next delivery stop
-            for (let j = i + 1; j < waypoints.length; j++) {
-              if (waypoints[j].type === 'delivery_stop' || waypoints[j].type === 'warehouse_return') {
-                nextStopWaypoint = waypoints[j];
-                break;
-              }
-            }
-
-            // Use geocoding for current location if available (in transit)
-            if (currentPos) {
-              const pathIndexKey = Math.floor(targetIndex / 50); // Geocode every 50 path points
-
-              if (geocodeCacheRef.current.has(pathIndexKey)) {
-                setCurrentLocationName(geocodeCacheRef.current.get(pathIndexKey)!);
-              } else if (lastGeocodedIndexRef.current !== pathIndexKey) {
-                lastGeocodedIndexRef.current = pathIndexKey;
-
-                if (!geocoderRef.current && window.google) {
-                  geocoderRef.current = new google.maps.Geocoder();
-                }
-
-                if (geocoderRef.current) {
-                  geocoderRef.current.geocode(
-                    { location: currentPos },
-                    (results, status) => {
-                      if (status === 'OK' && results && results[0]) {
-                        const streetAddress = results[0].address_components.find(
-                          (component) => component.types.includes('route')
-                        );
-                        const locality = results[0].address_components.find(
-                          (component) => component.types.includes('locality')
-                        );
-
-                        let locationName = 'In transit';
-                        if (streetAddress) {
-                          locationName = streetAddress.long_name;
-                          if (locality) {
-                            locationName += `, ${locality.long_name}`;
-                          }
-                        } else if (results[0].formatted_address) {
-                          locationName = results[0].formatted_address.split(',').slice(0, 2).join(',');
-                        }
-
-                        geocodeCacheRef.current.set(pathIndexKey, locationName);
-                        setCurrentLocationName(locationName);
-                      } else {
-                        const fallbackName = nextStopWaypoint ? `En route to ${nextStopWaypoint.name}` : 'In transit';
-                        geocodeCacheRef.current.set(pathIndexKey, fallbackName);
-                        setCurrentLocationName(fallbackName);
-                      }
-                    }
-                  );
-                }
-              }
-
-              // Create a placeholder waypoint for in-transit display
-              currentLocationWaypoint = {
-                ...wp,
-                name: nextStopWaypoint ? `En route to ${nextStopWaypoint.name}` : 'In transit',
-                type: 'in_transit',
-              };
-            }
-            break;
-          }
-        }
-      }
-    }
-
-    // Fallback if no waypoint matched (at the start)
-    if (!currentLocationWaypoint && waypoints.length > 0) {
-      currentLocationWaypoint = waypoints[0];
-      isAtStop = true;
-
-      // Find first delivery stop
-      for (let i = 1; i < waypoints.length; i++) {
-        if (waypoints[i].type === 'delivery_stop') {
-          nextStopWaypoint = waypoints[i];
-          break;
-        }
-      }
-    }
-
-    // Update the ref for use in the UI
-    isAtStopRef.current = isAtStop;
+    // Update the state for UI rendering (ref kept for backwards compatibility)
+    isAtStopRef.current = isAtStopLocal;
+    setIsAtStop(isAtStopLocal);
 
     // Calculate ETA to next stop based on scaled waypoint times
     if (nextStopWaypoint) {
@@ -460,12 +523,14 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
 
     setCurrentWaypoint(currentLocationWaypoint);
     setNextWaypoint(nextStopWaypoint);
-    setProgress((elapsedTime / totalDuration) * 100);
-  }, [simulationData, directionsPath]);
+    setProgress((elapsedTime / effectiveTotalDuration) * 100);
+  }, [simulationData, directionsPath, findClosestPathIndex, getEffectiveTotalDuration]);
 
   // Animation loop
   useEffect(() => {
     if (isPlaying && simulationData && directionsPath.length > 0) {
+      const maxTime = getEffectiveTotalDuration();
+      
       const animate = () => {
         const now = Date.now();
         const deltaTime = (now - lastUpdateTimeRef.current) / 1000;
@@ -473,10 +538,10 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
 
         setCurrentTime((prevTime) => {
           const newTime = prevTime + deltaTime;
-          const maxTime = simulationData.simulation_config.total_simulation_duration_seconds;
 
           if (newTime >= maxTime) {
             setIsPlaying(false);
+            updateVehiclePosition(maxTime); // Final position update
             return maxTime;
           }
 
@@ -496,7 +561,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
         }
       };
     }
-  }, [isPlaying, simulationData, directionsPath, updateVehiclePosition]);
+  }, [isPlaying, simulationData, directionsPath, updateVehiclePosition, getEffectiveTotalDuration]);
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
@@ -510,6 +575,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     setDistanceToNextStop(null);
     setCurrentWaypoint(null);
     setNextWaypoint(null);
+    setIsAtStop(false);
     if (simulationData && vehicleMarkerRef.current) {
       const startLocation = simulationData.start_location;
       vehicleMarkerRef.current.setPosition({
@@ -534,6 +600,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     setDistanceToNextStop(null);
     setCurrentWaypoint(null);
     setNextWaypoint(null);
+    setIsAtStop(false);
     setSimulationData(null);
     mapRef.current = null;
     vehicleMarkerRef.current = null;
@@ -643,7 +710,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
                   )}
                   {currentWaypoint && currentWaypoint.type === 'delivery_stop' && currentWaypoint.quantity_to_deliver && (
                     // Check if we're at the stop (not in transit)
-                    isAtStopRef.current ? (
+                    isAtStop ? (
                       <div className="text-xs text-green-600 font-semibold flex items-center gap-1">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                         Offloading {currentWaypoint.quantity_to_deliver.toFixed(2)} tonnes
@@ -686,7 +753,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
                   <div className="text-xs text-gray-500 uppercase font-medium">Progress</div>
                   <div className="text-sm font-semibold">{progress.toFixed(1)}%</div>
                   <div className="text-xs text-gray-600">
-                    {formatTime(currentTime)} / {formatTime(simulationData.simulation_config.total_simulation_duration_seconds)}
+                    {formatTime(currentTime)} / {formatTime(getEffectiveTotalDuration())}
                   </div>
                   {progress >= 100 && (
                     <div className="text-xs text-green-600 font-semibold">All deliveries completed</div>
