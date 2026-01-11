@@ -30,6 +30,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { DriverAssignmentDialog } from '@/components/route/driver-assignment-dialog';
+import { RouteSimulationModal } from '@/components/route/route-simulation-modal';
 
 // Type for the DriverAssignmentDialog component
 type DriverAssignmentRoute = {
@@ -190,6 +191,10 @@ export function RouteManagement() {
   // Driver assignment dialog state
   const [showDriverAssignmentDialog, setShowDriverAssignmentDialog] = useState(false);
   const [selectedRouteForAssignment, setSelectedRouteForAssignment] = useState<Route | null>(null);
+
+  // Route simulation modal state
+  const [showSimulationModal, setShowSimulationModal] = useState(false);
+  const [selectedRouteForSimulation, setSelectedRouteForSimulation] = useState<{id: string, name: string} | null>(null);
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -897,54 +902,59 @@ export function RouteManagement() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 gap-4">
               {routes.map((route, index) => (
-                <Card 
-                  key={route.id} 
+                <Card
+                  key={route.id}
                   className="soya-card border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  <CardHeader className="pb-3 border-b border-gray-100">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-green-700 transition-colors">
-                        {route.name}
-                      </CardTitle>
-                      <Badge className={`${getStatusColor(route.status)} font-semibold`}>
-                        {route.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
-                      <div className="flex items-center gap-1.5">
-                        <div className="p-1 rounded bg-gray-100">
-                          <Truck className="h-3.5 w-3.5 text-gray-600" />
+                  <CardContent className="p-6">
+                    {/* Header Row */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-green-700 transition-colors">
+                            {route.name}
+                          </h3>
+                          <Badge className={`${getStatusColor(route.status)} font-semibold`}>
+                            {route.status}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {route.route_type ? route.route_type.replace('_', ' ') : 'Mixed Route'}
+                          </Badge>
                         </div>
-                        <span>{route.driver_name || 'Unassigned'}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="p-1 rounded bg-gray-100">
-                          <Calendar className="h-3.5 w-3.5 text-gray-600" />
+                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                          <div className="flex items-center gap-1.5">
+                            <Truck className="h-4 w-4 text-gray-600" />
+                            <span>{route.driver_name || 'Unassigned'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="h-4 w-4 text-gray-600" />
+                            <span>{new Date(route.date).toLocaleDateString()}</span>
+                          </div>
+                          <div className="text-gray-600">
+                            {route.stops.filter(s => s.is_completed).length} / {route.stops.length} delivered
+                          </div>
                         </div>
-                        <span>{new Date(route.date).toLocaleDateString()}</span>
                       </div>
                     </div>
-                  </CardHeader>
 
-                  <CardContent className="space-y-4 pt-4">
-                    {/* Route Stats */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-gradient-to-br from-green-50 to-white rounded-xl p-3 text-center border border-green-100">
+                    {/* Stats Row */}
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div className="bg-gradient-to-br from-green-50 to-white rounded-lg p-3 border border-green-100">
                         <div className="text-2xl font-bold text-green-700">
                           {route.stops.length}
                         </div>
                         <div className="text-xs font-medium text-green-600 mt-0.5">Stops</div>
                       </div>
-                      <div className="bg-gradient-to-br from-yellow-50 to-white rounded-xl p-3 text-center border border-yellow-100">
+                      <div className="bg-gradient-to-br from-yellow-50 to-white rounded-lg p-3 border border-yellow-100">
                         <div className="text-2xl font-bold text-yellow-700">
                           {route.total_distance ? `${route.total_distance}` : '—'}
                         </div>
                         <div className="text-xs font-medium text-yellow-600 mt-0.5">km</div>
                       </div>
-                      <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-3 text-center border border-gray-200">
+                      <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-3 border border-gray-200">
                         <div className="text-2xl font-bold text-gray-700">
                           {route.estimated_duration ? `${Math.round(route.estimated_duration / 60)}` : '—'}
                         </div>
@@ -954,8 +964,8 @@ export function RouteManagement() {
 
                     {/* Progress Bar */}
                     {route.status === 'active' && (
-                      <div className="space-y-2 bg-green-50 rounded-lg p-3">
-                        <div className="flex justify-between text-sm">
+                      <div className="bg-green-50 rounded-lg p-3 mb-4">
+                        <div className="flex justify-between text-sm mb-2">
                           <span className="text-green-700 font-medium">Progress</span>
                           <span className="font-bold text-green-800">{Math.round(getProgress(route))}%</span>
                         </div>
@@ -967,16 +977,6 @@ export function RouteManagement() {
                         </div>
                       </div>
                     )}
-
-                    {/* Route Type and Details */}
-                    <div className="flex items-center justify-between text-sm">
-                      <Badge variant="outline" className="text-xs">
-                        {route.route_type ? route.route_type.replace('_', ' ') : 'Mixed Route'}
-                      </Badge>
-                      <div className="text-gray-600">
-                        {route.stops.filter(s => s.is_completed).length} / {route.stops.length} delivered
-                      </div>
-                    </div>
 
                     {/* Action Buttons */}
                     <div className="flex gap-2 pt-3 border-t border-gray-100 flex-wrap">
@@ -1053,6 +1053,21 @@ export function RouteManagement() {
                         <Map className="h-3 w-3 mr-1" />
                         View Map
                       </Button>
+
+                      {(route.status === 'planned' || route.status === 'active') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedRouteForSimulation({ id: route.id, name: route.name });
+                            setShowSimulationModal(true);
+                          }}
+                          className="rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
+                        >
+                          <Play className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+                          Simulate
+                        </Button>
+                      )}
 
                       {(route.status === 'draft' || route.status === 'planned' || route.status === 'cancelled') && (
                         <Button
@@ -2094,6 +2109,19 @@ export function RouteManagement() {
           toast.success('Driver assigned successfully!');
         }}
       />
+
+      {/* Route Simulation Modal */}
+      {showSimulationModal && selectedRouteForSimulation && (
+        <RouteSimulationModal
+          open={showSimulationModal}
+          onClose={() => {
+            setShowSimulationModal(false);
+            setSelectedRouteForSimulation(null);
+          }}
+          routeId={selectedRouteForSimulation.id}
+          routeName={selectedRouteForSimulation.name}
+        />
+      )}
     </div>
   );
 }

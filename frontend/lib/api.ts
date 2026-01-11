@@ -702,6 +702,26 @@ export const routeAPI = {
     return response.data;
   },
 
+  // Route Simulation
+  simulateRoute: async (routeId: string, speed: number = 2.0, includeReturn: boolean = true) => {
+    const response = await api.get(`/routes/routes/${routeId}/simulate_route/`, {
+      params: {
+        speed,
+        include_return: includeReturn
+      }
+    });
+    return response.data;
+  },
+
+  getSimulationStatus: async (routeId: string, waypoints: any[], elapsedSeconds: number, totalDurationSeconds: number) => {
+    const response = await api.post(`/routes/routes/${routeId}/simulation_status/`, {
+      waypoints,
+      elapsed_seconds: elapsedSeconds,
+      total_duration_seconds: totalDurationSeconds
+    });
+    return response.data;
+  },
+
   // ========================================================================
   // DRIVER ASSIGNMENT & GOOGLE MAPS SHARING
   // ========================================================================

@@ -35,6 +35,7 @@ from .serializers import (
 from .services import GoogleMapsService, RouteOptimizationService
 from .realtime_tracking import RealTimeTrackingService
 from .route_editing import RouteEditingService
+from .simulation_service import RouteSimulationService
 from clients.models import Order, Client
 
 logger = logging.getLogger(__name__)
@@ -1022,6 +1023,90 @@ class RouteViewSet(viewsets.ModelViewSet):
             logger.error(f"QR code error: {str(e)}")
             return Response(
                 {'error': f'Error generating QR code: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
+    def simulate_route(self, request, pk=None):
+        """
+        Generate simulation data for visualizing route on Google Maps
+
+        Query params:
+        - speed: Simulation speed multiplier (default: 2.0 for 2x speed)
+        - include_return: Include return journey (default: true)
+
+        Returns complete simulation configuration with waypoints and timing
+        """
+        from .simulation_service import RouteSimulationService
+
+        route = self.get_object()
+
+        # Get query parameters
+        # Default speed is 60x to make long routes (5+ hours) watchable in ~5 minutes
+        try:
+            speed = float(request.query_params.get('speed', 60.0))
+        except ValueError:
+            speed = 60.0
+
+        include_return = request.query_params.get('include_return', 'true').lower() == 'true'
+
+        try:
+            simulation_service = RouteSimulationService()
+            simulation_data = simulation_service.generate_simulation_data(
+                route_id=route.id,
+                simulation_speed=speed,
+                include_return_journey=include_return
+            )
+
+            return Response(simulation_data)
+
+        except Exception as e:
+            logger.error(f"Route simulation error: {str(e)}")
+            return Response(
+                {'error': f'Error generating simulation: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def simulation_status(self, request, pk=None):
+        """
+        Get current simulation status based on elapsed time
+
+        POST /routes/routes/{id}/simulation_status/
+
+        Request body:
+        {
+            "waypoints": [...],
+            "elapsed_seconds": 123.45,
+            "total_duration_seconds": 3600
+        }
+
+        Returns:
+        {
+            "current_waypoint_index": 2,
+            "next_stop_index": 3,
+            "progress_percentage": 45.2,
+            "is_in_transit": true
+        }
+        """
+        try:
+            waypoints = request.data.get('waypoints', [])
+            elapsed_seconds = float(request.data.get('elapsed_seconds', 0))
+            total_duration_seconds = float(request.data.get('total_duration_seconds', 1))
+
+            simulation_service = RouteSimulationService()
+            status_info = simulation_service.get_current_status(
+                waypoints=waypoints,
+                elapsed_seconds=elapsed_seconds,
+                total_duration_seconds=total_duration_seconds
+            )
+
+            return Response(status_info)
+
+        except Exception as e:
+            logger.error(f"Simulation status error: {str(e)}")
+            return Response(
+                {'error': f'Error calculating simulation status: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

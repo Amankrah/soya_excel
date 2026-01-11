@@ -343,7 +343,7 @@ const createTopology = (width: number, height: number): {
   });
   
   // Create routes between endpoints in the same hub
-  endpointsByHub.forEach((endpoints, hubId) => {
+  endpointsByHub.forEach((endpoints) => {
     for (let i = 0; i < endpoints.length; i++) {
       for (let j = 0; j < endpoints.length; j++) {
         if (i !== j) {
@@ -438,8 +438,6 @@ const dispatchShipment = (state: AnimationState, routeId: string): void => {
   const isReturn = route.direction === 'return';
   const duration = randomRange(CONFIG.shipmentDuration.min, CONFIG.shipmentDuration.max);
   const speed = 1 / (duration / 16.67); // Normalized to 60fps
-  
-  const toNode = state.nodes.get(route.toId);
   
   // Determine home hub for this shipment (always the starting hub)
   const homeHub = fromNode.id; // Since we only start from hubs
