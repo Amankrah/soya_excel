@@ -8,9 +8,11 @@ import { Loader } from '@googlemaps/js-api-loader';
 export const GOOGLE_MAPS_CONFIG = {
   apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyC7aHMceYCqZjA2Vd146YsswkOjRwgXg6Y', // Same as backend
   version: 'weekly',
-  libraries: ['geometry', 'places', 'marker'] as ('geometry' | 'places' | 'marker')[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  libraries: ['geometry', 'places', 'marker', 'maps3d'] as any,
   region: 'CA', // Canada
   language: 'en',
+  mapIds: ['a8a144e1af8cdeccebc1af0d'], // Map ID for photorealistic 3D maps
 };
 
 // Canada bounds for better geocoding accuracy

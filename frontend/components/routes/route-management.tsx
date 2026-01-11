@@ -30,9 +30,11 @@ import {
   ChevronUp,
   Package,
   Weight,
+  Mountain,
 } from 'lucide-react';
 import { DriverAssignmentDialog } from '@/components/route/driver-assignment-dialog';
 import { RouteSimulationModal } from '@/components/route/route-simulation-modal';
+import { RouteSimulation3DModal } from '@/components/route/route-simulation-3d-modal';
 
 // Type for the DriverAssignmentDialog component
 type DriverAssignmentRoute = {
@@ -229,6 +231,10 @@ export function RouteManagement() {
   // Route simulation modal state
   const [showSimulationModal, setShowSimulationModal] = useState(false);
   const [selectedRouteForSimulation, setSelectedRouteForSimulation] = useState<{id: string, name: string} | null>(null);
+
+  // 3D Route simulation modal state
+  const [show3DSimulationModal, setShow3DSimulationModal] = useState(false);
+  const [selectedRouteFor3DSimulation, setSelectedRouteFor3DSimulation] = useState<{id: string, name: string} | null>(null);
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -1211,18 +1217,32 @@ export function RouteManagement() {
                       </Button>
 
                       {(route.status === 'planned' || route.status === 'active') && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedRouteForSimulation({ id: route.id, name: route.name });
-                            setShowSimulationModal(true);
-                          }}
-                          className="rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
-                        >
-                          <Play className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-                          Simulate
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedRouteForSimulation({ id: route.id, name: route.name });
+                              setShowSimulationModal(true);
+                            }}
+                            className="rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
+                          >
+                            <Play className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+                            Simulate
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedRouteFor3DSimulation({ id: route.id, name: route.name });
+                              setShow3DSimulationModal(true);
+                            }}
+                            className="rounded-lg hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 transition-colors"
+                          >
+                            <Mountain className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
+                            3D
+                          </Button>
+                        </>
                       )}
 
                       {(route.status === 'draft' || route.status === 'planned' || route.status === 'cancelled') && (
@@ -2443,6 +2463,19 @@ export function RouteManagement() {
           }}
           routeId={selectedRouteForSimulation.id}
           routeName={selectedRouteForSimulation.name}
+        />
+      )}
+
+      {/* 3D Route Simulation Modal */}
+      {show3DSimulationModal && selectedRouteFor3DSimulation && (
+        <RouteSimulation3DModal
+          open={show3DSimulationModal}
+          onClose={() => {
+            setShow3DSimulationModal(false);
+            setSelectedRouteFor3DSimulation(null);
+          }}
+          routeId={selectedRouteFor3DSimulation.id}
+          routeName={selectedRouteFor3DSimulation.name}
         />
       )}
     </div>
