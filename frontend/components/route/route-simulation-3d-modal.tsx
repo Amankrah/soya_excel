@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { X, Play, Pause, RotateCcw, MapPin, Clock, Mountain, Eye, User, Car } from 'lucide-react';
@@ -17,35 +17,37 @@ interface RouteSimulation3DModalProps {
 }
 
 interface Waypoint {
-  type: 'warehouse' | 'delivery_stop' | 'warehouse_return' | 'in_transit';
-  sequence: number;
-  client_name: string | null;
+  id: string;
+  type: string;
+  name: string;
   address: string;
   latitude: number;
   longitude: number;
+  sequence: number;
   arrival_time_seconds: number;
   departure_time_seconds: number;
-  stop_duration_seconds: number;
-  quantity_to_deliver: number | null;
+  service_time_seconds: number;
   cumulative_distance_km: number;
+  icon: string;
+  description: string;
+  quantity_to_deliver?: number;
 }
 
 interface SimulationData {
   success: boolean;
   route_id: number;
   route_name: string;
-  waypoints: Waypoint[];
-  directions?: {
-    polyline?: string;
-    total_distance_km?: number;
-    total_duration_seconds?: number;
-  };
+  route_date: string;
   simulation_config: {
     speed_multiplier: number;
+    total_real_duration_seconds: number;
     total_simulation_duration_seconds: number;
-    real_duration_seconds: number;
-    total_distance_km?: number;
+    total_distance_km: number;
+    total_stops: number;
+    include_return: boolean;
   };
+  waypoints: Waypoint[];
+  path_coordinates: Array<{ lat: number; lng: number }>;
   driver_info?: {
     id: number;
     name: string;
@@ -64,6 +66,9 @@ interface SimulationData {
     capacity_used_tonnes?: number;
     icon: string;
   } | null;
+  start_location: Waypoint;
+  end_location: Waypoint;
+  instructions: string;
 }
 
 export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: RouteSimulation3DModalProps) {
@@ -79,6 +84,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
   const [currentLocationName, setCurrentLocationName] = useState<string>('');
   const [etaToNextStop, setEtaToNextStop] = useState<number | null>(null);
   const [distanceToNextStop, setDistanceToNextStop] = useState<number | null>(null);
+  const [directionsPath, setDirectionsPath] = useState<Array<{ lat: number; lng: number }>>([]);
 
   // Refs - using unknown for Google Maps 3D elements as they're dynamically loaded
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -122,7 +128,120 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     }
   }, [open, routeId, simulationData, loadSimulationData]);
 
-  // Initialize 3D Map
+  // Load route directions from Google Maps Directions API for realistic road path
+  const loadRouteDirections = useCallback(async () => {
+    if (!simulationData) return;
+
+    try {
+      const googleMaps = await loadGoogleMaps();
+      const directionsService = new googleMaps.maps.DirectionsService();
+
+      // Build waypoints array (excluding first and last)
+      const waypoints = simulationData.waypoints
+        .slice(1, -1)
+        .map(wp => ({
+          location: new googleMaps.maps.LatLng(wp.latitude, wp.longitude),
+          stopover: true
+        }));
+
+      const origin = new googleMaps.maps.LatLng(
+        simulationData.start_location.latitude,
+        simulationData.start_location.longitude
+      );
+
+      const destination = new googleMaps.maps.LatLng(
+        simulationData.end_location.latitude,
+        simulationData.end_location.longitude
+      );
+
+      const result = await directionsService.route({
+        origin,
+        destination,
+        waypoints,
+        travelMode: googleMaps.maps.TravelMode.DRIVING,
+        optimizeWaypoints: false,
+      });
+
+      // Extract path coordinates from directions - this gives us the actual road path
+      const path: Array<{ lat: number; lng: number }> = [];
+      result.routes[0].legs.forEach(leg => {
+        leg.steps.forEach(step => {
+          step.path.forEach(point => {
+            path.push({ lat: point.lat(), lng: point.lng() });
+          });
+        });
+      });
+
+      setDirectionsPath(path);
+      // Also update pathCoordsRef for 3D elements
+      pathCoordsRef.current = path.map(c => ({ ...c, altitude: 0 }));
+    } catch (error) {
+      console.error('Error loading directions:', error);
+      // Fallback to simple path if directions fail
+      const fallbackPath = simulationData.waypoints.map(wp => ({
+        lat: wp.latitude,
+        lng: wp.longitude
+      }));
+      setDirectionsPath(fallbackPath);
+      pathCoordsRef.current = fallbackPath.map(c => ({ ...c, altitude: 0 }));
+    }
+  }, [simulationData]);
+
+  // Helper function to find the closest path index for a waypoint, searching from a minimum index
+  const findClosestPathIndexFrom = useCallback((
+    waypoint: Waypoint,
+    path: Array<{ lat: number; lng: number }>,
+    fromIndex: number = 0
+  ): number => {
+    if (path.length === 0) return 0;
+
+    let closestIndex = fromIndex;
+    let closestDistance = Infinity;
+
+    // Search only from fromIndex onwards to ensure forward progression
+    for (let i = fromIndex; i < path.length; i++) {
+      const pathPoint = path[i];
+      const distance = Math.sqrt(
+        Math.pow(pathPoint.lat - waypoint.latitude, 2) +
+        Math.pow(pathPoint.lng - waypoint.longitude, 2)
+      );
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = i;
+      }
+    }
+    return closestIndex;
+  }, []);
+
+  // Pre-calculate path indices for all waypoints in sequence order
+  // This ensures the vehicle always moves forward along the path
+  const waypointPathIndices = useMemo(() => {
+    if (!simulationData || directionsPath.length === 0) return new Map<string, number>();
+
+    const indices = new Map<string, number>();
+    let lastIndex = 0;
+
+    for (const wp of simulationData.waypoints) {
+      // For warehouse return, use the end of the path
+      if (wp.type === 'warehouse_return') {
+        indices.set(wp.id, directionsPath.length - 1);
+      } else {
+        // Find closest point from the last index onwards (forward only)
+        const pathIndex = findClosestPathIndexFrom(wp, directionsPath, lastIndex);
+        indices.set(wp.id, pathIndex);
+        lastIndex = pathIndex;
+      }
+    }
+
+    return indices;
+  }, [simulationData, directionsPath, findClosestPathIndexFrom]);
+
+  // Helper to get waypoint path index from pre-calculated map
+  const getWaypointPathIndex = useCallback((waypoint: Waypoint): number => {
+    return waypointPathIndices.get(waypoint.id) ?? 0;
+  }, [waypointPathIndices]);
+
+  // Initialize 3D Map - creates a single photorealistic 3D map
   const initialize3DMap = useCallback(async () => {
     if (!mapContainerRef.current) return;
 
@@ -133,31 +252,38 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     }
 
     // Clear the container completely to avoid duplicate maps
-    mapContainerRef.current.innerHTML = '';
+    while (mapContainerRef.current.firstChild) {
+      mapContainerRef.current.removeChild(mapContainerRef.current.firstChild);
+    }
 
     try {
       const googleMaps = await loadGoogleMaps();
       googleRef.current = googleMaps;
 
-      // Import the maps3d library for Map3DElement following Google's official pattern
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { Map3DElement, MapMode } = await googleMaps.maps.importLibrary('maps3d') as any;
+      // Import the maps3d library following Google's official pattern
+      await googleMaps.maps.importLibrary('maps3d');
 
-      // Create the photorealistic 3D map element following Google's example pattern
-      const map3DElement = new Map3DElement({
-        center: { lat: 45.5017, lng: -73.5673, altitude: 500 }, // Montreal default, elevated
-        range: 5000, // Camera distance from center
-        tilt: 67.5, // Camera tilt angle
-        heading: 0, // Camera heading
-        mode: MapMode.SATELLITE, // REQUIRED for photorealistic 3D satellite view
-        gestureHandling: 'COOPERATIVE', // Require ctrl/cmd for zoom
-      });
+      // Create gmp-map-3d element using document.createElement (Google's recommended approach)
+      // This creates a single photorealistic 3D map with HYBRID mode
+      const map3DElement = document.createElement('gmp-map-3d');
+      
+      // Set attributes for photorealistic 3D with Places data (labels, POIs, 3D buildings)
+      map3DElement.setAttribute('center', '45.5017,-73.5673,50'); // lat,lng,altitude
+      map3DElement.setAttribute('range', '2000'); // 2km for good 3D building detail
+      map3DElement.setAttribute('tilt', '64'); // Optimal tilt for 3D building view
+      map3DElement.setAttribute('heading', '0');
+      map3DElement.setAttribute('mode', 'hybrid'); // HYBRID mode for photorealistic 3D
+      
+      // Set the map element to fill its container
+      map3DElement.style.width = '100%';
+      map3DElement.style.height = '100%';
+      map3DElement.style.display = 'block';
 
       // Append the 3D map element to the container
-      mapContainerRef.current.append(map3DElement);
+      mapContainerRef.current.appendChild(map3DElement);
       map3DElementRef.current = map3DElement;
 
-      // Add event listeners for debugging
+      // Add event listeners
       map3DElement.addEventListener('gmp-load', () => {
         console.log('3D Map loaded successfully');
         setMap3DReady(true);
@@ -170,7 +296,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
       });
 
       // Set ready state after a short delay to allow map to initialize
-      setTimeout(() => setMap3DReady(true), 1000);
+      setTimeout(() => setMap3DReady(true), 1500);
 
     } catch (error) {
       console.error('Error initializing 3D map:', error);
@@ -187,6 +313,9 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
         const googleMaps = googleRef.current!;
         const map3D = map3DElementRef.current;
 
+        // Load route directions from Google Maps for realistic road path
+        await loadRouteDirections();
+
         // Import 3D libraries following Google's official pattern
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { Polyline3DInteractiveElement, Marker3DElement, AltitudeMode } = await googleMaps.maps.importLibrary('maps3d') as any;
@@ -196,12 +325,10 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
         markers3DRef.current = [];
         polyline3DRef.current = null;
 
-        // Build path coordinates from waypoints
-        const coords = simulationData.waypoints.map(wp => ({
-          lat: wp.latitude,
-          lng: wp.longitude,
-        }));
-        pathCoordsRef.current = coords.map(c => ({ ...c, altitude: 0 }));
+        // Use directions path (actual road path) if available, otherwise use waypoints
+        const coords = pathCoordsRef.current.length > 0
+          ? pathCoordsRef.current.map(c => ({ lat: c.lat, lng: c.lng }))
+          : simulationData.waypoints.map(wp => ({ lat: wp.latitude, lng: wp.longitude }));
 
         // Create 3D polyline for the route following Google's pattern
         if (Polyline3DInteractiveElement) {
@@ -236,11 +363,12 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
             markers3DRef.current.push(marker);
           }
 
-          // Create vehicle marker
+          // Create vehicle marker at start location
+          const startLocation = simulationData.start_location;
           const vehicleMarker = new Marker3DElement({
             position: {
-              lat: coords[0].lat,
-              lng: coords[0].lng,
+              lat: startLocation.latitude,
+              lng: startLocation.longitude,
               altitude: 30
             },
             altitudeMode: AltitudeMode.RELATIVE_TO_GROUND,
@@ -252,16 +380,16 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
           vehicleMarker3DRef.current = vehicleMarker;
         }
 
-        // Center map on route
-        if (simulationData.waypoints.length > 0) {
-          const firstWp = simulationData.waypoints[0];
-          const lastWp = simulationData.waypoints[simulationData.waypoints.length - 1];
-          const centerLat = (firstWp.latitude + lastWp.latitude) / 2;
-          const centerLng = (firstWp.longitude + lastWp.longitude) / 2;
-
-          map3D.center = { lat: centerLat, lng: centerLng, altitude: 200 };
-          map3D.range = 10000; // Zoom out to see entire route
-          map3D.tilt = 55;
+        // Center map on start location with settings optimized for HYBRID 3D view
+        if (simulationData.start_location) {
+          const startLocation = simulationData.start_location;
+          
+          // Use a fixed close range to maintain photorealistic 3D view
+          // Set attributes for HTML element approach
+          map3D.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},50`);
+          map3D.setAttribute('range', '2000'); // 2km for good 3D building overview
+          map3D.setAttribute('tilt', '60'); // Optimal tilt for 3D building visibility
+          map3D.setAttribute('heading', '0');
         }
 
         // Set initial waypoints
@@ -276,7 +404,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     };
 
     setupRoute();
-  }, [simulationData, map3DReady]);
+  }, [simulationData, map3DReady, loadRouteDirections]);
 
   // Initialize map when modal opens and simulation data is loaded
   useEffect(() => {
@@ -313,6 +441,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
       setIsPlaying(false);
       setCurrentWaypoint(null);
       setNextWaypoint(null);
+      setDirectionsPath([]);
 
       // Clear refs
       markers3DRef.current = [];
@@ -334,40 +463,46 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     return Math.max(simulationData.simulation_config.total_simulation_duration_seconds, scaledLastDeparture);
   }, [simulationData]);
 
-  // Update camera position during animation
+  // Update camera and vehicle position during animation
   const updateCameraPosition = useCallback((time: number) => {
-    if (!simulationData || !map3DElementRef.current) return;
+    if (!simulationData || !map3DElementRef.current || directionsPath.length === 0) return;
 
+    const waypoints = simulationData.waypoints;
     const speedMultiplier = simulationData.simulation_config.speed_multiplier;
-    const scaledCurrentTime = time * speedMultiplier;
 
-    // Find current waypoint and next stop
-    let currentWp: Waypoint | null = null;
-    let nextWp: Waypoint | null = null;
+    let currentLocationWaypoint: Waypoint | null = null;
+    let nextStopWaypoint: Waypoint | null = null;
+    let currentPos: { lat: number; lng: number } | null = null;
 
-    for (let i = 0; i < simulationData.waypoints.length; i++) {
-      const wp = simulationData.waypoints[i];
+    // Find which segment we're in based on SCALED waypoint times
+    for (let i = 0; i < waypoints.length; i++) {
+      const wp = waypoints[i];
+
+      // Scale waypoint times to simulation time
       const scaledArrival = wp.arrival_time_seconds / speedMultiplier;
       const scaledDeparture = wp.departure_time_seconds / speedMultiplier;
 
-      // Currently at this waypoint (stopped)
+      // Check if we're currently at or servicing this waypoint
       if (time >= scaledArrival && time < scaledDeparture) {
-        currentWp = wp;
+        currentLocationWaypoint = wp;
 
-        // Find next delivery stop
-        for (let j = i + 1; j < simulationData.waypoints.length; j++) {
-          if (simulationData.waypoints[j].type === 'delivery_stop' ||
-              simulationData.waypoints[j].type === 'warehouse_return') {
-            nextWp = simulationData.waypoints[j];
+        // Position vehicle at this waypoint using pre-calculated index
+        const waypointPathIndex = getWaypointPathIndex(wp);
+        currentPos = directionsPath[waypointPathIndex];
+
+        // Find next delivery stop after this one
+        for (let j = i + 1; j < waypoints.length; j++) {
+          if (waypoints[j].type === 'delivery_stop' || waypoints[j].type === 'warehouse_return') {
+            nextStopWaypoint = waypoints[j];
             break;
           }
         }
         break;
       }
-      // In transit to next waypoint
-      else if (time >= scaledDeparture && i + 1 < simulationData.waypoints.length) {
-        const nextWaypoint = simulationData.waypoints[i + 1];
-        const nextScaledArrival = nextWaypoint.arrival_time_seconds / speedMultiplier;
+      // Check if we're in transit to the next waypoint
+      else if (time >= scaledDeparture && i + 1 < waypoints.length) {
+        const nextWp = waypoints[i + 1];
+        const nextScaledArrival = nextWp.arrival_time_seconds / speedMultiplier;
 
         if (time < nextScaledArrival) {
           // Calculate progress within this transit segment
@@ -375,54 +510,70 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
           const timeIntoSegment = time - scaledDeparture;
           const segmentProgress = segmentTravelTime > 0 ? timeIntoSegment / segmentTravelTime : 0;
 
-          // Create placeholder for in-transit
-          const inTransitName = nextWaypoint.client_name ? `En route to ${nextWaypoint.client_name}` : 'In transit';
-          currentWp = {
-            ...wp,
-            type: 'in_transit',
-            client_name: inTransitName,
-            cumulative_distance_km: wp.cumulative_distance_km +
-              (nextWaypoint.cumulative_distance_km - wp.cumulative_distance_km) * segmentProgress,
-          };
+          // Find path indices for current and next waypoints using pre-calculated indices
+          const currentWpPathIndex = getWaypointPathIndex(wp);
+          const nextWpPathIndex = getWaypointPathIndex(nextWp);
 
-          // Set current location name for in-transit
-          setCurrentLocationName(inTransitName);
+          // Interpolate position along the path segment (following the road)
+          const pathSegmentLength = nextWpPathIndex - currentWpPathIndex;
+          const targetPathIndex = Math.min(
+            currentWpPathIndex + Math.floor(segmentProgress * pathSegmentLength),
+            directionsPath.length - 1
+          );
+
+          currentPos = directionsPath[Math.max(0, targetPathIndex)];
 
           // Find next delivery stop
-          for (let j = i + 1; j < simulationData.waypoints.length; j++) {
-            if (simulationData.waypoints[j].type === 'delivery_stop' ||
-                simulationData.waypoints[j].type === 'warehouse_return') {
-              nextWp = simulationData.waypoints[j];
+          for (let j = i + 1; j < waypoints.length; j++) {
+            if (waypoints[j].type === 'delivery_stop' || waypoints[j].type === 'warehouse_return') {
+              nextStopWaypoint = waypoints[j];
               break;
             }
           }
+
+          // Create a placeholder waypoint for in-transit display
+          const inTransitName = nextStopWaypoint ? `En route to ${nextStopWaypoint.name}` : 'In transit';
+          currentLocationWaypoint = {
+            ...wp,
+            name: inTransitName,
+            type: 'in_transit',
+            cumulative_distance_km: wp.cumulative_distance_km +
+              (nextWp.cumulative_distance_km - wp.cumulative_distance_km) * segmentProgress,
+          };
+
+          setCurrentLocationName(inTransitName);
           break;
         }
       }
     }
 
-    // Fallback to first waypoint if nothing matched
-    if (!currentWp && simulationData.waypoints.length > 0) {
-      currentWp = simulationData.waypoints[0];
-      for (let i = 1; i < simulationData.waypoints.length; i++) {
-        if (simulationData.waypoints[i].type === 'delivery_stop') {
-          nextWp = simulationData.waypoints[i];
+    // Fallback if no waypoint matched (at the start)
+    if (!currentLocationWaypoint && waypoints.length > 0) {
+      currentLocationWaypoint = waypoints[0];
+      const waypointPathIndex = getWaypointPathIndex(waypoints[0]);
+      currentPos = directionsPath[waypointPathIndex];
+
+      // Find first delivery stop
+      for (let i = 1; i < waypoints.length; i++) {
+        if (waypoints[i].type === 'delivery_stop') {
+          nextStopWaypoint = waypoints[i];
           break;
         }
       }
     }
 
-    setCurrentWaypoint(currentWp);
-    setNextWaypoint(nextWp);
+    setCurrentWaypoint(currentLocationWaypoint);
+    setNextWaypoint(nextStopWaypoint);
 
-    // Calculate ETA and distance to next stop
-    if (nextWp) {
-      const scaledNextArrival = nextWp.arrival_time_seconds / speedMultiplier;
-      const remainingTime = Math.max(0, scaledNextArrival - time);
-      setEtaToNextStop(remainingTime);
+    // Calculate ETA to next stop based on scaled waypoint times
+    if (nextStopWaypoint) {
+      const scaledNextArrival = nextStopWaypoint.arrival_time_seconds / speedMultiplier;
+      const remainingTimeToNext = Math.max(0, scaledNextArrival - time);
+      setEtaToNextStop(remainingTimeToNext);
 
-      if (currentWp) {
-        const distanceToNext = nextWp.cumulative_distance_km - (currentWp.cumulative_distance_km || 0);
+      // Calculate distance to next stop
+      if (currentLocationWaypoint) {
+        const distanceToNext = nextStopWaypoint.cumulative_distance_km - (currentLocationWaypoint.cumulative_distance_km || 0);
         setDistanceToNextStop(Math.max(0, distanceToNext));
       }
     } else {
@@ -430,48 +581,44 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
       setDistanceToNextStop(null);
     }
 
-    // Smoothly animate camera along route
-    const totalDuration = simulationData.simulation_config.real_duration_seconds;
-    const progressRatio = Math.min(scaledCurrentTime / totalDuration, 1);
+    // Update vehicle marker position and camera
+    if (currentPos) {
+      // Update vehicle marker position
+      if (vehicleMarker3DRef.current) {
+        vehicleMarker3DRef.current.position = {
+          lat: currentPos.lat,
+          lng: currentPos.lng,
+          altitude: 30
+        };
+      }
 
-    if (pathCoordsRef.current.length > 0) {
-      const pathIndex = Math.floor(progressRatio * (pathCoordsRef.current.length - 1));
-      const position = pathCoordsRef.current[Math.min(pathIndex, pathCoordsRef.current.length - 1)];
+      // Animate camera to follow vehicle (optimized for HYBRID 3D view)
+      if (map3DElementRef.current) {
+        // Calculate heading towards next point on the path
+        let heading = 0;
+        const currentHeadingAttr = map3DElementRef.current.getAttribute('heading');
+        if (currentHeadingAttr) heading = parseFloat(currentHeadingAttr);
 
-      if (position) {
-        // Update vehicle marker position
-        if (vehicleMarker3DRef.current) {
-          vehicleMarker3DRef.current.position = {
-            lat: position.lat,
-            lng: position.lng,
-            altitude: 30
-          };
+        // Find current position index in the path
+        const currentPathIndex = directionsPath.findIndex(
+          p => p.lat === currentPos.lat && p.lng === currentPos.lng
+        );
+
+        if (currentPathIndex >= 0 && currentPathIndex < directionsPath.length - 1) {
+          const nextPos = directionsPath[currentPathIndex + 1];
+          const deltaLng = nextPos.lng - currentPos.lng;
+          const deltaLat = nextPos.lat - currentPos.lat;
+          heading = Math.atan2(deltaLng, deltaLat) * (180 / Math.PI);
         }
 
-        // Animate camera to follow route - using direct property updates for smooth animation
-        if (map3DElementRef.current) {
-          // Calculate heading towards next point
-          let heading = map3DElementRef.current.heading || 0;
-          if (pathIndex < pathCoordsRef.current.length - 1) {
-            const nextPos = pathCoordsRef.current[pathIndex + 1];
-            const deltaLng = nextPos.lng - position.lng;
-            const deltaLat = nextPos.lat - position.lat;
-            heading = Math.atan2(deltaLng, deltaLat) * (180 / Math.PI);
-          }
-
-          // Set camera to follow vehicle from behind and above
-          map3DElementRef.current.center = {
-            lat: position.lat,
-            lng: position.lng,
-            altitude: 100
-          };
-          map3DElementRef.current.range = 1500;
-          map3DElementRef.current.tilt = 70;
-          map3DElementRef.current.heading = heading;
-        }
+        // Set camera to follow vehicle using setAttribute for HTML element
+        map3DElementRef.current.setAttribute('center', `${currentPos.lat},${currentPos.lng},50`);
+        map3DElementRef.current.setAttribute('range', '1200'); // Closer range for detailed 3D
+        map3DElementRef.current.setAttribute('tilt', '64'); // Optimal tilt for 3D view
+        map3DElementRef.current.setAttribute('heading', heading.toString());
       }
     }
-  }, [simulationData]);
+  }, [simulationData, directionsPath, getWaypointPathIndex]);
 
   // Animation loop
   useEffect(() => {
@@ -521,31 +668,25 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     setProgress(0);
     setEtaToNextStop(null);
     setDistanceToNextStop(null);
+    setCurrentWaypoint(null);
+    setNextWaypoint(null);
 
     if (simulationData && map3DElementRef.current) {
-      const firstWp = simulationData.waypoints[0];
-      const lastWp = simulationData.waypoints[simulationData.waypoints.length - 1];
-      const centerLat = (firstWp.latitude + lastWp.latitude) / 2;
-      const centerLng = (firstWp.longitude + lastWp.longitude) / 2;
+      const startLocation = simulationData.start_location;
 
-      // Reset camera to overview of entire route
-      map3DElementRef.current.center = { lat: centerLat, lng: centerLng, altitude: 200 };
-      map3DElementRef.current.range = 10000;
-      map3DElementRef.current.tilt = 55;
-      map3DElementRef.current.heading = 0;
+      // Reset camera to start location with 3D-optimized settings using setAttribute
+      map3DElementRef.current.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},50`);
+      map3DElementRef.current.setAttribute('range', '2000'); // 2km for good 3D building overview
+      map3DElementRef.current.setAttribute('tilt', '60');
+      map3DElementRef.current.setAttribute('heading', '0');
 
       // Reset vehicle marker to start position
-      if (vehicleMarker3DRef.current && pathCoordsRef.current.length > 0) {
+      if (vehicleMarker3DRef.current) {
         vehicleMarker3DRef.current.position = {
-          lat: pathCoordsRef.current[0].lat,
-          lng: pathCoordsRef.current[0].lng,
+          lat: startLocation.latitude,
+          lng: startLocation.longitude,
           altitude: 30
         };
-      }
-
-      setCurrentWaypoint(simulationData.waypoints[0]);
-      if (simulationData.waypoints.length > 1) {
-        setNextWaypoint(simulationData.waypoints[1]);
       }
     }
   };
@@ -561,23 +702,28 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     setNextWaypoint(null);
     setEtaToNextStop(null);
     setDistanceToNextStop(null);
-    setSimulationData(null);
+    setDirectionsPath([]);
 
-    // Clear the entire map container to avoid overlay accumulation
-    if (mapContainerRef.current) {
-      mapContainerRef.current.innerHTML = '';
-    }
-
-    // Clear 3D element references
+    // Clear existing 3D overlays but keep the map
     markers3DRef.current = [];
     polyline3DRef.current = null;
     vehicleMarker3DRef.current = null;
     pathCoordsRef.current = [];
+
+    // Clear simulation data to trigger reload
+    setSimulationData(null);
     setMap3DReady(false);
+
+    // Clear the map container and refs - map will be reinitialized when new data loads
+    if (mapContainerRef.current) {
+      while (mapContainerRef.current.firstChild) {
+        mapContainerRef.current.removeChild(mapContainerRef.current.firstChild);
+      }
+    }
     map3DElementRef.current = null;
 
-    // Reinitialize the map with new data
-    await initialize3DMap();
+    // Reload simulation data with new speed - useEffects will handle map initialization
+    await loadSimulationData(newSpeedValue);
 
     if (wasPlaying) {
       setTimeout(() => setIsPlaying(true), 1000);
@@ -664,11 +810,11 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
                 </div>
               )}
 
-              {/* 3D Map Container */}
+              {/* 3D Map Container - single map only */}
               <div
                 ref={mapContainerRef}
-                className="w-full h-[500px] rounded-lg border-2 border-indigo-200 bg-gray-100"
-                style={{ minHeight: '500px' }}
+                className="w-full h-[500px] rounded-lg border-2 border-indigo-200 bg-gray-100 overflow-hidden relative"
+                style={{ minHeight: '500px', maxHeight: '500px' }}
               />
               {!map3DReady && (
                 <div className="flex items-center justify-center h-[500px] -mt-[500px]">
@@ -687,7 +833,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
                     <div className="text-sm font-semibold">
                       {currentWaypoint?.type === 'in_transit' && currentLocationName
                         ? currentLocationName
-                        : (currentWaypoint?.client_name || (currentWaypoint?.type === 'warehouse' ? 'Warehouse' : 'Starting...'))}
+                        : (currentWaypoint?.name || 'Starting...')}
                     </div>
                     {currentWaypoint?.type === 'in_transit' && (
                       <div className="text-xs text-blue-600 flex items-center gap-1">
@@ -699,12 +845,12 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
                       <div className="text-xs text-green-600 font-semibold flex items-center gap-1">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                         {currentWaypoint.quantity_to_deliver
-                          ? `Offloading ${currentWaypoint.quantity_to_deliver} tonnes`
+                          ? `Offloading ${currentWaypoint.quantity_to_deliver.toFixed(2)} tonnes`
                           : 'Servicing stop...'}
                       </div>
                     )}
                     {currentWaypoint?.type === 'in_transit' && nextWaypoint?.quantity_to_deliver && (
-                      <div className="text-xs text-gray-600">{nextWaypoint.quantity_to_deliver} tonnes to deliver at next stop</div>
+                      <div className="text-xs text-gray-600">{nextWaypoint.quantity_to_deliver.toFixed(2)} tonnes to deliver at next stop</div>
                     )}
                     {currentWaypoint?.type === 'warehouse' && (
                       <div className="text-xs text-amber-600 font-semibold flex items-center gap-1">
@@ -726,10 +872,10 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
                     ) : nextWaypoint ? (
                       <>
                         <div className="text-sm font-semibold">
-                          {nextWaypoint.client_name || 'Warehouse'}
+                          {nextWaypoint.name}
                         </div>
                         {nextWaypoint.quantity_to_deliver && (
-                          <div className="text-xs text-gray-600">{nextWaypoint.quantity_to_deliver} tonnes</div>
+                          <div className="text-xs text-gray-600">{nextWaypoint.quantity_to_deliver.toFixed(2)} tonnes</div>
                         )}
                         {etaToNextStop !== null && (
                           <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
@@ -806,15 +952,13 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
                   <>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <MapPin className="w-4 h-4" />
-                      {simulationData.waypoints.length} stops
+                      {simulationData.simulation_config.total_stops} stops
                     </div>
 
-                    {(simulationData.directions?.total_distance_km || simulationData.simulation_config?.total_distance_km) && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Clock className="w-4 h-4" />
-                        {(simulationData.directions?.total_distance_km || simulationData.simulation_config?.total_distance_km || 0).toFixed(1)} km
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Clock className="w-4 h-4" />
+                      {simulationData.simulation_config.total_distance_km.toFixed(1)} km
+                    </div>
                   </>
                 )}
               </div>

@@ -416,3 +416,10 @@ export const PROVINCE_CENTERS: Record<string, { lat: number; lng: number }> = {
 export function isGoogleMapsLoaded(): boolean {
   return typeof google !== 'undefined' && google.maps !== undefined;
 }
+
+/**
+ * Get the configured Map ID for photorealistic 3D maps
+ */
+export function getMapId(): string {
+  return GOOGLE_MAPS_CONFIG.mapIds?.[0] || 'a8a144e1af8cdeccebc1af0d';
+}
