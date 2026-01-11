@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { X, Play, Pause, RotateCcw, MapPin, Clock, Mountain, Eye, User, Car } from 'lucide-react';
+import { X, Play, Pause, RotateCcw, MapPin, Clock, Mountain, Eye, User, Car, Truck } from 'lucide-react';
 import { routeAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { loadGoogleMaps } from '@/lib/google-maps';
@@ -268,9 +268,9 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
       const map3DElement = document.createElement('gmp-map-3d');
       
       // Set attributes for photorealistic 3D with Places data (labels, POIs, 3D buildings)
-      map3DElement.setAttribute('center', '45.5017,-73.5673,50'); // lat,lng,altitude
-      map3DElement.setAttribute('range', '2000'); // 2km for good 3D building detail
-      map3DElement.setAttribute('tilt', '64'); // Optimal tilt for 3D building view
+      map3DElement.setAttribute('center', '45.5017,-73.5673,30'); // lat,lng,altitude
+      map3DElement.setAttribute('range', '500'); // Close range for road-level view
+      map3DElement.setAttribute('tilt', '65'); // Optimal tilt for road view
       map3DElement.setAttribute('heading', '0');
       map3DElement.setAttribute('mode', 'hybrid'); // HYBRID mode for photorealistic 3D
       
@@ -363,32 +363,47 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
             markers3DRef.current.push(marker);
           }
 
-          // Create vehicle marker at start location
+          // Create vehicle marker at start location with truck icon
           const startLocation = simulationData.start_location;
-          const vehicleMarker = new Marker3DElement({
+          
+          // Import PinElement for custom marker styling
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { PinElement } = await googleMaps.maps.importLibrary('marker') as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { Marker3DInteractiveElement } = await googleMaps.maps.importLibrary('maps3d') as any;
+          
+          const vehicleMarker = new Marker3DInteractiveElement({
             position: {
               lat: startLocation.latitude,
               lng: startLocation.longitude,
-              altitude: 30
+              altitude: 15
             },
             altitudeMode: AltitudeMode.RELATIVE_TO_GROUND,
             extruded: true,
-            label: '🚛',
           });
 
+          // Create PinElement with truck emoji glyph (more reliable than SVG)
+          const pin = new PinElement({
+            background: '#3b82f6',
+            borderColor: '#1d4ed8',
+            glyphColor: 'white',
+            glyph: '🚛', // Truck emoji - visible and reliable
+            scale: 1.5,
+          });
+
+          vehicleMarker.append(pin);
           map3D.append(vehicleMarker);
           vehicleMarker3DRef.current = vehicleMarker;
         }
 
-        // Center map on start location with settings optimized for HYBRID 3D view
+        // Center map on start location with settings optimized for close-up road view
         if (simulationData.start_location) {
           const startLocation = simulationData.start_location;
           
-          // Use a fixed close range to maintain photorealistic 3D view
-          // Set attributes for HTML element approach
-          map3D.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},50`);
-          map3D.setAttribute('range', '2000'); // 2km for good 3D building overview
-          map3D.setAttribute('tilt', '60'); // Optimal tilt for 3D building visibility
+          // Set close range for immersive road-level view
+          map3D.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},30`);
+          map3D.setAttribute('range', '500'); // 500m for close road view
+          map3D.setAttribute('tilt', '65'); // Optimal tilt for road view
           map3D.setAttribute('heading', '0');
         }
 
@@ -583,46 +598,44 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
 
     // Update vehicle marker position and camera
     if (currentPos) {
+      // Calculate heading towards next point on the path
+      let heading = 0;
+
+      // Find current position index in the path
+      const currentPathIndex = directionsPath.findIndex(
+        p => p.lat === currentPos.lat && p.lng === currentPos.lng
+      );
+
+      if (currentPathIndex >= 0 && currentPathIndex < directionsPath.length - 1) {
+        const nextPos = directionsPath[currentPathIndex + 1];
+        const deltaLng = nextPos.lng - currentPos.lng;
+        const deltaLat = nextPos.lat - currentPos.lat;
+        heading = Math.atan2(deltaLng, deltaLat) * (180 / Math.PI);
+      }
+
       // Update vehicle marker position
       if (vehicleMarker3DRef.current) {
         vehicleMarker3DRef.current.position = {
           lat: currentPos.lat,
           lng: currentPos.lng,
-          altitude: 30
+          altitude: 10 // Lower altitude for road-level view
         };
       }
 
-      // Animate camera to follow vehicle (optimized for HYBRID 3D view)
+      // Animate camera to follow vehicle (close road-level view)
       if (map3DElementRef.current) {
-        // Calculate heading towards next point on the path
-        let heading = 0;
-        const currentHeadingAttr = map3DElementRef.current.getAttribute('heading');
-        if (currentHeadingAttr) heading = parseFloat(currentHeadingAttr);
-
-        // Find current position index in the path
-        const currentPathIndex = directionsPath.findIndex(
-          p => p.lat === currentPos.lat && p.lng === currentPos.lng
-        );
-
-        if (currentPathIndex >= 0 && currentPathIndex < directionsPath.length - 1) {
-          const nextPos = directionsPath[currentPathIndex + 1];
-          const deltaLng = nextPos.lng - currentPos.lng;
-          const deltaLat = nextPos.lat - currentPos.lat;
-          heading = Math.atan2(deltaLng, deltaLat) * (180 / Math.PI);
-        }
-
-        // Set camera to follow vehicle using setAttribute for HTML element
-        map3DElementRef.current.setAttribute('center', `${currentPos.lat},${currentPos.lng},50`);
-        map3DElementRef.current.setAttribute('range', '1200'); // Closer range for detailed 3D
-        map3DElementRef.current.setAttribute('tilt', '64'); // Optimal tilt for 3D view
+        // Set camera to follow vehicle at road level
+        map3DElementRef.current.setAttribute('center', `${currentPos.lat},${currentPos.lng},20`);
+        map3DElementRef.current.setAttribute('range', '400'); // Very close range for road-level view
+        map3DElementRef.current.setAttribute('tilt', '70'); // Higher tilt for road perspective
         map3DElementRef.current.setAttribute('heading', heading.toString());
       }
     }
   }, [simulationData, directionsPath, getWaypointPathIndex]);
 
-  // Animation loop
+  // Animation loop - matches 2D modal behavior
   useEffect(() => {
-    if (isPlaying && simulationData) {
+    if (isPlaying && simulationData && directionsPath.length > 0) {
       const maxTime = getEffectiveTotalDuration();
 
       const animate = () => {
@@ -635,12 +648,13 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
 
           if (newTime >= maxTime) {
             setIsPlaying(false);
+            updateCameraPosition(maxTime); // Final position update
             setProgress(100);
             return maxTime;
           }
 
-          setProgress((newTime / maxTime) * 100);
           updateCameraPosition(newTime);
+          setProgress((newTime / maxTime) * 100);
           return newTime;
         });
 
@@ -656,7 +670,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
         }
       };
     }
-  }, [isPlaying, simulationData, getEffectiveTotalDuration, updateCameraPosition]);
+  }, [isPlaying, simulationData, directionsPath, getEffectiveTotalDuration, updateCameraPosition]);
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
@@ -674,10 +688,10 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     if (simulationData && map3DElementRef.current) {
       const startLocation = simulationData.start_location;
 
-      // Reset camera to start location with 3D-optimized settings using setAttribute
-      map3DElementRef.current.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},50`);
-      map3DElementRef.current.setAttribute('range', '2000'); // 2km for good 3D building overview
-      map3DElementRef.current.setAttribute('tilt', '60');
+      // Reset camera to start location with close road-level view
+      map3DElementRef.current.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},30`);
+      map3DElementRef.current.setAttribute('range', '500'); // Close range for road view
+      map3DElementRef.current.setAttribute('tilt', '65');
       map3DElementRef.current.setAttribute('heading', '0');
 
       // Reset vehicle marker to start position
@@ -685,7 +699,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
         vehicleMarker3DRef.current.position = {
           lat: startLocation.latitude,
           lng: startLocation.longitude,
-          altitude: 30
+          altitude: 10 // Lower altitude for road-level view
         };
       }
     }
@@ -744,7 +758,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
         {/* Modal Header */}
         <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-indigo-600 to-purple-600">
           <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-            <Mountain className="h-5 w-5" />
+            <Truck className="h-5 w-5" />
             3D Route Simulation: {routeName}
             <Badge variant="secondary" className="ml-2 bg-white/20 text-white border-0">
               BETA
