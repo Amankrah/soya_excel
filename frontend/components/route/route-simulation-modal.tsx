@@ -83,7 +83,6 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
   const [currentLocationName, setCurrentLocationName] = useState<string>('');
   const [etaToNextStop, setEtaToNextStop] = useState<number | null>(null);
   const [distanceToNextStop, setDistanceToNextStop] = useState<number | null>(null);
-  const [isAtStop, setIsAtStop] = useState(false);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -501,9 +500,8 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
       mapRef.current?.panTo(currentPos);
     }
 
-    // Update the state for UI rendering (ref kept for backwards compatibility)
+    // Update ref (kept for potential external use)
     isAtStopRef.current = isAtStopLocal;
-    setIsAtStop(isAtStopLocal);
 
     // Calculate ETA to next stop based on scaled waypoint times
     if (nextStopWaypoint) {
@@ -575,7 +573,6 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     setDistanceToNextStop(null);
     setCurrentWaypoint(null);
     setNextWaypoint(null);
-    setIsAtStop(false);
     if (simulationData && vehicleMarkerRef.current) {
       const startLocation = simulationData.start_location;
       vehicleMarkerRef.current.setPosition({
@@ -600,7 +597,6 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     setDistanceToNextStop(null);
     setCurrentWaypoint(null);
     setNextWaypoint(null);
-    setIsAtStop(false);
     setSimulationData(null);
     mapRef.current = null;
     vehicleMarkerRef.current = null;
@@ -702,25 +698,38 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
                       ? currentLocationName
                       : (currentWaypoint?.name || 'Starting...')}
                   </div>
+                  {/* Debug: show waypoint type */}
+                  {currentWaypoint && (
+                    <div className="text-xs text-purple-500">[Type: {currentWaypoint.type}]</div>
+                  )}
                   {currentWaypoint && currentWaypoint.type === 'in_transit' && (
                     <div className="text-xs text-blue-600 flex items-center gap-1">
                       <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                       In transit
                     </div>
                   )}
-                  {currentWaypoint && currentWaypoint.type === 'delivery_stop' && currentWaypoint.quantity_to_deliver && (
-                    // Check if we're at the stop (not in transit)
-                    isAtStop ? (
-                      <div className="text-xs text-green-600 font-semibold flex items-center gap-1">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        Offloading {currentWaypoint.quantity_to_deliver.toFixed(2)} tonnes
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-600">{currentWaypoint.quantity_to_deliver.toFixed(2)} tonnes to deliver</div>
-                    )
+                  {currentWaypoint && currentWaypoint.type === 'delivery_stop' && (
+                    <div className="text-xs text-green-600 font-semibold flex items-center gap-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      {currentWaypoint.quantity_to_deliver 
+                        ? `Offloading ${currentWaypoint.quantity_to_deliver.toFixed(2)} tonnes`
+                        : 'Servicing stop...'}
+                    </div>
+                  )}
+                  {currentWaypoint && currentWaypoint.type === 'in_transit' && nextWaypoint?.quantity_to_deliver && (
+                    <div className="text-xs text-gray-600">{nextWaypoint.quantity_to_deliver.toFixed(2)} tonnes to deliver at next stop</div>
+                  )}
+                  {currentWaypoint && currentWaypoint.type === 'warehouse' && (
+                    <div className="text-xs text-amber-600 font-semibold flex items-center gap-1">
+                      <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                      Preparing for departure
+                    </div>
                   )}
                   {currentWaypoint && currentWaypoint.type === 'warehouse_return' && (
-                    <div className="text-xs text-blue-600 font-semibold">✓ Returning to warehouse</div>
+                    <div className="text-xs text-green-600 font-semibold flex items-center gap-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      ✓ Returned to warehouse
+                    </div>
                   )}
                 </div>
                 <div className="space-y-1">
