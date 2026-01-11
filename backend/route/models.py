@@ -168,6 +168,7 @@ class RouteStop(models.Model):
     route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='stops')
     client = models.ForeignKey('clients.Client', on_delete=models.CASCADE, related_name='route_stops')
     order = models.ForeignKey('clients.Order', on_delete=models.CASCADE, related_name='route_stops', null=True, blank=True)
+    product = models.ForeignKey('clients.Product', on_delete=models.SET_NULL, null=True, blank=True, related_name='route_stops', help_text="Product to deliver at this stop")
     
     # Stop sequence and planning
     sequence_number = models.IntegerField()

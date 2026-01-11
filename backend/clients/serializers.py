@@ -1,5 +1,31 @@
 from rest_framework import serializers
-from .models import Client, Order
+from .models import Client, Order, Product
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    """Serializer for Product model"""
+    
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    unit_display = serializers.CharField(source='get_unit_display', read_only=True)
+    
+    class Meta:
+        model = Product
+        fields = [
+            'id', 'name', 'code', 'description', 'category', 'category_display',
+            'unit', 'unit_display', 'price_per_unit', 'requires_bulk_delivery',
+            'min_order_quantity', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class ProductListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for product dropdowns/lists"""
+    
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'code', 'category', 'category_display', 'unit', 'is_active']
 
 
 class ClientSerializer(serializers.ModelSerializer):

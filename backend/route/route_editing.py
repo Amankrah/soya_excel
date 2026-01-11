@@ -109,6 +109,8 @@ class RouteEditingService:
         client_id: int,
         insert_after_stop_id: Optional[int] = None,
         insert_at_position: Optional[int] = None,
+        product_id: Optional[int] = None,
+        quantity_to_deliver: Optional[Decimal] = None,
         optimize: bool = True
     ) -> Dict:
         """
@@ -119,13 +121,15 @@ class RouteEditingService:
             client_id: Client ID to add
             insert_after_stop_id: Insert after this stop (optional)
             insert_at_position: Insert at this position (optional)
+            product_id: Product ID to deliver at this stop (optional)
+            quantity_to_deliver: Quantity to deliver in tonnes (optional)
             optimize: Whether to optimize insertion point
 
         Returns:
             Result dictionary with created stop
         """
         try:
-            from clients.models import Client
+            from clients.models import Client, Product
 
             route = Route.objects.get(id=route_id)
             client = Client.objects.get(id=client_id)
@@ -143,6 +147,17 @@ class RouteEditingService:
                     'success': False,
                     'error': 'Client does not have geocoded coordinates'
                 }
+
+            # Get product if specified
+            product = None
+            if product_id:
+                try:
+                    product = Product.objects.get(id=product_id, is_active=True)
+                except Product.DoesNotExist:
+                    return {
+                        'success': False,
+                        'error': 'Product not found or inactive'
+                    }
 
             with transaction.atomic():
                 # Determine insertion position
@@ -183,13 +198,15 @@ class RouteEditingService:
                     max_sequence = route.stops.aggregate(Max('sequence_number'))['sequence_number__max'] or 0
                     new_sequence = max_sequence + 1
 
-                # Create new stop
+                # Create new stop with product and quantity
                 new_stop = RouteStop.objects.create(
                     route=route,
                     client=client,
                     sequence_number=new_sequence,
                     location_latitude=client.latitude,
-                    location_longitude=client.longitude
+                    location_longitude=client.longitude,
+                    product=product,
+                    quantity_to_deliver=quantity_to_deliver
                 )
 
                 # Recalculate route metrics
@@ -213,6 +230,148 @@ class RouteEditingService:
             return {'success': False, 'error': 'Reference stop not found'}
         except Exception as e:
             logger.error(f"Error inserting stop: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    def update_stop_delivery(
+        self,
+        route_id: int,
+        stop_id: int,
+        product_id: Optional[int] = None,
+        quantity_to_deliver: Optional[Decimal] = None,
+        clear_product: bool = False
+    ) -> Dict:
+        """
+        Update product and quantity for a stop.
+
+        Args:
+            route_id: Route ID
+            stop_id: Stop ID to update
+            product_id: Product ID to deliver (optional)
+            quantity_to_deliver: Quantity to deliver in tonnes (optional)
+            clear_product: If True, removes the product assignment
+
+        Returns:
+            Result dictionary with updated stop
+        """
+        try:
+            from clients.models import Product
+
+            route = Route.objects.get(id=route_id)
+            stop = RouteStop.objects.get(id=stop_id, route=route)
+
+            # Verify route is editable (completed routes cannot be edited)
+            if route.status == 'completed':
+                return {
+                    'success': False,
+                    'error': 'Cannot edit completed routes'
+                }
+
+            # Update product
+            if clear_product:
+                stop.product = None
+            elif product_id:
+                try:
+                    product = Product.objects.get(id=product_id, is_active=True)
+                    stop.product = product
+                except Product.DoesNotExist:
+                    return {
+                        'success': False,
+                        'error': 'Product not found or inactive'
+                    }
+
+            # Update quantity
+            if quantity_to_deliver is not None:
+                stop.quantity_to_deliver = quantity_to_deliver
+
+            stop.save()
+
+            from .serializers import RouteStopSerializer
+            serializer = RouteStopSerializer(stop)
+
+            return {
+                'success': True,
+                'stop': serializer.data,
+                'message': f'Stop delivery details updated'
+            }
+
+        except Route.DoesNotExist:
+            return {'success': False, 'error': 'Route not found'}
+        except RouteStop.DoesNotExist:
+            return {'success': False, 'error': 'Stop not found'}
+        except Exception as e:
+            logger.error(f"Error updating stop delivery: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    def bulk_update_stops_delivery(
+        self,
+        route_id: int,
+        stops_data: List[Dict]
+    ) -> Dict:
+        """
+        Update product and quantity for multiple stops at once.
+
+        Args:
+            route_id: Route ID
+            stops_data: List of dicts with 'stop_id', 'product_id', 'quantity_to_deliver'
+
+        Returns:
+            Result dictionary with updated stops
+        """
+        try:
+            from clients.models import Product
+
+            route = Route.objects.get(id=route_id)
+
+            # Verify route is editable
+            if route.status == 'completed':
+                return {
+                    'success': False,
+                    'error': 'Cannot edit completed routes'
+                }
+
+            updated_stops = []
+            errors = []
+
+            with transaction.atomic():
+                for stop_data in stops_data:
+                    stop_id = stop_data.get('stop_id')
+                    product_id = stop_data.get('product_id')
+                    quantity = stop_data.get('quantity_to_deliver')
+
+                    try:
+                        stop = RouteStop.objects.get(id=stop_id, route=route)
+
+                        # Update product if provided
+                        if product_id:
+                            try:
+                                product = Product.objects.get(id=product_id, is_active=True)
+                                stop.product = product
+                            except Product.DoesNotExist:
+                                errors.append(f'Stop {stop_id}: Product {product_id} not found')
+                                continue
+
+                        # Update quantity if provided
+                        if quantity is not None:
+                            stop.quantity_to_deliver = Decimal(str(quantity))
+
+                        stop.save()
+                        updated_stops.append(stop_id)
+
+                    except RouteStop.DoesNotExist:
+                        errors.append(f'Stop {stop_id} not found')
+
+            return {
+                'success': True,
+                'updated_count': len(updated_stops),
+                'updated_stops': updated_stops,
+                'errors': errors if errors else None,
+                'message': f'Updated {len(updated_stops)} stops'
+            }
+
+        except Route.DoesNotExist:
+            return {'success': False, 'error': 'Route not found'}
+        except Exception as e:
+            logger.error(f"Error bulk updating stops: {str(e)}")
             return {'success': False, 'error': str(e)}
 
     def remove_stop(

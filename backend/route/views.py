@@ -666,25 +666,34 @@ class RouteViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def insert_stop(self, request, pk=None):
         """
-        Insert new stop into route
+        Insert new stop into route with optional product and quantity
 
         Request body:
         {
             "client_id": 123,
             "insert_after_stop_id": 456,  # Optional
             "insert_at_position": 3,  # Optional
+            "product_id": 789,  # Optional - product to deliver
+            "quantity_to_deliver": 5.5,  # Optional - quantity in tonnes
             "optimize": true
         }
         """
         route = self.get_object()
 
         try:
+            # Parse quantity if provided
+            quantity = request.data.get('quantity_to_deliver')
+            if quantity is not None:
+                quantity = Decimal(str(quantity))
+
             editing_service = RouteEditingService()
             result = editing_service.insert_stop(
                 route_id=route.id,
                 client_id=request.data.get('client_id'),
                 insert_after_stop_id=request.data.get('insert_after_stop_id'),
                 insert_at_position=request.data.get('insert_at_position'),
+                product_id=request.data.get('product_id'),
+                quantity_to_deliver=quantity,
                 optimize=request.data.get('optimize', True)
             )
             return Response(result)
@@ -720,6 +729,87 @@ class RouteViewSet(viewsets.ModelViewSet):
             logger.error(f"Remove stop error: {str(e)}")
             return Response(
                 {'error': f'Error removing stop: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def update_stop_delivery(self, request, pk=None):
+        """
+        Update product and quantity for a single stop
+
+        Request body:
+        {
+            "stop_id": 123,
+            "product_id": 456,  # Optional - product to deliver
+            "quantity_to_deliver": 5.5,  # Optional - quantity in tonnes
+            "clear_product": false  # Optional - set to true to remove product
+        }
+        """
+        route = self.get_object()
+
+        stop_id = request.data.get('stop_id')
+        if not stop_id:
+            return Response(
+                {'error': 'stop_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Parse quantity if provided
+            quantity = request.data.get('quantity_to_deliver')
+            if quantity is not None:
+                quantity = Decimal(str(quantity))
+
+            editing_service = RouteEditingService()
+            result = editing_service.update_stop_delivery(
+                route_id=route.id,
+                stop_id=stop_id,
+                product_id=request.data.get('product_id'),
+                quantity_to_deliver=quantity,
+                clear_product=request.data.get('clear_product', False)
+            )
+            return Response(result)
+        except Exception as e:
+            logger.error(f"Update stop delivery error: {str(e)}")
+            return Response(
+                {'error': f'Error updating stop delivery: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def bulk_update_stops_delivery(self, request, pk=None):
+        """
+        Update product and quantity for multiple stops at once
+
+        Request body:
+        {
+            "stops": [
+                {"stop_id": 123, "product_id": 456, "quantity_to_deliver": 5.5},
+                {"stop_id": 124, "product_id": 456, "quantity_to_deliver": 3.0},
+                {"stop_id": 125, "product_id": 789, "quantity_to_deliver": 7.2}
+            ]
+        }
+        """
+        route = self.get_object()
+
+        stops_data = request.data.get('stops', [])
+        if not stops_data:
+            return Response(
+                {'error': 'stops array is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            editing_service = RouteEditingService()
+            result = editing_service.bulk_update_stops_delivery(
+                route_id=route.id,
+                stops_data=stops_data
+            )
+            return Response(result)
+        except Exception as e:
+            logger.error(f"Bulk update stops error: {str(e)}")
+            return Response(
+                {'error': f'Error bulk updating stops: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

@@ -157,6 +157,73 @@ export const managerAPI = {
   },
 };
 
+// Product APIs for Soya Excel
+export const productAPI = {
+  // Get all products
+  getProducts: async (filters?: { is_active?: boolean; category?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.is_active !== undefined) params.append('is_active', filters.is_active.toString());
+    if (filters?.category) params.append('category', filters.category);
+    const response = await api.get(`/clients/products/?${params.toString()}`);
+    return response.data.results || response.data;
+  },
+
+  // Get single product
+  getProduct: async (id: number) => {
+    const response = await api.get(`/clients/products/${id}/`);
+    return response.data;
+  },
+
+  // Get products for delivery (active only)
+  getProductsForDelivery: async () => {
+    const response = await api.get('/clients/products/for_delivery/');
+    return response.data.results || response.data;
+  },
+
+  // Get product categories
+  getCategories: async () => {
+    const response = await api.get('/clients/products/categories/');
+    return response.data.categories || [];
+  },
+
+  // Create product
+  createProduct: async (data: {
+    name: string;
+    code?: string;
+    description?: string;
+    category?: string;
+    unit?: string;
+    price_per_unit?: number;
+    requires_bulk_delivery?: boolean;
+    min_order_quantity?: number;
+  }) => {
+    const response = await api.post('/clients/products/', data);
+    return response.data;
+  },
+
+  // Update product
+  updateProduct: async (id: number, data: Partial<{
+    name: string;
+    code: string;
+    description: string;
+    category: string;
+    unit: string;
+    price_per_unit: number;
+    requires_bulk_delivery: boolean;
+    min_order_quantity: number;
+    is_active: boolean;
+  }>) => {
+    const response = await api.patch(`/clients/products/${id}/`, data);
+    return response.data;
+  },
+
+  // Delete product
+  deleteProduct: async (id: number) => {
+    const response = await api.delete(`/clients/products/${id}/`);
+    return response.data;
+  },
+};
+
 // Client APIs for Soya Excel
 export const clientAPI = {
   getFarmers: async () => {
@@ -663,6 +730,27 @@ export const routeAPI = {
     return response.data;
   },
   
+  // Update stop delivery (product and quantity)
+  updateStopDelivery: async (routeId: string, data: {
+    stop_id: number;
+    product_id?: number;
+    quantity_to_deliver?: number;
+    clear_product?: boolean;
+  }) => {
+    const response = await api.post(`/routes/routes/${routeId}/update_stop_delivery/`, data);
+    return response.data;
+  },
+
+  // Bulk update stops delivery (product and quantity)
+  bulkUpdateStopsDelivery: async (routeId: string, stops: Array<{
+    stop_id: number;
+    product_id?: number;
+    quantity_to_deliver?: number;
+  }>) => {
+    const response = await api.post(`/routes/routes/${routeId}/bulk_update_stops_delivery/`, { stops });
+    return response.data;
+  },
+
   // Live tracking and vehicle positions
   getLiveTracking: async (routeIds?: string[]) => {
     const params = new URLSearchParams();

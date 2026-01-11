@@ -9,6 +9,7 @@ class RouteStopSerializer(serializers.ModelSerializer):
     order_quantity = serializers.DecimalField(source='order.total_amount_ordered_tm', max_digits=10, decimal_places=2, read_only=True)
     client = serializers.SerializerMethodField()
     order = serializers.SerializerMethodField()
+    product_details = serializers.SerializerMethodField()
     has_coordinates = serializers.BooleanField(read_only=True)
 
     class Meta:
@@ -35,6 +36,18 @@ class RouteStopSerializer(serializers.ModelSerializer):
                 'quantity_ordered': float(obj.order.total_amount_ordered_tm),
                 'quantity_delivered': float(obj.order.total_amount_delivered_tm),
                 'status': obj.order.status
+            }
+        return None
+
+    def get_product_details(self, obj):
+        """Get product details for this stop"""
+        if obj.product:
+            return {
+                'id': obj.product.id,
+                'name': obj.product.name,
+                'code': obj.product.code,
+                'category': obj.product.category,
+                'unit': obj.product.unit
             }
         return None
 

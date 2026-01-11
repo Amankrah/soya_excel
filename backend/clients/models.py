@@ -7,6 +7,51 @@ from django.utils import timezone
 from .models_analytics import AnalyticsCache
 
 
+class Product(models.Model):
+    """Model representing a product that can be delivered - Soya Excel products"""
+    
+    PRODUCT_CATEGORY_CHOICES = [
+        ('soya_meal', 'Soya Meal'),
+        ('trituro', 'Trituro'),
+        ('dairy_trituro', 'Dairy Trituro'),
+        ('oil', 'Soya Oil'),
+        ('other', 'Other'),
+    ]
+    
+    UNIT_CHOICES = [
+        ('tonnes', 'Tonnes'),
+        ('kg', 'Kilograms'),
+        ('liters', 'Liters'),
+    ]
+    
+    name = models.CharField(max_length=200, unique=True, db_index=True)
+    code = models.CharField(max_length=50, blank=True, help_text="Product code/SKU")
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=20, choices=PRODUCT_CATEGORY_CHOICES, default='other')
+    
+    # Unit of measurement
+    unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='tonnes')
+    
+    # Pricing (optional)
+    price_per_unit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
+    # Delivery requirements
+    requires_bulk_delivery = models.BooleanField(default=True, help_text="Requires bulk truck delivery")
+    min_order_quantity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Minimum order quantity")
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['category', 'name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_category_display()})"
+
+
 class Client(models.Model):
     """Model representing a client - Soya Excel business"""
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { routeAPI } from '@/lib/api';
+import { routeAPI, productAPI } from '@/lib/api';
 import { AxiosError } from 'axios';
 import { toast } from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,12 +22,14 @@ import {
   Clock,
   X,
   Loader2,
-  Map,
+  Map as MapIcon,
   Edit,
   Trash2,
   UserPlus,
   ChevronDown,
   ChevronUp,
+  Package,
+  Weight,
 } from 'lucide-react';
 import { DriverAssignmentDialog } from '@/components/route/driver-assignment-dialog';
 import { RouteSimulationModal } from '@/components/route/route-simulation-modal';
@@ -97,6 +99,22 @@ interface ClusterSummary {
   client_count: number;
 }
 
+interface Product {
+  id: number;
+  name: string;
+  code: string;
+  category: string;
+  category_display: string;
+  unit: string;
+  is_active: boolean;
+}
+
+// Track product and quantity for each client in distribution planning
+interface ClientDeliveryDetails {
+  product_id: number | null;
+  quantity_to_deliver: number | null;
+}
+
 interface Route {
   id: string;
   name: string;
@@ -108,6 +126,7 @@ interface Route {
   stops: Array<{
     id: string;
     client: {
+      id?: number;
       name: string;
       address: string;
       city?: string;
@@ -123,6 +142,15 @@ interface Route {
       quantity_delivered: number;
       status: string;
     } | null;
+    product?: number | null;
+    product_details?: {
+      id: number;
+      name: string;
+      code: string;
+      category: string;
+      unit: string;
+    } | null;
+    quantity_to_deliver?: number | null;
     sequence_number: number;
     is_completed: boolean;
   }>;
@@ -188,6 +216,12 @@ export function RouteManagement() {
   const [clusters, setClusters] = useState<ClusterSummary[]>([]);
   const [unclusteredCount, setUnclusteredCount] = useState(0);
 
+  // Product data for delivery planning
+  const [products, setProducts] = useState<Product[]>([]);
+  const [clientDeliveryDetails, setClientDeliveryDetails] = useState<Map<number, ClientDeliveryDetails>>(new Map());
+  const [editClientDeliveryDetails, setEditClientDeliveryDetails] = useState<Map<number, ClientDeliveryDetails>>(new Map());
+  const [defaultProduct, setDefaultProduct] = useState<number | null>(null);
+
   // Driver assignment dialog state
   const [showDriverAssignmentDialog, setShowDriverAssignmentDialog] = useState(false);
   const [selectedRouteForAssignment, setSelectedRouteForAssignment] = useState<Route | null>(null);
@@ -201,8 +235,8 @@ export function RouteManagement() {
     try {
       setLoading(true);
 
-      // Fetch routes and available clients in parallel
-      const [routesData, clientsResponse] = await Promise.all([
+      // Fetch routes, available clients, and products in parallel
+      const [routesData, clientsResponse, productsData] = await Promise.all([
         routeAPI.getRoutes(),
         // Use the custom available_clients endpoint that returns all geocoded clients without pagination
         fetch('http://localhost:8000/api/routes/routes/available_clients/', {
@@ -210,10 +244,18 @@ export function RouteManagement() {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json',
           },
-        })
+        }),
+        productAPI.getProducts({ is_active: true })
       ]);
 
       const clientsData = await clientsResponse.json();
+
+      // Set products
+      setProducts(productsData || []);
+      // Set default product if available (only if not already set)
+      if (productsData && productsData.length > 0) {
+        setDefaultProduct(prev => prev === null ? productsData[0].id : prev);
+      }
 
       // Filter routes by selected date with null safety
       const filteredRoutes = (routesData || []).filter((route: Route) =>
@@ -311,8 +353,10 @@ export function RouteManagement() {
   const handleEditRoute = (route: Route) => {
     setEditingRoute(route);
 
-    // Extract client IDs from route stops
-    const clientIds = new Set<number>();
+    // Extract client IDs and delivery details from route stops
+    const clientIds: Set<number> = new Set();
+    const deliveryDetails: Map<number, ClientDeliveryDetails> = new Map();
+    
     route.stops.forEach(stop => {
       // Handle both object and string formats for client
       const clientId = typeof stop.client === 'object' && stop.client !== null && 'id' in stop.client
@@ -320,10 +364,16 @@ export function RouteManagement() {
         : typeof stop.client === 'string' ? parseInt(stop.client) : 0;
       if (!isNaN(clientId) && clientId > 0) {
         clientIds.add(clientId);
+        // Extract delivery details from stop
+        deliveryDetails.set(clientId, {
+          product_id: stop.product || stop.product_details?.id || null,
+          quantity_to_deliver: stop.quantity_to_deliver || null
+        });
       }
     });
 
     setEditSelectedClients(clientIds);
+    setEditClientDeliveryDetails(deliveryDetails);
     setEditClusteringMethod('dbscan');
     setEditMaxStopsPerRoute(10);
     setEditMaxDistanceKm(300);
@@ -392,9 +442,10 @@ export function RouteManagement() {
           }
         }
 
-        // Add stops
+        // Add stops with delivery details
         for (const clientId of clientsToAdd) {
           try {
+            const details = editClientDeliveryDetails.get(clientId);
             await fetch(`http://localhost:8000/api/routes/routes/${editingRoute.id}/insert_stop/`, {
               method: 'POST',
               headers: {
@@ -403,11 +454,40 @@ export function RouteManagement() {
               },
               body: JSON.stringify({
                 client_id: clientId,
+                product_id: details?.product_id || undefined,
+                quantity_to_deliver: details?.quantity_to_deliver || undefined,
                 optimize: false // We'll optimize once at the end
               })
             });
           } catch (err) {
             console.error(`Failed to add stop for client ${clientId}:`, err);
+          }
+        }
+
+        // Update delivery details for existing stops
+        const existingStopUpdates: Array<{ stop_id: number; product_id?: number; quantity_to_deliver?: number }> = [];
+        for (const stop of editingRoute.stops) {
+          const stopClientId = typeof stop.client === 'object' && stop.client !== null && 'id' in stop.client
+            ? (stop.client as { id: number }).id
+            : 0;
+          if (stopClientId > 0 && editSelectedClients.has(stopClientId) && !clientsToRemove.includes(stopClientId)) {
+            const details = editClientDeliveryDetails.get(stopClientId);
+            if (details && (details.product_id || details.quantity_to_deliver)) {
+              existingStopUpdates.push({
+                stop_id: parseInt(stop.id),
+                product_id: details.product_id || undefined,
+                quantity_to_deliver: details.quantity_to_deliver || undefined
+              });
+            }
+          }
+        }
+
+        // Bulk update existing stops with delivery details
+        if (existingStopUpdates.length > 0) {
+          try {
+            await routeAPI.bulkUpdateStopsDelivery(editingRoute.id, existingStopUpdates);
+          } catch (err) {
+            console.error('Failed to update delivery details for existing stops:', err);
           }
         }
 
@@ -420,6 +500,7 @@ export function RouteManagement() {
         setShowEditModal(false);
         setEditingRoute(null);
         setEditSelectedClients(new Set());
+        setEditClientDeliveryDetails(new Map());
         setEditClientSearchTerm('');
         setEditClientPriorityFilter('all');
         loadData();
@@ -444,12 +525,13 @@ export function RouteManagement() {
           setShowEditModal(false);
           setEditingRoute(null);
           setEditSelectedClients(new Set());
-          setEditClientSearchTerm('');
-          setEditClientPriorityFilter('all');
-          loadData();
-        } else {
-          toast.error(result.error || 'Failed to update route');
-        }
+        setEditClientDeliveryDetails(new Map());
+        setEditClientSearchTerm('');
+        setEditClientPriorityFilter('all');
+        loadData();
+      } else {
+        toast.error(result.error || 'Failed to update route');
+      }
       }
     } catch (error: unknown) {
       console.error('Error updating route:', error);
@@ -533,10 +615,52 @@ export function RouteManagement() {
       });
 
       if (result.success) {
-        toast.success(`Created ${result.created_routes.length} routes`);
+        // Update stops with delivery details (product and quantity)
+        const hasDeliveryDetails = clientDeliveryDetails.size > 0;
+        if (hasDeliveryDetails && result.created_routes) {
+          // Fetch the created routes to get stop IDs
+          const routesData = await routeAPI.getRoutes();
+          
+          for (const routeInfo of result.created_routes) {
+            const route = routesData.find((r: Route) => parseInt(r.id) === routeInfo.id);
+            if (route && route.stops) {
+              const stopsToUpdate: Array<{ stop_id: number; product_id?: number; quantity_to_deliver?: number }> = [];
+              
+              for (const stop of route.stops) {
+                // Get client ID from the stop
+                const clientId = typeof stop.client === 'object' && stop.client !== null && 'id' in stop.client
+                  ? (stop.client as { id: number }).id
+                  : null;
+                
+                if (clientId) {
+                  const details = clientDeliveryDetails.get(clientId);
+                  if (details && (details.product_id || details.quantity_to_deliver)) {
+                    stopsToUpdate.push({
+                      stop_id: parseInt(stop.id),
+                      product_id: details.product_id || undefined,
+                      quantity_to_deliver: details.quantity_to_deliver || undefined
+                    });
+                  }
+                }
+              }
+              
+              // Bulk update stops for this route
+              if (stopsToUpdate.length > 0) {
+                try {
+                  await routeAPI.bulkUpdateStopsDelivery(route.id, stopsToUpdate);
+                } catch (err) {
+                  console.error(`Failed to update delivery details for route ${route.id}:`, err);
+                }
+              }
+            }
+          }
+        }
+
+        toast.success(`Created ${result.created_routes.length} routes with delivery details`);
         setShowDistributionPlanner(false);
         setDistributionPlan(null);
         setSelectedClients(new Set());
+        setClientDeliveryDetails(new Map());
         loadData();
       } else {
         toast.error(result.error || 'Failed to create routes');
@@ -576,8 +700,39 @@ export function RouteManagement() {
     });
   };
 
+  // Update delivery details for a client in distribution planning
+  const updateClientDeliveryDetail = (clientId: number, field: 'product_id' | 'quantity_to_deliver', value: number | null) => {
+    setClientDeliveryDetails(prev => {
+      const newMap: Map<number, ClientDeliveryDetails> = new Map(prev);
+      const existing = newMap.get(clientId) || { product_id: defaultProduct, quantity_to_deliver: null };
+      newMap.set(clientId, { ...existing, [field]: value });
+      return newMap;
+    });
+  };
+
+  // Update delivery details for a client in edit modal
+  const updateEditClientDeliveryDetail = (clientId: number, field: 'product_id' | 'quantity_to_deliver', value: number | null) => {
+    setEditClientDeliveryDetails(prev => {
+      const newMap: Map<number, ClientDeliveryDetails> = new Map(prev);
+      const existing = newMap.get(clientId) || { product_id: defaultProduct, quantity_to_deliver: null };
+      newMap.set(clientId, { ...existing, [field]: value });
+      return newMap;
+    });
+  };
+
+  // Get delivery details for a client
+  const getClientDeliveryDetail = (clientId: number): ClientDeliveryDetails => {
+    return clientDeliveryDetails.get(clientId) || { product_id: defaultProduct, quantity_to_deliver: null };
+  };
+
+  // Get edit delivery details for a client
+  const getEditClientDeliveryDetail = (clientId: number): ClientDeliveryDetails => {
+    return editClientDeliveryDetails.get(clientId) || { product_id: defaultProduct, quantity_to_deliver: null };
+  };
+
   const clearEditSelection = () => {
     setEditSelectedClients(new Set());
+    setEditClientDeliveryDetails(new Map());
   };
 
   // Filter clients based on search, priority, and cluster (for Distribution Planner)
@@ -730,6 +885,7 @@ export function RouteManagement() {
 
   const clearSelection = () => {
     setSelectedClients(new Set());
+    setClientDeliveryDetails(new Map());
   };
 
   // Get status color
@@ -1050,7 +1206,7 @@ export function RouteManagement() {
                           setShowRouteMap(true);
                         }}
                       >
-                        <Map className="h-3 w-3 mr-1" />
+                        <MapIcon className="h-3 w-3 mr-1" />
                         View Map
                       </Button>
 
@@ -1102,10 +1258,19 @@ export function RouteManagement() {
                               <div className="flex-1 truncate">
                                 <div className="font-medium">{stop.client.name}</div>
                                 <div className="text-gray-500">
-                                  {stop.order
-                                    ? `${stop.order.quantity_ordered}tm - ${stop.order.client_order_number}`
-                                    : `${stop.client.city}, ${stop.client.country}`
-                                  }
+                                  {stop.quantity_to_deliver ? (
+                                    <span className="flex items-center gap-1">
+                                      <Weight className="h-3 w-3" />
+                                      {stop.quantity_to_deliver}tm
+                                      {stop.product_details && (
+                                        <span className="text-green-600">• {stop.product_details.name}</span>
+                                      )}
+                                    </span>
+                                  ) : stop.order ? (
+                                    `${stop.order.quantity_ordered}tm - ${stop.order.client_order_number}`
+                                  ) : (
+                                    `${stop.client.city}, ${stop.client.country}`
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1451,6 +1616,84 @@ export function RouteManagement() {
                       </div>
                     )}
                   </div>
+
+                  {/* Delivery Details for Selected Clients */}
+                  {selectedClients.size > 0 && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="bg-gradient-to-r from-yellow-100 to-orange-50 px-3 py-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-yellow-600" />
+                          <span className="font-medium text-sm text-yellow-800">Delivery Details</span>
+                        </div>
+                        {products.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600">Default:</span>
+                            <select
+                              value={defaultProduct || ''}
+                              onChange={(e) => setDefaultProduct(e.target.value ? parseInt(e.target.value) : null)}
+                              className="text-xs border rounded px-2 py-1 bg-white"
+                              title="Select default product"
+                            >
+                              <option value="">No default</option>
+                              {products.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                      <div className="max-h-72 overflow-y-auto divide-y">
+                        {availableClients
+                          .filter(c => selectedClients.has(c.id))
+                          .map(client => {
+                            const details = getClientDeliveryDetail(client.id);
+                            return (
+                              <div key={client.id} className="px-3 py-2 bg-white hover:bg-gray-50">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium text-sm truncate flex-1">{client.name}</span>
+                                  <span className="text-xs text-gray-500">{client.city}</span>
+                                </div>
+                                <div className="flex gap-2 relative">
+                                  <div className="flex-1 relative">
+                                    <select
+                                      value={details.product_id || ''}
+                                      onChange={(e) => updateClientDeliveryDetail(
+                                        client.id,
+                                        'product_id',
+                                        e.target.value ? parseInt(e.target.value) : null
+                                      )}
+                                      className="w-full text-xs border rounded px-2 py-1.5 bg-white cursor-pointer focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                      title={`Select product for ${client.name}`}
+                                    >
+                                      <option value="">Select product</option>
+                                      {products.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      placeholder="Qty"
+                                      value={details.quantity_to_deliver || ''}
+                                      onChange={(e) => updateClientDeliveryDetail(
+                                        client.id,
+                                        'quantity_to_deliver',
+                                        e.target.value ? parseFloat(e.target.value) : null
+                                      )}
+                                      className="w-20 text-xs h-7"
+                                      min={0}
+                                      step={0.1}
+                                    />
+                                    <span className="text-xs text-gray-500">tm</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Planning Options and Results */}
@@ -1630,6 +1873,7 @@ export function RouteManagement() {
                     setShowEditModal(false);
                     setEditingRoute(null);
                     setEditSelectedClients(new Set());
+                    setEditClientDeliveryDetails(new Map());
                     setEditClientSearchTerm('');
                     setEditClientPriorityFilter('all');
                     setEditClientClusterFilter('all');
@@ -1940,6 +2184,84 @@ export function RouteManagement() {
                       </div>
                     )}
                   </div>
+
+                  {/* Delivery Details for Selected Clients in Edit Modal */}
+                  {editSelectedClients.size > 0 && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="bg-gradient-to-r from-yellow-100 to-orange-50 px-3 py-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-yellow-600" />
+                          <span className="font-medium text-sm text-yellow-800">Delivery Details</span>
+                        </div>
+                        {products.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600">Default:</span>
+                            <select
+                              value={defaultProduct || ''}
+                              onChange={(e) => setDefaultProduct(e.target.value ? parseInt(e.target.value) : null)}
+                              className="text-xs border rounded px-2 py-1 bg-white"
+                              title="Select default product"
+                            >
+                              <option value="">No default</option>
+                              {products.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                      <div className="max-h-72 overflow-y-auto divide-y">
+                        {availableClients
+                          .filter(c => editSelectedClients.has(c.id))
+                          .map(client => {
+                            const details = getEditClientDeliveryDetail(client.id);
+                            return (
+                              <div key={client.id} className="px-3 py-2 bg-white hover:bg-gray-50">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium text-sm truncate flex-1">{client.name}</span>
+                                  <span className="text-xs text-gray-500">{client.city}</span>
+                                </div>
+                                <div className="flex gap-2 relative">
+                                  <div className="flex-1 relative">
+                                    <select
+                                      value={details.product_id || ''}
+                                      onChange={(e) => updateEditClientDeliveryDetail(
+                                        client.id,
+                                        'product_id',
+                                        e.target.value ? parseInt(e.target.value) : null
+                                      )}
+                                      className="w-full text-xs border rounded px-2 py-1.5 bg-white cursor-pointer focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                      title={`Select product for ${client.name}`}
+                                    >
+                                      <option value="">Select product</option>
+                                      {products.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      placeholder="Qty"
+                                      value={details.quantity_to_deliver || ''}
+                                      onChange={(e) => updateEditClientDeliveryDetail(
+                                        client.id,
+                                        'quantity_to_deliver',
+                                        e.target.value ? parseFloat(e.target.value) : null
+                                      )}
+                                      className="w-20 text-xs h-7"
+                                      min={0}
+                                      step={0.1}
+                                    />
+                                    <span className="text-xs text-gray-500">tm</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Planning Options */}
@@ -2029,6 +2351,7 @@ export function RouteManagement() {
                         setShowEditModal(false);
                         setEditingRoute(null);
                         setEditSelectedClients(new Set());
+                        setEditClientDeliveryDetails(new Map());
                         setEditClientSearchTerm('');
                         setEditClientPriorityFilter('all');
                       }}
@@ -2068,7 +2391,7 @@ export function RouteManagement() {
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b bg-gray-50">
               <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                <Map className="h-5 w-5 text-blue-600" />
+                <MapIcon className="h-5 w-5 text-blue-600" />
                 Route Map & Details
               </h2>
               <Button

@@ -8,8 +8,8 @@ from django.db.models.functions import TruncMonth, TruncYear, ExtractYear
 from django.utils import timezone
 from datetime import timedelta, datetime
 from decimal import Decimal
-from .models import Client, Order
-from .serializers import ClientSerializer, OrderSerializer
+from .models import Client, Order, Product
+from .serializers import ClientSerializer, OrderSerializer, ProductSerializer, ProductListSerializer
 from .models_analytics import AnalyticsCache
 
 
@@ -1195,3 +1195,59 @@ class OrderViewSet(viewsets.ModelViewSet):
         )
 
         return Response(analytics_data)
+
+
+class ProductViewSet(viewsets.ModelViewSet):
+    """ViewSet for Product model - products available for delivery"""
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'category', 'requires_bulk_delivery']
+    search_fields = ['name', 'code', 'description']
+    ordering_fields = ['name', 'category', 'created_at']
+
+    def get_queryset(self):
+        """Enhanced queryset with filtering"""
+        queryset = super().get_queryset()
+
+        # Filter by active status (default to active only)
+        is_active = self.request.query_params.get('is_active', 'true')
+        if is_active.lower() == 'true':
+            queryset = queryset.filter(is_active=True)
+        elif is_active.lower() == 'false':
+            queryset = queryset.filter(is_active=False)
+        # if 'all', don't filter
+
+        # Filter by category
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+
+        return queryset.order_by('category', 'name')
+
+    def get_serializer_class(self):
+        """Use lightweight serializer for list actions"""
+        if self.action == 'list':
+            return ProductListSerializer
+        return ProductSerializer
+
+    @action(detail=False, methods=['get'])
+    def categories(self, request):
+        """Get list of product categories"""
+        return Response({
+            'categories': [
+                {'value': choice[0], 'label': choice[1]}
+                for choice in Product.PRODUCT_CATEGORY_CHOICES
+            ]
+        })
+
+    @action(detail=False, methods=['get'])
+    def for_delivery(self, request):
+        """Get products suitable for delivery (active and bulk delivery)"""
+        products = self.get_queryset().filter(is_active=True)
+        serializer = ProductListSerializer(products, many=True)
+        return Response({
+            'count': products.count(),
+            'results': serializer.data
+        })
