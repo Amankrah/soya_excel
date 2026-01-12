@@ -139,6 +139,8 @@ ADMINS = [
 # Performance optimizations
 # Use cached template loader in production
 if not DEBUG:
+    # APP_DIRS must be False when using custom loaders
+    TEMPLATES[0]['APP_DIRS'] = False
     TEMPLATES[0]['OPTIONS']['loaders'] = [
         ('django.template.loaders.cached.Loader', [
             'django.template.loaders.filesystem.Loader',
