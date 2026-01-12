@@ -484,9 +484,7 @@ pip install -r requirements.txt
 # Install production server
 pip install gunicorn
 
-# Deactivate for now
-deactivate
-```
+
 
 ### 3.3 Configure Django Environment
 
@@ -512,7 +510,7 @@ DB_PORT=5432
 CORS_ALLOWED_ORIGINS=https://soyaflow.com,https://www.soyaflow.com
 
 # Google Maps API
-GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY_HERE
+GOOGLE_MAPS_API_KEY=AIzaSyCUXuIdWXdaKS7xCR2CVKoTQIyyF6VuSLY
 
 # Redis (for WebSocket and Celery)
 REDIS_URL=redis://localhost:6379/0
@@ -525,6 +523,10 @@ MEDIA_ROOT=/var/www/soyaflow/backend/media
 EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
 ADMIN_EMAIL=dishdevinfo@gmail.com
 EOF
+
+# Deactivate for now
+deactivate
+
 
 # Secure the .env file
 chmod 600 .env
@@ -728,7 +730,7 @@ cat > .env.production.local << EOF
 NEXT_PUBLIC_API_URL=https://soyaflow.com/api
 NEXT_PUBLIC_SITE_URL=https://soyaflow.com
 NEXT_PUBLIC_DOMAIN=soyaflow.com
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY_HERE
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyCUXuIdWXdaKS7xCR2CVKoTQIyyF6VuSLY
 EOF
 
 # Secure the .env file
