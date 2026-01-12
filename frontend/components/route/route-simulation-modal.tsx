@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Truck, X, Play, Pause, RotateCcw, MapPin, Clock, User, Car } from 'lucide-react';
+import { Truck, X, Play, Pause, RotateCcw, MapPin, Clock, User, Car, Video, Eye } from 'lucide-react';
 import { routeAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { loadGoogleMaps } from '@/lib/google-maps';
+
+type CameraMode = 'overview' | 'chase' | 'cinematic';
 
 interface RouteSimulationModalProps {
   open: boolean;
@@ -83,6 +85,8 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
   const [currentLocationName, setCurrentLocationName] = useState<string>('');
   const [etaToNextStop, setEtaToNextStop] = useState<number | null>(null);
   const [distanceToNextStop, setDistanceToNextStop] = useState<number | null>(null);
+  const [cameraMode, setCameraMode] = useState<CameraMode>('chase');
+  const [currentSpeed, setCurrentSpeed] = useState(0); // km/h for display
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -95,6 +99,18 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
   const lastGeocodedIndexRef = useRef<number>(-1);
   const geocodeCacheRef = useRef<Map<number, string>>(new Map());
   const isAtStopRef = useRef<boolean>(false);
+  
+  // Camera control refs for smooth transitions
+  const currentCameraHeadingRef = useRef<number>(0);
+  const currentCameraTiltRef = useRef<number>(0);
+  const currentCameraZoomRef = useRef<number>(15);
+  const targetCameraHeadingRef = useRef<number>(0);
+  const targetCameraTiltRef = useRef<number>(0);
+  const targetCameraZoomRef = useRef<number>(15);
+  const vehicleHeadingRef = useRef<number>(0);
+  const trailPolylineRef = useRef<google.maps.Polyline | null>(null);
+  const trailPathRef = useRef<google.maps.LatLng[]>([]);
+  const lastVehiclePositionRef = useRef<google.maps.LatLng | null>(null);
 
   // Load simulation data callback
   // Accept optional speedOverride to handle async state update timing
@@ -199,19 +215,54 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
       const google = await loadGoogleMaps();
       const startLocation = simulationData.start_location;
 
+      // Configure map with 3D tilt support and smooth controls
       const map = new google.maps.Map(mapContainerRef.current, {
         center: { lat: startLocation.latitude, lng: startLocation.longitude },
-        zoom: 12,
-        mapTypeId: google.maps.MapTypeId.ROADMAP,
+        zoom: 15,
+        mapTypeId: 'roadmap',
+        tilt: cameraMode === 'chase' || cameraMode === 'cinematic' ? 45 : 0,
+        heading: 0,
+        gestureHandling: 'greedy',
+        zoomControl: true,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        rotateControl: true,
+        // Enable smooth map interactions
+        scrollwheel: true,
+        disableDoubleClickZoom: false,
+        // Dark style for video game feel
+        styles: [
+          { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
+          { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
+          { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
+          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
+          { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#255763' }] },
+          { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2c6675' }] },
+          { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#255763' }] },
+          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
+          { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#283d6a' }] },
+          { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
+          { featureType: 'landscape', stylers: [{ color: '#1d2c4d' }] },
+        ],
       });
 
       mapRef.current = map;
+      
+      // Initialize camera refs
+      currentCameraHeadingRef.current = 0;
+      currentCameraTiltRef.current = cameraMode === 'chase' || cameraMode === 'cinematic' ? 45 : 0;
+      currentCameraZoomRef.current = 15;
 
       // Get route directions from Google Maps for realistic path
       await loadRouteDirections(map);
 
-      // Add waypoint markers
+      // Add waypoint markers with glow effect
       simulationData.waypoints.forEach((waypoint, index) => {
+        const isWarehouse = waypoint.type === 'warehouse' || waypoint.type === 'warehouse_return';
+        const baseColor = isWarehouse ? '#f59e0b' : '#10b981';
+        
+        // Create glowing marker effect with custom icon
         const marker = new google.maps.Marker({
           position: { lat: waypoint.latitude, lng: waypoint.longitude },
           map: map,
@@ -219,25 +270,27 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
           label: {
             text: `${index + 1}`,
             color: 'white',
-            fontSize: '12px',
+            fontSize: '11px',
             fontWeight: 'bold',
           },
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: waypoint.type === 'warehouse' || waypoint.type === 'warehouse_return' ? '#f59e0b' : '#10b981',
+            scale: 12,
+            fillColor: baseColor,
             fillOpacity: 0.9,
-            strokeColor: 'white',
-            strokeWeight: 2,
+            strokeColor: baseColor,
+            strokeWeight: 4,
+            strokeOpacity: 0.4,
           },
+          zIndex: 100 + index,
         });
 
         const infoWindow = new google.maps.InfoWindow({
           content: `
-            <div style="padding: 8px;">
-              <strong>${waypoint.name}</strong><br/>
-              <small>${waypoint.address}</small><br/>
-              ${waypoint.quantity_to_deliver ? `<br/><strong>Quantity:</strong> ${waypoint.quantity_to_deliver.toFixed(2)} tonnes` : ''}
+            <div style="padding: 12px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white; border-radius: 8px; min-width: 180px;">
+              <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: ${baseColor};">${waypoint.name}</div>
+              <div style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">${waypoint.address}</div>
+              ${waypoint.quantity_to_deliver ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #334155;"><span style="color: #10b981; font-weight: bold;">${waypoint.quantity_to_deliver.toFixed(2)} tonnes</span></div>` : ''}
             </div>
           `,
         });
@@ -249,36 +302,60 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
         waypointMarkersRef.current.push(marker);
       });
 
-      // Create vehicle marker
+      // Create vehicle trail polyline
+      const trailPolyline = new google.maps.Polyline({
+        path: [],
+        geodesic: true,
+        strokeColor: '#3b82f6',
+        strokeOpacity: 0.6,
+        strokeWeight: 4,
+        map: map,
+        zIndex: 500,
+      });
+      trailPolylineRef.current = trailPolyline;
+      trailPathRef.current = [];
+
+      // Create enhanced vehicle marker with glow effect
+      // Arrow pointing UP (north) at 0° rotation - tip at negative Y
       const vehicleMarker = new google.maps.Marker({
         position: { lat: startLocation.latitude, lng: startLocation.longitude },
         map: map,
         title: 'Delivery Vehicle',
         icon: {
-          path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-          scale: 6,
-          fillColor: '#3b82f6',
+          path: 'M 0,-8 L 5,4 L 2,4 L 2,8 L -2,8 L -2,4 L -5,4 Z', // Arrow pointing UP at 0°
+          scale: 2.5,
+          fillColor: '#60a5fa',
           fillOpacity: 1,
-          strokeColor: 'white',
+          strokeColor: '#ffffff',
           strokeWeight: 2,
           rotation: 0,
+          anchor: new google.maps.Point(0, 0),
         },
         zIndex: 1000,
       });
 
       vehicleMarkerRef.current = vehicleMarker;
+      lastVehiclePositionRef.current = new google.maps.LatLng(startLocation.latitude, startLocation.longitude);
 
-      // Fit map to bounds
+      // Fit map to bounds initially
       const bounds = new google.maps.LatLngBounds();
       simulationData.waypoints.forEach((waypoint) => {
         bounds.extend({ lat: waypoint.latitude, lng: waypoint.longitude });
       });
       map.fitBounds(bounds);
+      
+      // Set initial camera for chase mode after a short delay
+      setTimeout(() => {
+        if (cameraMode === 'chase' || cameraMode === 'cinematic') {
+          map.setZoom(17);
+          map.setTilt(45);
+        }
+      }, 500);
     } catch (error) {
       console.error('Error initializing map:', error);
       toast.error('Failed to initialize map');
     }
-  }, [simulationData, loadRouteDirections]);
+  }, [simulationData, loadRouteDirections, cameraMode]);
 
   // Initialize Google Maps
   useEffect(() => {
@@ -340,6 +417,79 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
   const getWaypointPathIndex = useCallback((waypoint: Waypoint): number => {
     return waypointPathIndices.get(waypoint.id) ?? 0;
   }, [waypointPathIndices]);
+
+  // Smooth camera update function
+  const updateCamera = useCallback((position: google.maps.LatLng, vehicleHeading: number, isAtStop: boolean) => {
+    if (!mapRef.current) return;
+    
+    const map = mapRef.current;
+    
+    if (cameraMode === 'overview') {
+      // Overview mode: top-down view, no rotation
+      targetCameraTiltRef.current = 0;
+      targetCameraZoomRef.current = 14;
+      // Smooth pan to position
+      map.panTo(position);
+      map.setTilt(0);
+      map.setHeading(0);
+    } else if (cameraMode === 'chase') {
+      // Chase cam: behind the vehicle, tilted view, rotates with vehicle
+      targetCameraTiltRef.current = 55;
+      targetCameraZoomRef.current = isAtStop ? 17 : 18;
+      targetCameraHeadingRef.current = vehicleHeading;
+      
+      // Smooth interpolation for heading (handle 360 wraparound)
+      let headingDiff = targetCameraHeadingRef.current - currentCameraHeadingRef.current;
+      if (headingDiff > 180) headingDiff -= 360;
+      if (headingDiff < -180) headingDiff += 360;
+      currentCameraHeadingRef.current += headingDiff * 0.08; // Smooth factor
+      
+      // Normalize heading
+      if (currentCameraHeadingRef.current > 180) currentCameraHeadingRef.current -= 360;
+      if (currentCameraHeadingRef.current < -180) currentCameraHeadingRef.current += 360;
+      
+      // Smooth zoom
+      const zoomDiff = targetCameraZoomRef.current - currentCameraZoomRef.current;
+      currentCameraZoomRef.current += zoomDiff * 0.1;
+      
+      // Apply camera
+      map.moveCamera({
+        center: position,
+        zoom: currentCameraZoomRef.current,
+        heading: currentCameraHeadingRef.current,
+        tilt: targetCameraTiltRef.current,
+      });
+    } else if (cameraMode === 'cinematic') {
+      // Cinematic mode: smooth orbiting camera with dynamic angles
+      const time = Date.now() / 1000;
+      const orbitAngle = vehicleHeading + Math.sin(time * 0.3) * 30; // Gentle sway
+      const dynamicTilt = 45 + Math.sin(time * 0.2) * 10; // Tilt variation
+      const dynamicZoom = isAtStop ? 17 : (17.5 + Math.sin(time * 0.15) * 0.5);
+      
+      targetCameraHeadingRef.current = orbitAngle;
+      targetCameraTiltRef.current = dynamicTilt;
+      targetCameraZoomRef.current = dynamicZoom;
+      
+      // Smooth interpolation
+      let headingDiff = targetCameraHeadingRef.current - currentCameraHeadingRef.current;
+      if (headingDiff > 180) headingDiff -= 360;
+      if (headingDiff < -180) headingDiff += 360;
+      currentCameraHeadingRef.current += headingDiff * 0.05;
+      
+      const tiltDiff = targetCameraTiltRef.current - currentCameraTiltRef.current;
+      currentCameraTiltRef.current += tiltDiff * 0.1;
+      
+      const zoomDiff = targetCameraZoomRef.current - currentCameraZoomRef.current;
+      currentCameraZoomRef.current += zoomDiff * 0.1;
+      
+      map.moveCamera({
+        center: position,
+        zoom: currentCameraZoomRef.current,
+        heading: currentCameraHeadingRef.current,
+        tilt: currentCameraTiltRef.current,
+      });
+    }
+  }, [cameraMode]);
 
   // Calculate the effective total duration from the last waypoint's departure time
   const getEffectiveTotalDuration = useCallback(() => {
@@ -431,6 +581,11 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
             }
           }
 
+          // Calculate segment speed (distance / time for this segment)
+          const segmentDistanceKm = nextWp.cumulative_distance_km - wp.cumulative_distance_km;
+          const segmentTimeHours = (nextWp.arrival_time_seconds - wp.departure_time_seconds) / 3600;
+          const segmentSpeedKmh = segmentTimeHours > 0 ? Math.round(segmentDistanceKm / segmentTimeHours) : 0;
+
           // Create a placeholder waypoint for in-transit display
           currentLocationWaypoint = {
             ...wp,
@@ -438,7 +593,9 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
             type: 'in_transit',
             cumulative_distance_km: wp.cumulative_distance_km + 
               (nextWp.cumulative_distance_km - wp.cumulative_distance_km) * segmentProgress,
-          };
+            // Store segment speed for display
+            _segmentSpeed: segmentSpeedKmh,
+          } as Waypoint & { _segmentSpeed?: number };
 
           // Geocoding for in-transit location name
           if (currentPos) {
@@ -518,19 +675,65 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
       );
       
       // Calculate heading if we have next point
+      let vehicleHeading = vehicleHeadingRef.current;
       if (currentPathIndex >= 0 && currentPathIndex + 1 < directionsPath.length) {
         const nextPos = directionsPath[currentPathIndex + 1];
-        const heading = google.maps.geometry.spherical.computeHeading(currentPos, nextPos);
+        vehicleHeading = google.maps.geometry.spherical.computeHeading(currentPos, nextPos);
+        vehicleHeadingRef.current = vehicleHeading;
 
         const icon = vehicleMarkerRef.current.getIcon() as google.maps.Symbol;
         if (icon) {
-          icon.rotation = heading;
+          icon.rotation = vehicleHeading;
           vehicleMarkerRef.current.setIcon(icon);
         }
       }
 
-      // Pan map to follow vehicle
-      mapRef.current?.panTo(currentPos);
+      // Update vehicle trail
+      if (trailPolylineRef.current && !isAtStopLocal) {
+        // Only add to trail if moved significantly
+        const lastPos = lastVehiclePositionRef.current;
+        if (lastPos) {
+          const distance = google.maps.geometry.spherical.computeDistanceBetween(lastPos, currentPos);
+          if (distance > 5) { // Add point every 5 meters
+            trailPathRef.current.push(currentPos);
+            // Keep trail to last 200 points for performance
+            if (trailPathRef.current.length > 200) {
+              trailPathRef.current = trailPathRef.current.slice(-200);
+            }
+            trailPolylineRef.current.setPath(trailPathRef.current);
+            lastVehiclePositionRef.current = currentPos;
+          }
+        } else {
+          lastVehiclePositionRef.current = currentPos;
+        }
+      }
+
+      // Calculate current "speed" for display
+      if (!isAtStopLocal && currentLocationWaypoint) {
+        // Use pre-calculated segment speed if available (set during transit)
+        const waypointWithSpeed = currentLocationWaypoint as Waypoint & { _segmentSpeed?: number };
+        if (waypointWithSpeed._segmentSpeed !== undefined) {
+          setCurrentSpeed(waypointWithSpeed._segmentSpeed);
+        } else if (nextStopWaypoint) {
+          // Fallback calculation using segment data
+          const distanceKm = nextStopWaypoint.cumulative_distance_km - currentLocationWaypoint.cumulative_distance_km;
+          const timeHours = (nextStopWaypoint.arrival_time_seconds - currentLocationWaypoint.departure_time_seconds) / 3600;
+          if (timeHours > 0 && distanceKm > 0) {
+            setCurrentSpeed(Math.round(distanceKm / timeHours));
+          } else {
+            setCurrentSpeed(0);
+          }
+        } else {
+          setCurrentSpeed(0);
+        }
+      } else {
+        setCurrentSpeed(0);
+      }
+
+      // Update camera based on mode
+      if (mapRef.current) {
+        updateCamera(currentPos, vehicleHeading, isAtStopLocal);
+      }
     }
 
     // Update ref (kept for potential external use)
@@ -555,7 +758,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     setCurrentWaypoint(currentLocationWaypoint);
     setNextWaypoint(nextStopWaypoint);
     setProgress((elapsedTime / effectiveTotalDuration) * 100);
-  }, [simulationData, directionsPath, getWaypointPathIndex, getEffectiveTotalDuration]);
+  }, [simulationData, directionsPath, getWaypointPathIndex, getEffectiveTotalDuration, updateCamera]);
 
   // Animation loop
   useEffect(() => {
@@ -606,16 +809,42 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     setDistanceToNextStop(null);
     setCurrentWaypoint(null);
     setNextWaypoint(null);
+    setCurrentSpeed(0);
+    
+    // Reset trail
+    if (trailPolylineRef.current) {
+      trailPolylineRef.current.setPath([]);
+      trailPathRef.current = [];
+    }
+    
+    // Reset camera refs
+    currentCameraHeadingRef.current = 0;
+    vehicleHeadingRef.current = 0;
+    
     if (simulationData && vehicleMarkerRef.current) {
       const startLocation = simulationData.start_location;
       vehicleMarkerRef.current.setPosition({
         lat: startLocation.latitude,
         lng: startLocation.longitude,
       });
-      mapRef.current?.panTo({
-        lat: startLocation.latitude,
-        lng: startLocation.longitude,
-      });
+      lastVehiclePositionRef.current = new google.maps.LatLng(startLocation.latitude, startLocation.longitude);
+      
+      // Reset camera to start position with appropriate mode
+      if (mapRef.current) {
+        if (cameraMode === 'overview') {
+          mapRef.current.panTo({ lat: startLocation.latitude, lng: startLocation.longitude });
+          mapRef.current.setZoom(14);
+          mapRef.current.setTilt(0);
+          mapRef.current.setHeading(0);
+        } else {
+          mapRef.current.moveCamera({
+            center: { lat: startLocation.latitude, lng: startLocation.longitude },
+            zoom: 17,
+            tilt: 45,
+            heading: 0,
+          });
+        }
+      }
     }
   };
 
@@ -651,67 +880,146 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Handle camera mode change
+  const handleCameraModeChange = useCallback((mode: CameraMode) => {
+    setCameraMode(mode);
+    
+    if (mapRef.current && simulationData) {
+      const currentPosition = vehicleMarkerRef.current?.getPosition();
+      const position = currentPosition || new google.maps.LatLng(
+        simulationData.start_location.latitude,
+        simulationData.start_location.longitude
+      );
+      
+      if (mode === 'overview') {
+        mapRef.current.moveCamera({
+          center: position,
+          zoom: 14,
+          tilt: 0,
+          heading: 0,
+        });
+      } else if (mode === 'chase') {
+        mapRef.current.moveCamera({
+          center: position,
+          zoom: 17,
+          tilt: 55,
+          heading: vehicleHeadingRef.current,
+        });
+        currentCameraHeadingRef.current = vehicleHeadingRef.current;
+      } else if (mode === 'cinematic') {
+        mapRef.current.moveCamera({
+          center: position,
+          zoom: 17,
+          tilt: 45,
+          heading: vehicleHeadingRef.current,
+        });
+        currentCameraHeadingRef.current = vehicleHeadingRef.current;
+      }
+    }
+  }, [simulationData]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-7xl max-h-[95vh] overflow-hidden shadow-2xl">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-            <Truck className="h-5 w-5 text-blue-600" />
-            Route Simulation: {routeName}
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-gradient-to-b from-slate-900 to-slate-950 rounded-xl w-full max-w-7xl max-h-[95vh] overflow-hidden shadow-2xl border border-slate-700">
+        {/* Modal Header - Gaming Style */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900">
+          <h2 className="text-xl font-bold text-white flex items-center gap-3">
+            <div className="p-2 bg-cyan-500/20 rounded-lg border border-cyan-500/30">
+              <Truck className="h-5 w-5 text-cyan-400" />
+            </div>
+            <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+              Route Simulation
+            </span>
+            <span className="text-slate-500">|</span>
+            <span className="text-slate-300 font-normal">{routeName}</span>
           </h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onClose}
+            className="text-slate-400 hover:text-white hover:bg-slate-700"
+          >
             <X className="h-5 w-5" />
           </Button>
         </div>
 
         {/* Modal Content */}
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(95vh - 80px)' }}>
+        <div className="overflow-y-auto bg-slate-900" style={{ maxHeight: 'calc(95vh - 80px)' }}>
           {loading ? (
             <div className="flex items-center justify-center h-96">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-cyan-500"></div>
+                  <div className="absolute inset-0 animate-ping rounded-full h-16 w-16 border-2 border-cyan-500/30"></div>
+                </div>
+                <div className="text-cyan-400 font-mono text-sm uppercase tracking-wider animate-pulse">Loading Simulation...</div>
+              </div>
             </div>
           ) : simulationData ? (
             <div className="flex flex-col gap-4 p-4">
-              {/* Driver & Vehicle Info Panel */}
+              {/* Driver & Vehicle Info Panel - Gaming Style */}
               {(simulationData.driver_info || simulationData.vehicle_info) && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
                   {simulationData.driver_info && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-bold text-cyan-400 uppercase tracking-wider">
                         <User className="h-4 w-4" />
-                        Driver Information
+                        Driver
                       </div>
-                      <div className="text-sm space-y-1">
-                        <div><strong>Name:</strong> {simulationData.driver_info.name}</div>
-                        <div><strong>Phone:</strong> {simulationData.driver_info.phone}</div>
-                        <div><strong>License:</strong> {simulationData.driver_info.license_number}</div>
+                      <div className="text-sm space-y-1 text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 w-16">Name:</span>
+                          <span className="font-semibold text-white">{simulationData.driver_info.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 w-16">Phone:</span>
+                          <span className="font-mono">{simulationData.driver_info.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 w-16">License:</span>
+                          <span className="font-mono text-xs">{simulationData.driver_info.license_number}</span>
+                        </div>
                       </div>
                     </div>
                   )}
                   {simulationData.vehicle_info && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-bold text-cyan-400 uppercase tracking-wider">
                         <Car className="h-4 w-4" />
-                        Vehicle Information
+                        Vehicle
                       </div>
-                      <div className="text-sm space-y-1">
+                      <div className="text-sm space-y-1 text-slate-300">
                         {simulationData.vehicle_info.vehicle_number && (
-                          <div><strong>Number:</strong> {simulationData.vehicle_info.vehicle_number}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500 w-16">ID:</span>
+                            <span className="font-mono text-amber-400">{simulationData.vehicle_info.vehicle_number}</span>
+                          </div>
                         )}
                         {simulationData.vehicle_info.make_model && (
-                          <div><strong>Vehicle:</strong> {simulationData.vehicle_info.make_model}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500 w-16">Model:</span>
+                            <span className="font-semibold text-white">{simulationData.vehicle_info.make_model}</span>
+                          </div>
                         )}
                         {simulationData.vehicle_info.vehicle_type && (
-                          <div><strong>Type:</strong> {simulationData.vehicle_info.vehicle_type}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500 w-16">Type:</span>
+                            <span>{simulationData.vehicle_info.vehicle_type}</span>
+                          </div>
                         )}
                         {simulationData.vehicle_info.license_plate && (
-                          <div><strong>Plate:</strong> {simulationData.vehicle_info.license_plate}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500 w-16">Plate:</span>
+                            <span className="font-mono bg-slate-700 px-2 py-0.5 rounded">{simulationData.vehicle_info.license_plate}</span>
+                          </div>
                         )}
                         {simulationData.vehicle_info.capacity_tonnes && (
-                          <div><strong>Capacity:</strong> {simulationData.vehicle_info.capacity_tonnes} tonnes</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500 w-16">Capacity:</span>
+                            <span className="font-mono text-emerald-400">{simulationData.vehicle_info.capacity_tonnes} tonnes</span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -719,142 +1027,227 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
                 </div>
               )}
 
-              {/* Map Container */}
-              <div ref={mapContainerRef} className="w-full h-[500px] rounded-lg border" />
+              {/* Map Container with HUD Overlay */}
+              <div className="relative">
+                <div ref={mapContainerRef} className="w-full h-[500px] rounded-lg border-2 border-slate-700 shadow-2xl" />
+                
+                {/* HUD Overlay - Speedometer */}
+                <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm rounded-xl p-3 border border-cyan-500/30">
+                  <div className="text-center">
+                    <div className="text-3xl font-mono font-bold text-cyan-400 tabular-nums">
+                      {currentSpeed}
+                    </div>
+                    <div className="text-xs text-cyan-300/70 uppercase tracking-wider">km/h</div>
+                  </div>
+                </div>
+                
+                {/* Camera Mode Toggle */}
+                <div className="absolute top-4 right-4 flex gap-1 bg-black/70 backdrop-blur-sm rounded-lg p-1 border border-slate-600">
+                  <button
+                    onClick={() => handleCameraModeChange('overview')}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                      cameraMode === 'overview'
+                        ? 'bg-cyan-500 text-black'
+                        : 'text-slate-300 hover:bg-slate-700'
+                    }`}
+                    title="Overview - Top-down view"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleCameraModeChange('chase')}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                      cameraMode === 'chase'
+                        ? 'bg-cyan-500 text-black'
+                        : 'text-slate-300 hover:bg-slate-700'
+                    }`}
+                    title="Chase Cam - Follow behind vehicle"
+                  >
+                    <Truck className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleCameraModeChange('cinematic')}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                      cameraMode === 'cinematic'
+                        ? 'bg-cyan-500 text-black'
+                        : 'text-slate-300 hover:bg-slate-700'
+                    }`}
+                    title="Cinematic - Dynamic camera"
+                  >
+                    <Video className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                {/* Progress Bar Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-800/80">
+                  <div 
+                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                
+                {/* Status Indicator */}
+                {isPlaying && (
+                  <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-red-500/50">
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-xs text-red-400 font-medium uppercase tracking-wider">Live</span>
+                  </div>
+                )}
+              </div>
 
-              {/* Info Panel */}
-              <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                <div className="space-y-1">
-                  <div className="text-xs text-gray-500 uppercase font-medium">Current Location</div>
-                  <div className="text-sm font-semibold">
+              {/* Info Panel - Gaming Style */}
+              <div className="grid grid-cols-3 gap-4 p-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-lg border border-slate-700">
+                <div className="space-y-2">
+                  <div className="text-xs text-cyan-400 uppercase font-bold tracking-wider flex items-center gap-2">
+                    <MapPin className="w-3 h-3" />
+                    Current Location
+                  </div>
+                  <div className="text-sm font-semibold text-white">
                     {currentWaypoint?.type === 'in_transit' && currentLocationName
                       ? currentLocationName
                       : (currentWaypoint?.name || 'Starting...')}
                   </div>
-                  {/* Debug: show waypoint type */}
-                  {currentWaypoint && (
-                    <div className="text-xs text-purple-500">[Type: {currentWaypoint.type}]</div>
-                  )}
                   {currentWaypoint && currentWaypoint.type === 'in_transit' && (
-                    <div className="text-xs text-blue-600 flex items-center gap-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div className="text-xs text-cyan-400 flex items-center gap-1">
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
                       In transit
                     </div>
                   )}
                   {currentWaypoint && currentWaypoint.type === 'delivery_stop' && (
-                    <div className="text-xs text-green-600 font-semibold flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <div className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
                       {currentWaypoint.quantity_to_deliver 
                         ? `Offloading ${currentWaypoint.quantity_to_deliver.toFixed(2)} tonnes`
                         : 'Servicing stop...'}
                     </div>
                   )}
                   {currentWaypoint && currentWaypoint.type === 'in_transit' && nextWaypoint?.quantity_to_deliver && (
-                    <div className="text-xs text-gray-600">{nextWaypoint.quantity_to_deliver.toFixed(2)} tonnes to deliver at next stop</div>
+                    <div className="text-xs text-slate-400">{nextWaypoint.quantity_to_deliver.toFixed(2)} tonnes to deliver</div>
                   )}
                   {currentWaypoint && currentWaypoint.type === 'warehouse' && (
-                    <div className="text-xs text-amber-600 font-semibold flex items-center gap-1">
-                      <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                    <div className="text-xs text-amber-400 font-semibold flex items-center gap-1">
+                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
                       Preparing for departure
                     </div>
                   )}
                   {currentWaypoint && currentWaypoint.type === 'warehouse_return' && (
-                    <div className="text-xs text-green-600 font-semibold flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
                       ✓ Returned to warehouse
                     </div>
                   )}
                 </div>
-                <div className="space-y-1">
-                  <div className="text-xs text-gray-500 uppercase font-medium">Next Stop</div>
+                <div className="space-y-2 border-l border-r border-slate-700 px-4">
+                  <div className="text-xs text-cyan-400 uppercase font-bold tracking-wider flex items-center gap-2">
+                    <Truck className="w-3 h-3" />
+                    Next Stop
+                  </div>
                   {progress >= 100 ? (
-                    <div className="text-sm font-semibold text-green-600">🎉 Simulation Complete!</div>
+                    <div className="text-sm font-bold text-emerald-400">🎉 Mission Complete!</div>
                   ) : nextWaypoint ? (
                     <>
-                      <div className="text-sm font-semibold">{nextWaypoint.name}</div>
+                      <div className="text-sm font-semibold text-white">{nextWaypoint.name}</div>
                       {nextWaypoint.quantity_to_deliver && (
-                        <div className="text-xs text-gray-600">{nextWaypoint.quantity_to_deliver.toFixed(2)} tonnes</div>
+                        <div className="text-xs text-slate-400">{nextWaypoint.quantity_to_deliver.toFixed(2)} tonnes</div>
                       )}
                       {etaToNextStop !== null && (
-                        <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                        <div className="text-xs text-amber-400 font-mono font-bold flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           ETA: {formatTime(etaToNextStop)}
                         </div>
                       )}
                       {distanceToNextStop !== null && distanceToNextStop > 0 && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-slate-500">
                           {distanceToNextStop.toFixed(1)} km away
                         </div>
                       )}
                     </>
                   ) : (
-                    <div className="text-sm font-semibold text-gray-400">End of route</div>
+                    <div className="text-sm font-semibold text-slate-500">End of route</div>
                   )}
                 </div>
-                <div className="space-y-1">
-                  <div className="text-xs text-gray-500 uppercase font-medium">Progress</div>
-                  <div className="text-sm font-semibold">{progress.toFixed(1)}%</div>
-                  <div className="text-xs text-gray-600">
+                <div className="space-y-2">
+                  <div className="text-xs text-cyan-400 uppercase font-bold tracking-wider flex items-center gap-2">
+                    <Clock className="w-3 h-3" />
+                    Progress
+                  </div>
+                  <div className="text-2xl font-mono font-bold text-white tabular-nums">{progress.toFixed(1)}%</div>
+                  <div className="text-xs text-slate-400 font-mono">
                     {formatTime(currentTime)} / {formatTime(getEffectiveTotalDuration())}
                   </div>
                   {progress >= 100 && (
-                    <div className="text-xs text-green-600 font-semibold">All deliveries completed</div>
+                    <div className="text-xs text-emerald-400 font-bold">All deliveries completed</div>
                   )}
                 </div>
               </div>
 
-              {/* Controls */}
-              <div className="flex items-center gap-4 p-4 bg-white border rounded-lg">
-                <Button variant="outline" size="sm" onClick={handlePlayPause} className="w-24">
+              {/* Controls - Gaming Style */}
+              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700 rounded-lg">
+                <Button 
+                  onClick={handlePlayPause} 
+                  className={`w-28 font-bold transition-all ${
+                    isPlaying 
+                      ? 'bg-amber-500 hover:bg-amber-600 text-black' 
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-black'
+                  }`}
+                >
                   {isPlaying ? (
                     <>
                       <Pause className="w-4 h-4 mr-2" />
-                      Pause
+                      PAUSE
                     </>
                   ) : (
                     <>
                       <Play className="w-4 h-4 mr-2" />
-                      Play
+                      START
                     </>
                   )}
                 </Button>
 
-                <Button variant="outline" size="sm" onClick={handleReset}>
+                <Button 
+                  onClick={handleReset}
+                  className="bg-slate-700 hover:bg-slate-600 text-white border border-slate-600"
+                >
                   <RotateCcw className="w-4 h-4 mr-2" />
-                  Reset
+                  RESET
                 </Button>
 
-                <div className="flex-1 flex items-center gap-3">
-                  <span className="text-sm text-gray-600">Speed:</span>
+                <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
+                  <span className="text-xs text-cyan-400 uppercase font-bold tracking-wider">Speed:</span>
                   <div className="flex-1">
                     <Slider
                       value={[speed]}
                       onValueChange={handleSpeedChange}
-                      min={60}
+                      min={5}
                       max={600}
-                      step={60}
-                      className="w-full"
+                      step={5}
+                      className="w-full [&_[role=slider]]:bg-cyan-400 [&_[role=slider]]:border-cyan-500"
                     />
                   </div>
-                  <span className="text-sm font-medium text-gray-700 w-20">{speed}x</span>
+                  <span className="text-lg font-mono font-bold text-cyan-400 w-16 tabular-nums">{speed}x</span>
                 </div>
 
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin className="w-4 h-4" />
-                  {simulationData.simulation_config.total_stops} stops
+                <div className="flex items-center gap-2 text-sm text-slate-300 bg-slate-800/50 px-3 py-2 rounded-lg border border-slate-700">
+                  <MapPin className="w-4 h-4 text-emerald-400" />
+                  <span className="font-mono font-bold">{simulationData.simulation_config.total_stops}</span>
+                  <span className="text-slate-500">stops</span>
                 </div>
 
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  {simulationData.simulation_config.total_distance_km.toFixed(1)} km
+                <div className="flex items-center gap-2 text-sm text-slate-300 bg-slate-800/50 px-3 py-2 rounded-lg border border-slate-700">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span className="font-mono font-bold">{simulationData.simulation_config.total_distance_km.toFixed(1)}</span>
+                  <span className="text-slate-500">km</span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-96 text-gray-500">
+            <div className="flex items-center justify-center h-96">
               <div className="text-center">
-                <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <p>No simulation data available</p>
+                <div className="p-4 bg-slate-800/50 rounded-full mb-4 mx-auto w-fit">
+                  <MapPin className="w-16 h-16 text-slate-600" />
+                </div>
+                <p className="text-slate-500 font-medium">No simulation data available</p>
+                <p className="text-slate-600 text-sm mt-1">Please select a valid route to simulate</p>
               </div>
             </div>
           )}

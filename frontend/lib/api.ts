@@ -46,6 +46,23 @@ interface RouteData {
   }>;
 }
 
+interface SimulationWaypoint {
+  id: string;
+  type: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  sequence: number;
+  arrival_time_seconds: number;
+  departure_time_seconds: number;
+  service_time_seconds: number;
+  cumulative_distance_km: number;
+  icon: string;
+  description: string;
+  quantity_to_deliver?: number;
+}
+
 // Create axios instance with default config
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -801,7 +818,7 @@ export const routeAPI = {
     return response.data;
   },
 
-  getSimulationStatus: async (routeId: string, waypoints: any[], elapsedSeconds: number, totalDurationSeconds: number) => {
+  getSimulationStatus: async (routeId: string, waypoints: SimulationWaypoint[], elapsedSeconds: number, totalDurationSeconds: number) => {
     const response = await api.post(`/routes/routes/${routeId}/simulation_status/`, {
       waypoints,
       elapsed_seconds: elapsedSeconds,

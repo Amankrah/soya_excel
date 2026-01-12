@@ -304,17 +304,28 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     }
   }, []);
 
-  // Setup route visualization when data is loaded
+  // Load route directions first (separate effect)
+  useEffect(() => {
+    if (!simulationData || !map3DReady) return;
+
+    loadRouteDirections();
+  }, [simulationData, map3DReady, loadRouteDirections]);
+
+  // Setup route visualization when data is loaded AND directions are ready
   useEffect(() => {
     if (!simulationData || !map3DElementRef.current || !map3DReady || !googleRef.current) return;
+    if (directionsPath.length === 0) return; // Wait for directions to load
+
+    // Prevent duplicate setup
+    if (polyline3DRef.current) {
+      console.log('Route already set up, skipping...');
+      return;
+    }
 
     const setupRoute = async () => {
       try {
         const googleMaps = googleRef.current!;
         const map3D = map3DElementRef.current;
-
-        // Load route directions from Google Maps for realistic road path
-        await loadRouteDirections();
 
         // Import 3D libraries following Google's official pattern
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -325,15 +336,12 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
         markers3DRef.current = [];
         polyline3DRef.current = null;
 
-        // Use directions path (actual road path) if available, otherwise use waypoints
-        const coords = pathCoordsRef.current.length > 0
-          ? pathCoordsRef.current.map(c => ({ lat: c.lat, lng: c.lng }))
-          : simulationData.waypoints.map(wp => ({ lat: wp.latitude, lng: wp.longitude }));
+        console.log('Creating polyline with', directionsPath.length, 'coordinates');
 
         // Create 3D polyline for the route following Google's pattern
-        if (Polyline3DInteractiveElement) {
+        if (Polyline3DInteractiveElement && directionsPath.length > 0) {
           const polyline = new Polyline3DInteractiveElement({
-            path: coords, // Use 'path' property as per latest API
+            path: directionsPath, // Use 'path' property (coordinates is deprecated)
             strokeColor: '#10B981',
             outerColor: 'white',
             strokeWidth: 10,
@@ -343,6 +351,9 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
           });
           map3D.append(polyline);
           polyline3DRef.current = polyline;
+          console.log('Polyline created and appended to map');
+        } else {
+          console.warn('Cannot create polyline:', { hasElement: !!Polyline3DInteractiveElement, coordsCount: directionsPath.length });
         }
 
         // Create 3D markers for waypoints
@@ -387,7 +398,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
             background: '#3b82f6',
             borderColor: '#1d4ed8',
             glyphColor: 'white',
-            glyph: '🚛', // Truck emoji - visible and reliable
+            glyphText: '🚛', // Truck emoji - visible and reliable
             scale: 1.5,
           });
 
@@ -419,7 +430,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     };
 
     setupRoute();
-  }, [simulationData, map3DReady, loadRouteDirections]);
+  }, [simulationData, map3DReady, directionsPath]);
 
   // Initialize map when modal opens and simulation data is loaded
   useEffect(() => {

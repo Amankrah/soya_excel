@@ -201,13 +201,20 @@ export function getGoogleMapsLoader(): Loader {
 export async function loadGoogleMaps(): Promise<typeof google> {
   try {
     // Check if already loaded
-    if (typeof globalThis.google !== 'undefined' && globalThis.google.maps) {
+    if (typeof globalThis.google !== 'undefined' && globalThis.google.maps?.Map) {
       return globalThis.google;
     }
     
     const loader = getGoogleMapsLoader();
-    const google = await loader.load();
-    return google;
+    
+    // Use importLibrary for proper loading with the new API
+    // This ensures all required libraries are loaded
+    await loader.importLibrary('maps');
+    await loader.importLibrary('geometry');
+    await loader.importLibrary('marker');
+    
+    // Return the global google namespace after libraries are loaded
+    return globalThis.google;
     
   } catch (error) {
     console.error('Google Maps loading failed:', error);
