@@ -11,6 +11,7 @@ type User = {
   first_name?: string;
   last_name?: string;
   role?: string;
+  mfa_enabled?: boolean;
 };
 
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,6 @@ import {
   LayoutDashboard,
   Users,
   Package,
-  Settings,
   LogOut,
   Menu,
   Navigation2,
@@ -35,10 +35,16 @@ import {
   Radio,
   ChevronRight,
   ExternalLink,
+  Lock,
+  Shield,
+  ShieldOff,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { MFASetupModal } from '@/components/auth/mfa-setup-modal';
+import { MFADisableModal } from '@/components/auth/mfa-disable-modal';
+import { PasswordChangeModal } from '@/components/auth/password-change-modal';
 
 // Soya Excel Core Values from https://soyaexcel.com/en/values/
 const coreValues = [
@@ -93,7 +99,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentValueIndex, setCurrentValueIndex] = useState(0);
-  const { user, logout } = useAuthStore();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showMFASetupModal, setShowMFASetupModal] = useState(false);
+  const [showMFADisableModal, setShowMFADisableModal] = useState(false);
+  const { user, logout, checkAuth } = useAuthStore();
 
   // Cycle through core values every 5 seconds
   useEffect(() => {
@@ -107,6 +116,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = async () => {
     await logout();
     router.push('/login');
+  };
+
+  const handleSecuritySuccess = async () => {
+    // Refresh user data to get updated MFA status
+    await checkAuth();
   };
 
   const getInitials = (name: string) => {
@@ -371,13 +385,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="my-2" />
-                  <DropdownMenuItem className="hover:bg-gray-100 rounded-xl p-3 cursor-pointer">
-                    <Settings className="mr-3 h-4 w-4 text-gray-500" />
-                    <span className="font-medium">Settings</span>
+
+                  {/* Security Settings */}
+                  <div className="px-2 py-1">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Security</p>
+                  </div>
+
+                  <DropdownMenuItem
+                    onClick={() => setShowPasswordModal(true)}
+                    className="hover:bg-blue-50 rounded-xl p-3 cursor-pointer"
+                  >
+                    <Lock className="mr-3 h-4 w-4 text-blue-600" />
+                    <span className="font-medium">Change Password</span>
                   </DropdownMenuItem>
+
+                  {user?.mfa_enabled ? (
+                    <DropdownMenuItem
+                      onClick={() => setShowMFADisableModal(true)}
+                      className="hover:bg-red-50 rounded-xl p-3 cursor-pointer"
+                    >
+                      <ShieldOff className="mr-3 h-4 w-4 text-red-600" />
+                      <div className="flex items-center justify-between flex-1">
+                        <span className="font-medium">Disable MFA</span>
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">
+                          Active
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => setShowMFASetupModal(true)}
+                      className="hover:bg-green-50 rounded-xl p-3 cursor-pointer"
+                    >
+                      <Shield className="mr-3 h-4 w-4 text-green-600" />
+                      <span className="font-medium">Enable MFA</span>
+                    </DropdownMenuItem>
+                  )}
+
                   <DropdownMenuSeparator className="my-2" />
-                  <DropdownMenuItem 
-                    onClick={handleLogout} 
+                  <DropdownMenuItem
+                    onClick={handleLogout}
                     className="hover:bg-red-50 text-red-600 rounded-xl p-3 cursor-pointer"
                   >
                     <LogOut className="mr-3 h-4 w-4" />
@@ -405,6 +452,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </main>
       </div>
+
+      {/* Security Modals */}
+      {showPasswordModal && (
+        <PasswordChangeModal
+          onClose={() => setShowPasswordModal(false)}
+          onSuccess={handleSecuritySuccess}
+        />
+      )}
+
+      {showMFASetupModal && (
+        <MFASetupModal
+          onClose={() => setShowMFASetupModal(false)}
+          onSuccess={handleSecuritySuccess}
+        />
+      )}
+
+      {showMFADisableModal && (
+        <MFADisableModal
+          onClose={() => setShowMFADisableModal(false)}
+          onSuccess={handleSecuritySuccess}
+        />
+      )}
     </div>
   );
 }

@@ -8,7 +8,10 @@ interface User {
   email?: string;
   first_name?: string;
   last_name?: string;
+  full_name?: string;
   role?: string;
+  is_manager?: boolean;
+  mfa_enabled?: boolean;
 }
 
 interface AuthState {
@@ -16,11 +19,15 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  mfaRequired: boolean;
+  mfaUsername: string | null;
+  login: (username: string, password: string) => Promise<{mfaRequired?: boolean; message?: string}>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
+  setMFARequired: (required: boolean, username?: string) => void;
+  clearMFA: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -30,6 +37,8 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
       isLoading: true,
+      mfaRequired: false,
+      mfaUsername: null,
 
       checkAuth: async () => {
         set({ isLoading: true });
@@ -78,6 +87,19 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await authAPI.login(username, password);
 
+          // Check if MFA is required
+          if (response.mfa_required) {
+            set({
+              mfaRequired: true,
+              mfaUsername: response.username || username,
+              isLoading: false,
+            });
+            return {
+              mfaRequired: true,
+              message: response.message || 'Please provide your MFA code'
+            };
+          }
+
           // Store token in localStorage (also handled by API interceptor)
           if (response.access || response.token) {
             const token = response.access || response.token;
@@ -91,8 +113,12 @@ export const useAuthStore = create<AuthState>()(
               token,
               isAuthenticated: true,
               isLoading: false,
+              mfaRequired: false,
+              mfaUsername: null,
             });
           }
+
+          return {};
         } catch (error) {
           console.error('Login failed:', error);
           throw error;
@@ -119,6 +145,8 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setToken: (token) => set({ token, isAuthenticated: !!token }),
+      setMFARequired: (required, username) => set({ mfaRequired: required, mfaUsername: username }),
+      clearMFA: () => set({ mfaRequired: false, mfaUsername: null }),
     }),
     {
       name: 'auth-storage',

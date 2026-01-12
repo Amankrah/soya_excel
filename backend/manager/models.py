@@ -11,12 +11,16 @@ class Manager(models.Model):
     phone_number = models.CharField(max_length=20)
     email = models.EmailField()
     department = models.CharField(max_length=100, default="Supply & Logistics")
-    
+
     # Soya Excel specific roles
     can_approve_plans = models.BooleanField(default=False, help_text="Can approve distribution plans")
     can_manage_contracts = models.BooleanField(default=False, help_text="Can manage long-term contracts")
     managed_provinces = models.JSONField(default=list, help_text="List of provinces this manager oversees")
-    
+
+    # Multi-Factor Authentication (MFA) fields
+    mfa_enabled = models.BooleanField(default=False, help_text="Whether MFA is enabled for this manager")
+    mfa_secret = models.CharField(max_length=32, blank=True, default='', help_text="TOTP secret key for MFA")
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

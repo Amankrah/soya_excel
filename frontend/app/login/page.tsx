@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuthStore } from '@/lib/store';
 import { useAuth } from '@/lib/hooks/useAuth';
 import Image from 'next/image';
-import { Leaf, Lock, User, ArrowRight, Truck, MapPin, BarChart3 } from 'lucide-react';
+import { Leaf, Lock, User, ArrowRight, Truck, MapPin, BarChart3, Shield, ArrowLeft } from 'lucide-react';
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -26,7 +26,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { isLoading: authLoading } = useAuth(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
   const login = useAuthStore((state) => state.login);
+  const mfaRequired = useAuthStore((state) => state.mfaRequired);
+  const mfaUsername = useAuthStore((state) => state.mfaUsername);
+  const clearMFA = useAuthStore((state) => state.clearMFA);
 
   const {
     register,
@@ -34,12 +38,22 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: '',
+      password: '',
+    },
   });
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      await login(data.username, data.password);
+      const result = await login(data.username, data.password);
+
+      if (result.mfaRequired) {
+        toast.success(result.message || 'Please enter your MFA code');
+        return;
+      }
+
       toast.success('Welcome back!');
       router.push('/dashboard');
     } catch (error) {
@@ -48,6 +62,43 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const onMFASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaCode || mfaCode.length !== 6) {
+      toast.error('Please enter a valid 6-digit code');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { authAPI } = await import('@/lib/api');
+      const response = await authAPI.verifyMFALogin(mfaUsername!, mfaCode);
+
+      // Store token
+      const token = response.access || response.token;
+      localStorage.setItem('authToken', token);
+
+      // Update store
+      const { setUser, setToken } = useAuthStore.getState();
+      setUser(response.user);
+      setToken(token);
+      clearMFA();
+
+      toast.success('Welcome back!');
+      router.push('/dashboard');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid MFA code';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBackToLogin = () => {
+    clearMFA();
+    setMfaCode('');
   };
 
   if (authLoading) {
@@ -157,16 +208,72 @@ export default function LoginPage() {
           <Card className="soya-card-glass border-0 shadow-2xl soya-scale-in">
             <CardHeader className="text-center pb-2 pt-8">
               <div className="mx-auto w-12 h-12 rounded-xl bg-gradient-to-br from-green-600 to-green-700 flex items-center justify-center mb-4 shadow-lg shadow-green-600/30">
-                <Lock className="h-6 w-6 text-white" />
+                {mfaRequired ? <Shield className="h-6 w-6 text-white" /> : <Lock className="h-6 w-6 text-white" />}
               </div>
-              <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
+              <CardTitle className="text-2xl font-bold text-gray-900">
+                {mfaRequired ? 'Two-Factor Authentication' : 'Welcome Back'}
+              </CardTitle>
               <CardDescription className="text-gray-600">
-                Sign in to access your management dashboard
+                {mfaRequired
+                  ? 'Enter the 6-digit code from your authenticator app'
+                  : 'Sign in to access your management dashboard'
+                }
               </CardDescription>
             </CardHeader>
-            
+
             <CardContent className="p-8 pt-6">
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+              {mfaRequired ? (
+                <form onSubmit={onMFASubmit} className="space-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="mfaCode" className="text-gray-700 font-medium flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-gray-400" />
+                      Authentication Code
+                    </Label>
+                    <Input
+                      id="mfaCode"
+                      type="text"
+                      placeholder="Enter 6-digit code"
+                      className="soya-input h-12 text-center text-2xl tracking-widest"
+                      value={mfaCode}
+                      onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      maxLength={6}
+                      disabled={isLoading}
+                      autoFocus
+                    />
+                    <p className="text-xs text-gray-500 text-center">
+                      Check your authenticator app for the code
+                    </p>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full soya-button-primary h-12 text-base"
+                    disabled={isLoading || mfaCode.length !== 6}
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="soya-spinner w-5 h-5 border-2"></div>
+                        <span>Verifying...</span>
+                      </div>
+                    ) : (
+                      'Verify & Sign In'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-12"
+                    onClick={handleBackToLogin}
+                    disabled={isLoading}
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Login
+                  </Button>
+                </form>
+              ) : (
+                <>
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="username" className="text-gray-700 font-medium flex items-center gap-2">
                     <User className="h-4 w-4 text-gray-400" />
@@ -246,6 +353,8 @@ export default function LoginPage() {
                 <div className="w-3 h-3 bg-yellow-400 rounded-full shadow-sm shadow-yellow-400/50"></div>
                 <div className="w-3 h-3 bg-gray-900 rounded-full"></div>
               </div>
+              </>
+              )}
             </CardContent>
           </Card>
 

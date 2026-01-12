@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 // Type definitions for Soya Excel
 interface WeeklyDistributionPlanData {
@@ -112,6 +112,34 @@ export const authAPI = {
   },
   getCurrentUser: async () => {
     const response = await api.get('/auth/user/');
+    return response.data;
+  },
+
+  // Password management
+  changePassword: async (oldPassword: string, newPassword: string, confirmPassword: string) => {
+    const response = await api.post('/auth/change-password/', {
+      old_password: oldPassword,
+      new_password: newPassword,
+      confirm_password: confirmPassword
+    });
+    return response.data;
+  },
+
+  // MFA management
+  setupMFA: async () => {
+    const response = await api.post('/auth/mfa/setup/');
+    return response.data;
+  },
+  verifyMFASetup: async (code: string) => {
+    const response = await api.post('/auth/mfa/verify-setup/', { code });
+    return response.data;
+  },
+  disableMFA: async (password: string) => {
+    const response = await api.post('/auth/mfa/disable/', { password });
+    return response.data;
+  },
+  verifyMFALogin: async (username: string, code: string) => {
+    const response = await api.post('/auth/mfa/verify-login/', { username, code });
     return response.data;
   },
 };

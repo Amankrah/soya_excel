@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { routeAPI, productAPI } from '@/lib/api';
+import { routeAPI, productAPI, API_BASE_URL } from '@/lib/api';
 import { AxiosError } from 'axios';
 import { toast } from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -239,7 +239,7 @@ export function RouteManagement() {
       const [routesData, clientsResponse, productsData] = await Promise.all([
         routeAPI.getRoutes(),
         // Use the custom available_clients endpoint that returns all geocoded clients without pagination
-        fetch('http://localhost:8000/api/routes/routes/available_clients/', {
+        fetch(`${API_BASE_URL}/routes/routes/available_clients/`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json',
@@ -297,7 +297,7 @@ export function RouteManagement() {
   useEffect(() => {
     const fetchDatesWithRoutes = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/routes/routes/dates_with_routes/', {
+        const response = await fetch(`${API_BASE_URL}/routes/routes/dates_with_routes/`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json',
@@ -425,7 +425,7 @@ export function RouteManagement() {
 
           if (stopToRemove) {
             try {
-              await fetch(`http://localhost:8000/api/routes/routes/${editingRoute.id}/remove_stop/`, {
+              await fetch(`${API_BASE_URL}/routes/routes/${editingRoute.id}/remove_stop/`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -446,7 +446,7 @@ export function RouteManagement() {
         for (const clientId of clientsToAdd) {
           try {
             const details = editClientDeliveryDetails.get(clientId);
-            await fetch(`http://localhost:8000/api/routes/routes/${editingRoute.id}/insert_stop/`, {
+            await fetch(`${API_BASE_URL}/routes/routes/${editingRoute.id}/insert_stop/`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('authToken')}`,

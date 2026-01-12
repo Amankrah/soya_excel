@@ -131,6 +131,9 @@ class RouteSimulationService:
                 service_time = (stop.estimated_service_time or 30) * 60  # Convert to seconds
                 departure_time = arrival_time + service_time
 
+                # Calculate segment distance for speed calculation
+                segment_distance = float(stop.distance_from_previous) if stop.distance_from_previous else 0
+                
                 # Add stop waypoint
                 waypoints.append({
                     'id': f'stop_{stop.id}',
@@ -146,6 +149,8 @@ class RouteSimulationService:
                     'departure_time_seconds': departure_time,
                     'service_time_seconds': service_time,
                     'cumulative_distance_km': cumulative_distance,
+                    'segment_distance_km': segment_distance,  # Distance from previous stop (for speed calc)
+                    'segment_duration_seconds': segment_travel_time,  # Travel time from previous (Google ETA)
                     'icon': 'delivery',
                     'quantity_to_deliver': float(stop.quantity_to_deliver) if stop.quantity_to_deliver else None,
                     'delivery_method': stop.delivery_method,
@@ -256,6 +261,7 @@ class RouteSimulationService:
                 'simulation_config': {
                     'speed_multiplier': simulation_speed,
                     'total_real_duration_seconds': total_duration_seconds,
+                    'total_travel_time_seconds': total_travel_time_seconds,  # Excludes service time
                     'total_simulation_duration_seconds': adjusted_total_duration,
                     'total_distance_km': final_total_distance,
                     'total_stops': stops.count(),

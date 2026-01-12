@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -80,7 +81,7 @@ export function OrderManagement() {
         params.append('search', searchQuery);
       }
 
-      const response = await fetch(`http://localhost:8000/api/clients/orders/statistics/?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}/clients/orders/statistics/?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json',
@@ -117,7 +118,7 @@ export function OrderManagement() {
         params.append('search', searchQuery);
       }
 
-      const response = await fetch(`http://localhost:8000/api/clients/orders/?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}/clients/orders/?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json',

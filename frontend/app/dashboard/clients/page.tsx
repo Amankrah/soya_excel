@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Loading } from '@/components/ui/loading';
 import DashboardLayout from '@/components/layout/dashboard-layout';
-import { clientAPI } from '@/lib/api';
+import { clientAPI, API_BASE_URL } from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import {
   Card,
@@ -41,7 +41,6 @@ import {
   Clock, 
   ChevronLeft, 
   ChevronRight, 
-  Info,
   Sparkles,
   RefreshCw,
   Eye,
@@ -158,7 +157,7 @@ export default function ClientsPage() {
         }
       }
 
-      const response = await fetch(`http://localhost:8000/api/clients/clients/?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}/clients/clients/?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json',
@@ -688,9 +687,12 @@ export default function ClientsPage() {
                         toast.success('Prediction updated successfully');
                         fetchClients();
                         setIsDetailOpen(false);
-                      } catch (error: any) {
+                      } catch (error: unknown) {
                         console.error('Error updating prediction:', error);
-                        const errorMessage = error?.response?.data?.error || 'Failed to update prediction';
+                        const errorMessage = 
+                          (error && typeof error === 'object' && 'response' in error) 
+                            ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update prediction'
+                            : 'Failed to update prediction';
                         toast.error(errorMessage);
                       }
                     }}

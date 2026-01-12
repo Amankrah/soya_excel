@@ -29,6 +29,8 @@ interface Waypoint {
   departure_time_seconds: number;
   service_time_seconds: number;
   cumulative_distance_km: number;
+  segment_distance_km?: number;  // Distance from previous stop (Google Maps)
+  segment_duration_seconds?: number;  // Travel time from previous stop (Google ETA)
   icon: string;
   description: string;
   quantity_to_deliver?: number;
@@ -42,6 +44,7 @@ interface SimulationData {
   simulation_config: {
     speed_multiplier: number;
     total_real_duration_seconds: number;
+    total_travel_time_seconds?: number;  // Travel time only (excludes service time)
     total_simulation_duration_seconds: number;
     total_distance_km: number;
     total_stops: number;
@@ -586,39 +589,41 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
             }
           }
 
-          // Calculate segment speed (distance / time for this segment)
-          // Using REAL time values from backend (not scaled by simulation speed)
-          // Speed = distance_km / time_hours = km/h (real-world speed)
-          const segmentDistanceKm = nextWp.cumulative_distance_km - wp.cumulative_distance_km;
-          const segmentTimeSeconds = nextWp.arrival_time_seconds - wp.departure_time_seconds;
+          // Calculate segment speed using Google Maps data
+          // Speed = segment_distance_km / segment_duration_hours (real-world speed from Google)
+          // The simulation speed multiplier only affects animation speed, NOT displayed vehicle speed
+          
+          // Try to get segment-specific data first (from Google Maps via backend)
+          const segmentDistanceKm = nextWp.segment_distance_km || 
+            (nextWp.cumulative_distance_km - wp.cumulative_distance_km);
+          const segmentTimeSeconds = nextWp.segment_duration_seconds || 
+            (nextWp.arrival_time_seconds - wp.departure_time_seconds);
           const segmentTimeHours = segmentTimeSeconds / 3600;
           
           let segmentSpeedKmh = 0;
           
           if (segmentTimeHours > 0 && segmentDistanceKm > 0) {
-            // Best case: we have both distance and time for this segment
+            // Best case: we have both distance and time from Google Maps
             segmentSpeedKmh = Math.round(segmentDistanceKm / segmentTimeHours);
           } else if (segmentTimeHours > 0) {
-            // Fallback: segment distance is 0 but we have time
-            // Use average route speed (total_distance / total_time)
+            // Fallback: no segment distance, use average route speed
+            // Average speed = total_distance / total_travel_time (excludes service time at stops)
             const totalDistanceKm = simulationData.simulation_config.total_distance_km;
-            const totalTimeSeconds = simulationData.simulation_config.total_real_duration_seconds;
-            if (totalTimeSeconds > 0 && totalDistanceKm > 0) {
-              // Calculate average speed for entire route
-              const avgSpeedKmh = (totalDistanceKm / totalTimeSeconds) * 3600;
+            // Use travel time only (excludes service time) for accurate speed
+            const totalTravelSeconds = simulationData.simulation_config.total_travel_time_seconds || 
+              simulationData.simulation_config.total_real_duration_seconds;
+            if (totalTravelSeconds > 0 && totalDistanceKm > 0) {
+              const avgSpeedKmh = (totalDistanceKm / totalTravelSeconds) * 3600;
               segmentSpeedKmh = Math.round(avgSpeedKmh);
             } else {
-              // Default highway speed as last resort
-              segmentSpeedKmh = 85;
+              segmentSpeedKmh = 85; // Default highway speed
             }
           } else {
-            // No time data - use default
-            segmentSpeedKmh = 85;
+            segmentSpeedKmh = 85; // Default if no time data
           }
           
-          // Store speed for display (this is real-world speed, unaffected by simulation multiplier)
+          // Store and display speed (real-world km/h, unaffected by simulation multiplier)
           currentSegmentSpeedRef.current = segmentSpeedKmh;
-          // Also set it directly here to ensure it's updated
           setCurrentSpeed(segmentSpeedKmh);
 
           // Create a placeholder waypoint for in-transit display

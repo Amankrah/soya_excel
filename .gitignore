@@ -1,8 +1,86 @@
-# Python
+# =============================================================================
+# Sasel Lab - .gitignore
+# =============================================================================
+# This file prevents sensitive, generated, and unnecessary files from being
+# committed to the repository.
+# =============================================================================
+
+# =============================================================================
+# SECURITY - CRITICAL (Never commit these!)
+# =============================================================================
+
+# Environment variables and secrets
+.env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+!.env.production.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# SSH Keys and Credentials
+*.pem
+*.key
+*.ppk
+*.crt
+*.csr
+*.pub
+id_rsa
+id_ed25519
+*.p12
+*.pfx
+sasel.pem
+sasel_key.pem
+
+# API Keys and Tokens
+secrets.json
+credentials.json
+config.secret.*
+*.secret
+
+# AWS Credentials
+.aws/
+aws-credentials*
+
+# Django secret key
+secret_key.txt
+
+# =============================================================================
+# MALWARE SIGNATURES (Block known malware patterns)
+# =============================================================================
+
+# Cryptominer artifacts
+**/xmrig*
+**/xmrig-auto/
+**/immunify360firewall*
+**/kdevtmpfsi*
+**/kinsing*
+cc.txt
+**/monero*
+**/.unix/
+**/.bin
+**/config.json.bak
+
+# Suspicious scripts
+r2.sh
+v.sh
+csf.txt
+
+# =============================================================================
+# PYTHON / DJANGO (Backend)
+# =============================================================================
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -10,198 +88,245 @@ dist/
 downloads/
 eggs/
 .eggs/
-# lib/
+lib/
 lib64/
 parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-media/
-staticfiles/
-**/migrations/*.py
-!**/migrations/__init__.py
-
-# Virtual Environment
+# Virtual environments
 venv/
 env/
 ENV/
 env.bak/
 venv.bak/
+backend/venv/
+**/venv/
+**/.venv/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Django specific
+*.log
+db.sqlite3
+db.sqlite3-journal
+backend/db.sqlite3
+backend/db.sqlite3-journal
 
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Static files (collected)
+staticfiles/
+backend/staticfiles/
 
-# Node.js
+# Media files (user uploads) - uncomment if you don't want to track
+# backend/media/
+
+# Migrations - uncomment if you want to ignore
+# **/migrations/
+
+# =============================================================================
+# NODE.JS / NEXT.JS (Frontend)
+# =============================================================================
+
+# Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-.pnpm-debug.log*
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# nyc test coverage
-.nyc_output
-
-# Grunt intermediate storage
-.grunt
-
-# Bower dependency directory
-bower_components
-
-# node-waf configuration
-.lock-wscript
-
-# Compiled binary addons
-build/Release
-
-# Dependency directories
-jspm_packages/
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# dotenv environment variables file
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# parcel-bundler cache
-.cache
-.parcel-cache
+**/node_modules/
+frontend/node_modules/
 
 # Next.js build output
 .next/
 out/
+frontend/.next/
+frontend/out/
 
-# Nuxt.js build / generate output
-.nuxt
-dist
+# Production build files
+build/
+dist/
 
-# Gatsby files
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Turbopack
+.turbo/
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Cache
+.npm/
+.eslintcache
 .cache/
-# public
 
-# Storybook build outputs
-.out
-.storybook-out
+# =============================================================================
+# DATA AND TEMPLATES
+# =============================================================================
 
-# Temporary folders
-tmp/
-temp/
+# Data templates (user requested)
+data_templates/
+
+# Database dumps
+*.sql
+*.dump
+
+# =============================================================================
+# IDEs AND EDITORS
+# =============================================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+.history/
+
+# JetBrains (PyCharm, WebStorm, IntelliJ)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Visual Studio
+.vs/
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+
+# =============================================================================
+# OPERATING SYSTEMS
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# =============================================================================
+# TESTING
+# =============================================================================
+
+# Python testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+.tox/
+.nox/
+
+#ml training
+ml_training/
+ml/
+
+
+# JavaScript testing
+coverage/
+.nyc_output/
+
+# =============================================================================
+# LOGS AND TEMPORARY FILES
+# =============================================================================
 
 # Logs
-logs
 *.log
+logs/
+log/
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
 
-# Compiled binary addons (https://nodejs.org/api/addons.html)
-build/Release
+# =============================================================================
+# DEPLOYMENT AND DOCUMENTATION
+# =============================================================================
 
-# Dependency directories
-node_modules/
+# Deployment files with sensitive info (optional - uncomment to ignore)
+# DEPLOYMENT.md
 
-# Optional npm cache directory
-.npm
+# Local scripts
+*.bat
+*.ps1
+!scripts/*.ps1
 
-# Optional REPL history
-.node_repl_history
+# =============================================================================
+# MISCELLANEOUS
+# =============================================================================
 
-# Output of 'npm pack'
-*.tgz
+# Backup files
+*.bak
+*.backup
+*.old
 
-# Yarn Integrity file
-.yarn-integrity
+# Claude artifacts
+.claude/
 
-# dotenv environment variable files
-.env*
+# Local configuration overrides
+local_settings.py
+settings_local.py
 
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
+# =============================================================================
+# KEEP THESE FILES (whitelist)
+# =============================================================================
 
-# next.js build output
-.next
+# Keep example environment files
+!.env.example
+!.env.sample
+!.env.template
+!.env.production.example
+!backend/.env.example
+!frontend/.env.example
 
-# nuxt.js build output
-.nuxt
+# Keep documentation
+!README.md
+!CONTRIBUTING.md
+!LICENSE
+!docs/**/*.md
 
-# vuepress build output
-.vuepress/dist
-
-# Serverless directories
-.serverless
-
-# FuseBox cache
-.fusebox/
-
-# DynamoDB Local files
-.dynamodb/
-
-# TernJS port file
-.tern-port
-
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test 
+# Keep the deploy script
+!soyaflow_key.sh

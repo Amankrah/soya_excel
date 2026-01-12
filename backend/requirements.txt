@@ -18,6 +18,8 @@ django-filter==24.3  # For filtering support (compatible with Django 5.1)
 
 # Authentication
 djangorestframework-simplejwt==5.3.1  # JWT authentication
+pyotp==2.9.0  # TOTP for MFA
+qrcode==8.0  # QR code generation for MFA setup
 
 # Google Maps integration
 googlemaps==4.10.0  # Google Maps API client
