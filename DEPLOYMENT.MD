@@ -639,6 +639,84 @@ deactivate
 - Password changes require current password verification
 - MFA secret keys are stored securely in the database
 
+### 3.5.2 Run Required Management Commands
+
+After migrations, run these essential management commands to set up the application:
+
+```bash
+cd /var/www/soyaflow/backend
+source venv/bin/activate
+
+# Set production settings
+export DJANGO_SETTINGS_MODULE=soya_excel_backend.production_settings
+
+# 1. Create test manager account (optional - for testing)
+python manage.py create_test_manager
+# Creates: username=testmanager, password=Pass_1234
+
+# 2. Setup primary warehouse (REQUIRED)
+python manage.py setup_warehouse
+# Creates the main Soya Excel warehouse with geocoding
+# Location: 2457 4e Rang S, Saint-Charles-sur-Richelieu, QC
+
+# 3. Geocode client addresses (REQUIRED if you have clients)
+# Note: Requires GOOGLE_MAPS_API_KEY in .env
+python manage.py geocode_client_addresses --limit 100
+# Options:
+#   --force: Re-geocode all addresses
+#   --country Canada: Only geocode specific country
+#   --limit 100: Limit number of addresses to process
+#   --async: Use async batch processing (faster)
+#   --dry-run: Show what would be processed without making changes
+
+# 4. Update AI predictions (REQUIRED for reorder predictions)
+# Note: Only works after clients and orders are loaded
+python manage.py update_predictions
+# Options:
+#   --client-id 123: Update specific client only
+#   --show-upcoming 7: Show clients expected to reorder in next N days
+#   --verbose: Show detailed failure information
+#   --clear-stale: Remove predictions that can't be updated
+
+deactivate
+```
+
+**Command Details:**
+
+1. **create_test_manager**: Creates a test manager account for initial testing
+   - Username: `testmanager`
+   - Password: `Pass_1234`
+   - Can be deleted later via Django admin
+
+2. **setup_warehouse**: Creates the primary warehouse with geocoded coordinates
+   - Required for route optimization
+   - Uses Google Maps API for geocoding
+   - Idempotent (safe to run multiple times)
+
+3. **geocode_client_addresses**: Adds GPS coordinates to client addresses
+   - Required for route planning and mapping
+   - Processes clients in batches to avoid API rate limits
+   - Recommend using `--async` flag for better performance
+   - Can resume if interrupted (only processes clients without coordinates)
+
+4. **update_predictions**: Updates AI reorder predictions for all clients
+   - Uses XGBoost ML model
+   - Model files should be in `model_deployment_xgboost/`
+   - Predictions help prioritize which clients to contact
+   - Should be run regularly (daily recommended)
+
+**Scheduling Predictions (Optional but Recommended):**
+
+Set up a cron job to update predictions daily:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line to run predictions daily at 2 AM
+0 2 * * * cd /var/www/soyaflow/backend && source venv/bin/activate && DJANGO_SETTINGS_MODULE=soya_excel_backend.production_settings python manage.py update_predictions --clear-stale >> /var/log/soyaflow-predictions.log 2>&1
+```
+
 ### 3.6 Build Frontend
 
 ```bash

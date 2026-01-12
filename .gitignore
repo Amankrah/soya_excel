@@ -256,9 +256,6 @@ htmlcov/
 .tox/
 .nox/
 
-#ml training
-ml_training/
-ml/
 
 
 # JavaScript testing
