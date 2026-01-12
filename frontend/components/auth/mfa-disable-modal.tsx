@@ -43,9 +43,11 @@ export function MFADisableModal({ onClose, onSuccess }: MFADisableModalProps) {
         }
         onClose();
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error disabling MFA:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to disable MFA';
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to disable MFA'
+        : 'Failed to disable MFA';
       toast.error(errorMessage);
       setError(errorMessage);
     } finally {

@@ -35,12 +35,15 @@ export function PredictionUpdateModal({ onClose, onSuccess }: PredictionUpdateMo
       } else {
         toast.error(response.message || 'Failed to update predictions');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating predictions:', error);
-      toast.error(error.response?.data?.message || 'Failed to update predictions');
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to update predictions'
+        : 'Failed to update predictions';
+      toast.error(errorMessage);
       setResult({
         status: 'error',
-        message: error.response?.data?.message || 'Failed to update predictions'
+        message: errorMessage
       });
     } finally {
       setUpdating(false);

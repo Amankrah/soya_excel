@@ -29,9 +29,12 @@ export function MFASetupModal({ onClose, onSuccess }: MFASetupModalProps) {
       setQrCode(response.qr_code);
       setSecret(response.secret);
       setStep('qr');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error setting up MFA:', error);
-      toast.error(error.response?.data?.error || 'Failed to setup MFA');
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to setup MFA'
+        : 'Failed to setup MFA';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -56,9 +59,12 @@ export function MFASetupModal({ onClose, onSuccess }: MFASetupModalProps) {
         }
         onClose();
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error verifying MFA:', error);
-      toast.error(error.response?.data?.error || 'Invalid verification code');
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Invalid verification code'
+        : 'Invalid verification code';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -91,9 +97,9 @@ export function MFASetupModal({ onClose, onSuccess }: MFASetupModalProps) {
                     <p className="font-medium mb-2">What is Two-Factor Authentication?</p>
                     <p className="mb-3">
                       Two-Factor Authentication (2FA) adds an extra layer of security to your account.
-                      After entering your password, you'll need to enter a 6-digit code from your authenticator app.
+                      After entering your password, you&apos;ll need to enter a 6-digit code from your authenticator app.
                     </p>
-                    <p className="font-medium mb-1">You'll need:</p>
+                    <p className="font-medium mb-1">You&apos;ll need:</p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>An authenticator app (Google Authenticator, Authy, Microsoft Authenticator, etc.)</li>
                       <li>Your smartphone or tablet</li>
@@ -108,7 +114,7 @@ export function MFASetupModal({ onClose, onSuccess }: MFASetupModalProps) {
                   <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
                   <div className="text-sm text-yellow-800">
                     <p className="font-medium mb-1">Important:</p>
-                    <p>Once enabled, you'll need your authenticator app to log in. Make sure you have it installed and accessible.</p>
+                    <p>Once enabled, you&apos;ll need your authenticator app to log in. Make sure you have it installed and accessible.</p>
                   </div>
                 </div>
               </div>
@@ -162,7 +168,7 @@ export function MFASetupModal({ onClose, onSuccess }: MFASetupModalProps) {
                   )}
 
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-600 mb-2">Can't scan? Enter this key manually:</p>
+                    <p className="text-xs text-gray-600 mb-2">Can&apos;t scan? Enter this key manually:</p>
                     <code className="text-sm font-mono bg-white px-3 py-2 rounded border border-gray-200 break-all">
                       {secret}
                     </code>
@@ -266,7 +272,7 @@ export function MFASetupModal({ onClose, onSuccess }: MFASetupModalProps) {
                   Your account is now protected with two-factor authentication.
                 </p>
                 <p className="text-sm text-gray-500">
-                  You'll need your authenticator app the next time you log in.
+                  You&apos;ll need your authenticator app the next time you log in.
                 </p>
               </div>
             </div>

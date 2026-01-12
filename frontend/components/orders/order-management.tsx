@@ -13,7 +13,6 @@ import {
   Search,
   MapPin,
   TrendingUp,
-  AlertCircle,
   ChevronLeft,
   ChevronRight,
   RefreshCw,

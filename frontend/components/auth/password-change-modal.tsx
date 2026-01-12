@@ -101,9 +101,11 @@ export function PasswordChangeModal({ onClose, onSuccess }: PasswordChangeModalP
         }
         onClose();
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error changing password:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to change password';
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to change password'
+        : 'Failed to change password';
       toast.error(errorMessage);
 
       // Set specific error if it's about the old password

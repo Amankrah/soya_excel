@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Loading } from '@/components/ui/loading';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -91,42 +91,7 @@ export default function ClientsPage() {
     totalClients: 0,
   });
 
-  useEffect(() => {
-    fetchClients();
-    fetchStatistics();
-  }, [currentPage, searchTerm, filterPriority]);
-
-  // Handle filter change with page reset
-  const handleFilterChange = (newFilter: string) => {
-    if (newFilter !== filterPriority) {
-      setFilterPriority(newFilter);
-      setCurrentPage(1);
-    }
-  };
-
-  // Handle search change with page reset
-  const handleSearchChange = (newSearch: string) => {
-    setSearchTerm(newSearch);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  };
-
-  const fetchStatistics = async () => {
-    try {
-      const data = await clientAPI.getClientStatistics();
-      setStatistics({
-        urgentCount: data.predictions?.urgent || 0,
-        overdueCount: data.predictions?.overdue || 0,
-        highCount: data.predictions?.high || 0,
-        totalClients: data.total_clients || 0,
-      });
-    } catch (error) {
-      console.error('Error fetching statistics:', error);
-    }
-  };
-
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -172,6 +137,41 @@ export default function ClientsPage() {
       console.error('Error fetching clients:', error);
     } finally {
       setLoading(false);
+    }
+  }, [currentPage, searchTerm, filterPriority]);
+
+  const fetchStatistics = async () => {
+    try {
+      const data = await clientAPI.getClientStatistics();
+      setStatistics({
+        urgentCount: data.predictions?.urgent || 0,
+        overdueCount: data.predictions?.overdue || 0,
+        highCount: data.predictions?.high || 0,
+        totalClients: data.total_clients || 0,
+      });
+    } catch (error) {
+      console.error('Error fetching statistics:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchClients();
+    fetchStatistics();
+  }, [currentPage, searchTerm, filterPriority, fetchClients]);
+
+  // Handle filter change with page reset
+  const handleFilterChange = (newFilter: string) => {
+    if (newFilter !== filterPriority) {
+      setFilterPriority(newFilter);
+      setCurrentPage(1);
+    }
+  };
+
+  // Handle search change with page reset
+  const handleSearchChange = (newSearch: string) => {
+    setSearchTerm(newSearch);
+    if (currentPage !== 1) {
+      setCurrentPage(1);
     }
   };
 

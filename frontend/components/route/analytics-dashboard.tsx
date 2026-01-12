@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Loader2, 
-  TrendingUp, 
-  DollarSign, 
-  Target, 
+import {
+  TrendingUp,
+  DollarSign,
+  Target,
   Calendar,
   BarChart3,
   Users,
@@ -90,11 +89,7 @@ export function AnalyticsDashboard() {
   const [vehicleEfficiency, setVehicleEfficiency] = useState<VehicleEfficiency[]>([]);
   const [optimizationSavings, setOptimizationSavings] = useState<OptimizationSavings | null>(null);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [timeRange, rankingMetric]);
-
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     setLoading(true);
     try {
       const [weekly, drivers, vehicles, savings] = await Promise.all([
@@ -114,7 +109,11 @@ export function AnalyticsDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange, rankingMetric]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
 
   const latestWeek = weeklyData[0];
   const averageKmPerTonne = weeklyData.length > 0

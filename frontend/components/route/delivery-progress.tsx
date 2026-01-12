@@ -66,10 +66,13 @@ export function DeliveryProgress({
       const data = await routeAPI.getDeliveryProgress(routeId);
       setProgressData(data);
       setLastUpdate(new Date());
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error loading progress data:', error);
-      if (error.response?.data?.error) {
-        toast.error(error.response.data.error);
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined;
+      if (errorMessage) {
+        toast.error(errorMessage);
       } else if (showLoader) {
         toast.error('Failed to load delivery progress');
       }
@@ -282,7 +285,7 @@ export function DeliveryProgress({
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {progressData.completed_stops_details.map((stop, index) => (
+              {progressData.completed_stops_details.map((stop) => (
                 <div
                   key={stop.id}
                   className="flex items-start gap-3 pb-3 border-b last:border-b-0"
