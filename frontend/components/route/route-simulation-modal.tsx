@@ -86,7 +86,8 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
   const [etaToNextStop, setEtaToNextStop] = useState<number | null>(null);
   const [distanceToNextStop, setDistanceToNextStop] = useState<number | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>('chase');
-  const [currentSpeed, setCurrentSpeed] = useState(0); // km/h for display
+  const [currentSpeed, setCurrentSpeed] = useState(0); // km/h for display (real-world speed)
+  const currentSegmentSpeedRef = useRef<number>(0); // Store calculated segment speed
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -535,6 +536,10 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
       if (elapsedTime >= scaledArrival && elapsedTime < scaledDeparture) {
         currentLocationWaypoint = wp;
         isAtStopLocal = true;
+        
+        // Vehicle is at a stop - set speed to 0
+        currentSegmentSpeedRef.current = 0;
+        setCurrentSpeed(0);
 
         // Position vehicle at this waypoint using pre-calculated index
         const waypointPathIndex = getWaypointPathIndex(wp);
@@ -582,9 +587,39 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
           }
 
           // Calculate segment speed (distance / time for this segment)
+          // Using REAL time values from backend (not scaled by simulation speed)
+          // Speed = distance_km / time_hours = km/h (real-world speed)
           const segmentDistanceKm = nextWp.cumulative_distance_km - wp.cumulative_distance_km;
-          const segmentTimeHours = (nextWp.arrival_time_seconds - wp.departure_time_seconds) / 3600;
-          const segmentSpeedKmh = segmentTimeHours > 0 ? Math.round(segmentDistanceKm / segmentTimeHours) : 0;
+          const segmentTimeSeconds = nextWp.arrival_time_seconds - wp.departure_time_seconds;
+          const segmentTimeHours = segmentTimeSeconds / 3600;
+          
+          let segmentSpeedKmh = 0;
+          
+          if (segmentTimeHours > 0 && segmentDistanceKm > 0) {
+            // Best case: we have both distance and time for this segment
+            segmentSpeedKmh = Math.round(segmentDistanceKm / segmentTimeHours);
+          } else if (segmentTimeHours > 0) {
+            // Fallback: segment distance is 0 but we have time
+            // Use average route speed (total_distance / total_time)
+            const totalDistanceKm = simulationData.simulation_config.total_distance_km;
+            const totalTimeSeconds = simulationData.simulation_config.total_real_duration_seconds;
+            if (totalTimeSeconds > 0 && totalDistanceKm > 0) {
+              // Calculate average speed for entire route
+              const avgSpeedKmh = (totalDistanceKm / totalTimeSeconds) * 3600;
+              segmentSpeedKmh = Math.round(avgSpeedKmh);
+            } else {
+              // Default highway speed as last resort
+              segmentSpeedKmh = 85;
+            }
+          } else {
+            // No time data - use default
+            segmentSpeedKmh = 85;
+          }
+          
+          // Store speed for display (this is real-world speed, unaffected by simulation multiplier)
+          currentSegmentSpeedRef.current = segmentSpeedKmh;
+          // Also set it directly here to ensure it's updated
+          setCurrentSpeed(segmentSpeedKmh);
 
           // Create a placeholder waypoint for in-transit display
           currentLocationWaypoint = {
@@ -593,9 +628,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
             type: 'in_transit',
             cumulative_distance_km: wp.cumulative_distance_km + 
               (nextWp.cumulative_distance_km - wp.cumulative_distance_km) * segmentProgress,
-            // Store segment speed for display
-            _segmentSpeed: segmentSpeedKmh,
-          } as Waypoint & { _segmentSpeed?: number };
+          };
 
           // Geocoding for in-transit location name
           if (currentPos) {
@@ -653,6 +686,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     if (!currentLocationWaypoint && waypoints.length > 0) {
       currentLocationWaypoint = waypoints[0];
       isAtStopLocal = true;
+      setCurrentSpeed(0); // At start, not moving yet
       const waypointPathIndex = getWaypointPathIndex(waypoints[0]);
       currentPos = directionsPath[waypointPathIndex];
 
@@ -708,25 +742,9 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
         }
       }
 
-      // Calculate current "speed" for display
-      if (!isAtStopLocal && currentLocationWaypoint) {
-        // Use pre-calculated segment speed if available (set during transit)
-        const waypointWithSpeed = currentLocationWaypoint as Waypoint & { _segmentSpeed?: number };
-        if (waypointWithSpeed._segmentSpeed !== undefined) {
-          setCurrentSpeed(waypointWithSpeed._segmentSpeed);
-        } else if (nextStopWaypoint) {
-          // Fallback calculation using segment data
-          const distanceKm = nextStopWaypoint.cumulative_distance_km - currentLocationWaypoint.cumulative_distance_km;
-          const timeHours = (nextStopWaypoint.arrival_time_seconds - currentLocationWaypoint.departure_time_seconds) / 3600;
-          if (timeHours > 0 && distanceKm > 0) {
-            setCurrentSpeed(Math.round(distanceKm / timeHours));
-          } else {
-            setCurrentSpeed(0);
-          }
-        } else {
-          setCurrentSpeed(0);
-        }
-      } else {
+      // Speed is already set in the transit/stop branches above
+      // This is just a fallback for edge cases
+      if (!currentLocationWaypoint) {
         setCurrentSpeed(0);
       }
 
@@ -810,6 +828,7 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
     setCurrentWaypoint(null);
     setNextWaypoint(null);
     setCurrentSpeed(0);
+    currentSegmentSpeedRef.current = 0;
     
     // Reset trail
     if (trailPolylineRef.current) {
