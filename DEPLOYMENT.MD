@@ -1408,6 +1408,38 @@ sudo apt upgrade -y
 sudo supervisorctl restart all
 ```
 
+### Cache Cleanup
+
+Clean cache files to free disk space and ensure fresh builds:
+
+```bash
+# Clean Python cache files
+cd /var/www/soyaflow/backend
+find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
+find . -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete 2>/dev/null
+echo "✓ Python cache cleaned"
+
+# Clean frontend cache
+cd /var/www/soyaflow/frontend
+rm -rf .next .turbo node_modules/.cache
+echo "✓ Frontend cache cleaned"
+
+# Clean system temp files (optional)
+sudo apt clean
+sudo apt autoclean
+sudo journalctl --vacuum-time=7d
+echo "✓ System cache cleaned"
+```
+
+**When to run cache cleanup:**
+
+- After major updates or deployments
+- When experiencing build issues
+- To free disk space
+- Before creating backups
+
+**Note:** Frontend cache (.next) will be regenerated on next build. Backend cache (**pycache**) regenerates automatically on next Python import.
+
 ---
 
 ## Quick Reference

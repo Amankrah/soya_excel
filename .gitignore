@@ -10,15 +10,29 @@
 # =============================================================================
 
 # Environment variables and secrets
+# Local development
 .env
-.env.*
 .env.local
-.env.*.local
+.env.development.local
+.env.test.local
+
+# Production (keep these secret!)
+.env.production
+.env.production.local
+
+# Allow example files
 !.env.example
+!.env.local.example
 !.env.production.example
+
+# Nested env files (but allow example files)
 **/.env
-**/.env.*
 !**/.env.example
+!**/.env*.example
+**/.env.local
+!**/.env.local.example
+**/.env.production.local
+!**/.env.production.example
 
 # SSH Keys and Credentials
 *.pem
@@ -116,6 +130,13 @@ db.sqlite3
 db.sqlite3-journal
 backend/db.sqlite3
 backend/db.sqlite3-journal
+*.sqlite3
+*.sqlite3-journal
+
+# Database files
+*.db
+*.sql
+*.dump
 
 # Static files (collected)
 staticfiles/
@@ -124,8 +145,10 @@ backend/staticfiles/
 # Media files (user uploads) - uncomment if you don't want to track
 # backend/media/
 
-# Migrations - uncomment if you want to ignore
-# **/migrations/
+# Migrations (database schema changes - DO NOT TRACK)
+**/migrations/[0-9]*.py
+**/migrations/[0-9]*_*.py
+!**/migrations/__init__.py
 
 # =============================================================================
 # NODE.JS / NEXT.JS (Frontend)
