@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { X, Play, Pause, RotateCcw, MapPin, Clock, Mountain, Eye, User, Car, Truck } from 'lucide-react';
+import { X, Play, Pause, RotateCcw, MapPin, Clock, Eye, User, Car, Truck } from 'lucide-react';
 import { routeAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { loadGoogleMaps } from '@/lib/google-maps';
@@ -267,10 +267,10 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
       // This creates a single photorealistic 3D map with HYBRID mode
       const map3DElement = document.createElement('gmp-map-3d');
       
-      // Set attributes for photorealistic 3D with Places data (labels, POIs, 3D buildings)
-      map3DElement.setAttribute('center', '45.5017,-73.5673,30'); // lat,lng,altitude
-      map3DElement.setAttribute('range', '500'); // Close range for road-level view
-      map3DElement.setAttribute('tilt', '65'); // Optimal tilt for road view
+      // Set attributes for photorealistic 3D with clear road-focused view
+      map3DElement.setAttribute('center', '45.5017,-73.5673,25'); // lat,lng,altitude
+      map3DElement.setAttribute('range', '250'); // Medium range for clear visibility
+      map3DElement.setAttribute('tilt', '67'); // Moderate tilt for clear forward view
       map3DElement.setAttribute('heading', '0');
       map3DElement.setAttribute('mode', 'hybrid'); // HYBRID mode for photorealistic 3D
       
@@ -396,14 +396,14 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
           vehicleMarker3DRef.current = vehicleMarker;
         }
 
-        // Center map on start location with settings optimized for close-up road view
+        // Center map on start location with clear road-focused camera
         if (simulationData.start_location) {
           const startLocation = simulationData.start_location;
-          
-          // Set close range for immersive road-level view
-          map3D.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},30`);
-          map3D.setAttribute('range', '500'); // 500m for close road view
-          map3D.setAttribute('tilt', '65'); // Optimal tilt for road view
+
+          // Chase camera with clear forward view
+          map3D.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},25`);
+          map3D.setAttribute('range', '250'); // Medium range for clear visibility
+          map3D.setAttribute('tilt', '67'); // Moderate tilt for clear forward view
           map3D.setAttribute('heading', '0');
         }
 
@@ -618,17 +618,30 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
         vehicleMarker3DRef.current.position = {
           lat: currentPos.lat,
           lng: currentPos.lng,
-          altitude: 10 // Lower altitude for road-level view
+          altitude: 5 // Very low altitude - just above the road
         };
       }
 
-      // Animate camera to follow vehicle (close road-level view)
+      // Professional video game style camera - centered on vehicle with forward offset
       if (map3DElementRef.current) {
-        // Set camera to follow vehicle at road level
-        map3DElementRef.current.setAttribute('center', `${currentPos.lat},${currentPos.lng},20`);
-        map3DElementRef.current.setAttribute('range', '400'); // Very close range for road-level view
-        map3DElementRef.current.setAttribute('tilt', '70'); // Higher tilt for road perspective
-        map3DElementRef.current.setAttribute('heading', heading.toString());
+        // Calculate camera offset to look ahead of the vehicle
+        const headingRad = (heading * Math.PI) / 180;
+
+        // Position camera slightly ahead of the vehicle to show the road ahead
+        const lookAheadDistance = 0.0008; // ~80m ahead to see the road coming
+        const cameraLat = currentPos.lat + Math.cos(headingRad) * lookAheadDistance;
+        const cameraLng = currentPos.lng + Math.sin(headingRad) * lookAheadDistance;
+
+        // Dynamic camera settings for clear road-focused view
+        const cameraAltitude = 30; // Slightly higher for better perspective
+        const cameraRange = 300; // Wider range to keep vehicle visible
+        const cameraTilt = 65; // Good tilt for forward road view
+
+        // Center camera on point ahead of vehicle (keeps vehicle in view)
+        map3DElementRef.current.setAttribute('center', `${cameraLat},${cameraLng},${cameraAltitude}`);
+        map3DElementRef.current.setAttribute('range', cameraRange.toString());
+        map3DElementRef.current.setAttribute('tilt', cameraTilt.toString());
+        map3DElementRef.current.setAttribute('heading', heading.toString()); // Camera follows vehicle heading
       }
     }
   }, [simulationData, directionsPath, getWaypointPathIndex]);
@@ -688,10 +701,10 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
     if (simulationData && map3DElementRef.current) {
       const startLocation = simulationData.start_location;
 
-      // Reset camera to start location with close road-level view
-      map3DElementRef.current.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},30`);
-      map3DElementRef.current.setAttribute('range', '500'); // Close range for road view
-      map3DElementRef.current.setAttribute('tilt', '65');
+      // Reset camera to start location with clear road view
+      map3DElementRef.current.setAttribute('center', `${startLocation.latitude},${startLocation.longitude},25`);
+      map3DElementRef.current.setAttribute('range', '250'); // Medium range for clear visibility
+      map3DElementRef.current.setAttribute('tilt', '67'); // Moderate tilt for clear forward view
       map3DElementRef.current.setAttribute('heading', '0');
 
       // Reset vehicle marker to start position
@@ -699,7 +712,7 @@ export function RouteSimulation3DModal({ open, onClose, routeId, routeName }: Ro
         vehicleMarker3DRef.current.position = {
           lat: startLocation.latitude,
           lng: startLocation.longitude,
-          altitude: 10 // Lower altitude for road-level view
+          altitude: 5 // Very low - just above the road
         };
       }
     }
