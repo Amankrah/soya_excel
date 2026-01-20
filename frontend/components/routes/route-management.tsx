@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { routeAPI, productAPI, API_BASE_URL } from '@/lib/api';
 import { AxiosError } from 'axios';
 import { toast } from 'react-hot-toast';
@@ -32,7 +33,6 @@ import {
   Weight,
 } from 'lucide-react';
 import { DriverAssignmentDialog } from '@/components/route/driver-assignment-dialog';
-import { RouteSimulationModal } from '@/components/route/route-simulation-modal';
 
 // Type for the DriverAssignmentDialog component
 type DriverAssignmentRoute = {
@@ -175,6 +175,7 @@ interface DistributionPlan {
 }
 
 export function RouteManagement() {
+  const router = useRouter();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -225,10 +226,6 @@ export function RouteManagement() {
   // Driver assignment dialog state
   const [showDriverAssignmentDialog, setShowDriverAssignmentDialog] = useState(false);
   const [selectedRouteForAssignment, setSelectedRouteForAssignment] = useState<Route | null>(null);
-
-  // Route simulation modal state
-  const [showSimulationModal, setShowSimulationModal] = useState(false);
-  const [selectedRouteForSimulation, setSelectedRouteForSimulation] = useState<{id: string, name: string} | null>(null);
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -1216,8 +1213,7 @@ export function RouteManagement() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              setSelectedRouteForSimulation({ id: route.id, name: route.name });
-                              setShowSimulationModal(true);
+                              router.push(`/dashboard/routes/${route.id}/simulate?name=${encodeURIComponent(route.name)}`);
                             }}
                             className="rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
                           >
@@ -2435,18 +2431,6 @@ export function RouteManagement() {
         }}
       />
 
-      {/* Route Simulation Modal */}
-      {showSimulationModal && selectedRouteForSimulation && (
-        <RouteSimulationModal
-          open={showSimulationModal}
-          onClose={() => {
-            setShowSimulationModal(false);
-            setSelectedRouteForSimulation(null);
-          }}
-          routeId={selectedRouteForSimulation.id}
-          routeName={selectedRouteForSimulation.name}
-        />
-      )}
 
     </div>
   );
