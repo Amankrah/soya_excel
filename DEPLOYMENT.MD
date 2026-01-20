@@ -33,17 +33,19 @@ Complete deployment guide for deploying SoyaFlow to production on AWS EC2 with d
 | Domain | soyaflow.com | DNS must point to Elastic IP |
 | SSH Key | soyaflow_key.pem | Keep secure, never commit to git |
 | GitHub Repo | https://github.com/Amankrah/soya_excel.git | Verify clean before deployment |
-| Your IP | 70.82.222.218 | For SSH firewall restriction |
+| Your IP | 70.82.222.52 | For SSH firewall restriction |
 
 ### Your IP Address
 
-Your public IP address for SSH restriction: **70.82.222.218**
+Your public IP address for SSH restriction: **70.82.222.52**
 
 ```bash
 # Verify your IP hasn't changed
 curl -s ifconfig.me
-# Should return: 70.82.222.218
+# Should return: 70.82.222.52
 ```
+
+**Note:** If your IP changes and you get SSH timeouts, see the [SSH Connection Timeout](#ssh-connection-timeout) troubleshooting section.
 
 ### Recommended EC2 Instance Specs
 
@@ -187,8 +189,8 @@ sudo ufw --force reset
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 
-# Allow SSH ONLY from your IP (70.82.222.218)
-sudo ufw allow from 70.82.222.218 to any port 22 proto tcp comment 'SSH from my IP'
+# Allow SSH ONLY from your IP (70.82.222.52)
+sudo ufw allow from 70.82.222.52 to any port 22 proto tcp comment 'SSH from my IP'
 
 # Allow web traffic
 sudo ufw allow 80/tcp comment 'HTTP'
@@ -215,7 +217,7 @@ Status: active
 
 To                         Action      From
 --                         ------      ----
-22/tcp                     ALLOW       70.82.222.218
+22/tcp                     ALLOW       70.82.222.52
 80/tcp                     ALLOW       Anywhere
 443/tcp                    ALLOW       Anywhere
 Anywhere                   DENY        38.150.0.118
@@ -1365,6 +1367,56 @@ source venv/bin/activate
 python manage.py showmigrations
 python manage.py migrate
 ```
+
+### SSH Connection Timeout
+
+If you get "Connection timed out" when trying to SSH to the instance:
+
+**Cause:** Your public IP address has changed, and UFW firewall is blocking your new IP.
+
+**Solution:**
+
+1. **Check your current public IP:**
+
+   ```bash
+   # Run on your local machine
+   curl ifconfig.me
+   ```
+
+2. **Connect via AWS Session Manager** (requires IAM role):
+   - Go to EC2 Console → Select instance → Click **Connect**
+   - Go to **Session Manager** tab → Click **Connect**
+   - If "SSM Agent is not online":
+     - Go to IAM → Create role with `AmazonSSMManagedInstanceCore` policy
+     - Attach role to EC2 instance: Actions → Security → Modify IAM role
+     - Wait 5-10 minutes for SSM agent to register
+
+3. **Add your current IP to UFW:**
+
+   ```bash
+   # In Session Manager, switch to ubuntu user
+   sudo su - ubuntu
+
+   # Check current firewall rules
+   sudo ufw status verbose
+
+   # Add your new IP (replace with your actual IP from step 1)
+   sudo ufw allow from YOUR_CURRENT_IP to any port 22 proto tcp comment 'SSH from current IP'
+
+   # Remove old IP rules (optional)
+   sudo ufw delete allow from OLD_IP to any port 22 proto tcp
+
+   # Verify
+   sudo ufw status verbose
+   ```
+
+4. **Test SSH connection:**
+
+   ```bash
+   ssh -i soyaflow_key.pem ubuntu@35.182.82.8
+   ```
+
+**Prevention:** Keep your IP updated in the deployment documentation, or configure UFW to allow a range of IPs if your ISP frequently changes your IP.
 
 ---
 

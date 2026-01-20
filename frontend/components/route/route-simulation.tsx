@@ -1393,7 +1393,7 @@ export function RouteSimulation({ routeId, routeName }: RouteSimulationProps) {
                     <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-600">
                       <div className="text-xs font-bold text-slate-400 mb-3 uppercase">Environmental Context</div>
                       <div className="grid grid-cols-3 gap-3">
-                        {simulationData.interpretation.comparisons.map((comparison: any, idx: number) => (
+                        {simulationData.interpretation.comparisons.map((comparison: NonNullable<SimulationData['interpretation']>['comparisons'][number], idx: number) => (
                           <div key={idx} className="bg-slate-800/50 rounded p-2 text-center">
                             <div className="text-2xl mb-1">{comparison.icon}</div>
                             <div className="text-lg font-bold text-cyan-400">{comparison.value.toLocaleString()}</div>
@@ -1430,7 +1430,7 @@ export function RouteSimulation({ routeId, routeName }: RouteSimulationProps) {
 
               {showRecommendations && (
                 <div className="p-4 pt-0 space-y-3">
-                  {simulationData.recommendations.map((rec: any, idx: number) => {
+                  {simulationData.recommendations.map((rec: NonNullable<SimulationData['recommendations']>[number], idx: number) => {
                     const IconComponent = rec.icon === 'package' ? Package : rec.icon === 'repeat' ? Repeat : rec.icon === 'fuel' ? Fuel : Leaf;
                     const priorityColor = rec.priority === 'high' ? 'text-orange-400' : rec.priority === 'medium' ? 'text-yellow-400' : 'text-blue-400';
                     const priorityBg = rec.priority === 'high' ? 'bg-orange-900/20 border-orange-500/30' : rec.priority === 'medium' ? 'bg-yellow-900/20 border-yellow-500/30' : 'bg-blue-900/20 border-blue-500/30';
