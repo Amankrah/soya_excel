@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Truck, Play, Pause, RotateCcw, MapPin, Clock, User, Car, Video, Eye, Leaf, Fuel, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Truck, Play, Pause, RotateCcw, MapPin, Clock, User, Car, Video, Eye, Leaf, Fuel, TrendingDown, ChevronDown, ChevronUp, Lightbulb, TrendingUp, AlertTriangle, CheckCircle, Star, Package, Repeat, Wrench } from 'lucide-react';
 import { routeAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { loadGoogleMaps } from '@/lib/google-maps';
@@ -82,12 +82,95 @@ interface SimulationData {
     };
     methodology: string;
     standard: string;
+    route_summary?: {
+      total_distance_km: number;
+      total_mass_tonnes: number;
+      vehicle_type: string;
+      vehicle_capacity_tonnes: number;
+      utilization_pct: number;
+      return_to_origin: boolean;
+      estimated_fuel_liters: number;
+    };
     vehicle_info?: {
       vehicle_type: string;
       capacity_tonnes: number | null;
       total_mass_tonnes: number;
       utilization_pct: number | null;
     };
+  } | null;
+  interpretation?: {
+    summary: string;
+    breakdown: {
+      outbound: {
+        value: number;
+        percentage: number;
+        method: string;
+        explanation: string;
+      };
+      return: {
+        value: number;
+        percentage: number;
+        method: string;
+        explanation: string;
+      };
+    };
+    utilization_insight: {
+      current_utilization: number;
+      unused_capacity_tonnes: number;
+      status: string;
+      message: string;
+      potential_reduction: string;
+      severity: 'high' | 'medium' | 'low';
+    };
+    comparisons: Array<{
+      metric: string;
+      value: number;
+      unit: string;
+      icon: string;
+      context: string;
+    }>;
+  } | null;
+  recommendations?: Array<{
+    id: string;
+    title: string;
+    priority: 'high' | 'medium' | 'low';
+    potential_reduction_pct: number;
+    current_value: string;
+    target_value: string;
+    description: string;
+    actions: string[];
+    icon: string;
+    category: string;
+  }> | null;
+  benchmarks?: {
+    co2e_per_tonne: {
+      rating: string;
+      label: string;
+      color: string;
+      icon: string;
+      bg_color: string;
+    };
+    co2e_per_km: {
+      rating: string;
+      label: string;
+      color: string;
+      icon: string;
+      bg_color: string;
+    };
+    fuel_efficiency: {
+      rating: string;
+      label: string;
+      color: string;
+      icon: string;
+      bg_color: string;
+    };
+    utilization: {
+      rating: string;
+      label: string;
+      color: string;
+      icon: string;
+      bg_color: string;
+    } | null;
   } | null;
   start_location: Waypoint;
   end_location: Waypoint;
@@ -114,6 +197,9 @@ export function RouteSimulation({ routeId, routeName }: RouteSimulationProps) {
   // Collapsible sections state
   const [showDriverVehicleInfo, setShowDriverVehicleInfo] = useState(true);
   const [showEmissionsInfo, setShowEmissionsInfo] = useState(true);
+  const [showBenchmarks, setShowBenchmarks] = useState(false);
+  const [showInterpretation, setShowInterpretation] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -1094,6 +1180,299 @@ export function RouteSimulation({ routeId, routeName }: RouteSimulationProps) {
                   )}
                 </div>
               )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Benchmarks Panel */}
+          {simulationData.benchmarks && (
+            <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 rounded-lg border border-purple-500/30">
+              <button
+                type="button"
+                onClick={() => setShowBenchmarks(!showBenchmarks)}
+                className="w-full flex items-center justify-between p-4 hover:bg-purple-900/20 transition-colors"
+              >
+                <div className="flex items-center gap-2 text-sm font-bold text-purple-400 uppercase tracking-wider">
+                  <TrendingUp className="h-4 w-4" />
+                  Industry Benchmarks
+                </div>
+                {showBenchmarks ? (
+                  <ChevronUp className="h-4 w-4 text-purple-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-purple-400" />
+                )}
+              </button>
+
+              {showBenchmarks && (
+                <div className="p-4 pt-0 space-y-3">
+                  {/* Benchmark Legend */}
+                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-600 mb-4">
+                    <div className="text-xs font-bold text-slate-300 mb-2">Industry Benchmark Ranges (Road Freight)</div>
+                    <div className="grid grid-cols-5 gap-2 text-[10px]">
+                      <div className="text-center">
+                        <div className="w-full h-2 rounded mb-1" style={{ backgroundColor: '#064e3b' }}></div>
+                        <span className="text-slate-400">Excellent</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-full h-2 rounded mb-1" style={{ backgroundColor: '#14532d' }}></div>
+                        <span className="text-slate-400">Good</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-full h-2 rounded mb-1" style={{ backgroundColor: '#78350f' }}></div>
+                        <span className="text-slate-400">Average</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-full h-2 rounded mb-1" style={{ backgroundColor: '#7c2d12' }}></div>
+                        <span className="text-slate-400">Needs Work</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-full h-2 rounded mb-1" style={{ backgroundColor: '#7f1d1d' }}></div>
+                        <span className="text-slate-400">Poor</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* CO2e per Tonne */}
+                    {simulationData.benchmarks.co2e_per_tonne && (
+                      <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-400">CO₂e per Tonne</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold`} style={{ backgroundColor: simulationData.benchmarks.co2e_per_tonne.bg_color, color: simulationData.benchmarks.co2e_per_tonne.color }}>
+                            {simulationData.benchmarks.co2e_per_tonne.label}
+                          </span>
+                        </div>
+                        <div className="text-lg font-bold text-white mb-2">
+                          {simulationData.emissions_data?.kpi_metrics?.kg_co2e_per_tonne?.toFixed(2)} kg
+                        </div>
+                        <div className="text-[10px] text-slate-300 space-y-0.5 font-medium">
+                          <div>Excellent: &lt;30 kg</div>
+                          <div>Good: 30-50 kg</div>
+                          <div>Average: 50-80 kg</div>
+                          <div>Needs Work: 80-120 kg</div>
+                          <div>Poor: &gt;120 kg</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CO2e per km */}
+                    {simulationData.benchmarks.co2e_per_km && (
+                      <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-400">CO₂e per km</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold`} style={{ backgroundColor: simulationData.benchmarks.co2e_per_km.bg_color, color: simulationData.benchmarks.co2e_per_km.color }}>
+                            {simulationData.benchmarks.co2e_per_km.label}
+                          </span>
+                        </div>
+                        <div className="text-lg font-bold text-white mb-2">
+                          {simulationData.emissions_data?.kpi_metrics?.kg_co2e_per_km?.toFixed(2)} kg
+                        </div>
+                        <div className="text-[10px] text-slate-300 space-y-0.5 font-medium">
+                          <div>Excellent: &lt;1.0 kg</div>
+                          <div>Good: 1.0-1.5 kg</div>
+                          <div>Average: 1.5-2.0 kg</div>
+                          <div>Needs Work: 2.0-2.5 kg</div>
+                          <div>Poor: &gt;2.5 kg</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fuel Efficiency */}
+                    {simulationData.benchmarks.fuel_efficiency && (
+                      <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-400">Fuel Efficiency</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold`} style={{ backgroundColor: simulationData.benchmarks.fuel_efficiency.bg_color, color: simulationData.benchmarks.fuel_efficiency.color }}>
+                            {simulationData.benchmarks.fuel_efficiency.label}
+                          </span>
+                        </div>
+                        <div className="text-lg font-bold text-white mb-2">
+                          {simulationData.emissions_data?.estimated_fuel_liters && simulationData.emissions_data?.route_summary?.total_distance_km
+                            ? ((simulationData.emissions_data.estimated_fuel_liters / simulationData.emissions_data.route_summary.total_distance_km) * 100).toFixed(1)
+                            : 'N/A'} L/100km
+                        </div>
+                        <div className="text-[10px] text-slate-300 space-y-0.5 font-medium">
+                          <div>Excellent: &lt;30 L</div>
+                          <div>Good: 30-38 L</div>
+                          <div>Average: 38-45 L</div>
+                          <div>Needs Work: 45-55 L</div>
+                          <div>Poor: &gt;55 L</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Utilization */}
+                    {simulationData.benchmarks.utilization && (
+                      <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-400">Utilization</span>
+                          <span className={`text-xs px-2 py-0.5 rounded font-bold`} style={{ backgroundColor: simulationData.benchmarks.utilization.bg_color, color: simulationData.benchmarks.utilization.color }}>
+                            {simulationData.benchmarks.utilization.label}
+                          </span>
+                        </div>
+                        <div className="text-lg font-bold text-white mb-2">
+                          {simulationData.emissions_data?.vehicle_info?.utilization_pct?.toFixed(1)}%
+                        </div>
+                        <div className="text-[10px] text-slate-300 space-y-0.5 font-medium">
+                          <div>Excellent: &gt;85%</div>
+                          <div>Good: 70-85%</div>
+                          <div>Average: 50-70%</div>
+                          <div>Needs Work: 30-50%</div>
+                          <div>Poor: &lt;30%</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Interpretation Panel */}
+          {simulationData.interpretation && (
+            <div className="bg-slate-800/50 rounded-lg border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setShowInterpretation(!showInterpretation)}
+                className="w-full flex items-center justify-between p-4 hover:bg-slate-700/30 transition-colors"
+              >
+                <div className="flex items-center gap-2 text-sm font-bold text-blue-400 uppercase tracking-wider">
+                  <Lightbulb className="h-4 w-4" />
+                  Insights & Analysis
+                </div>
+                {showInterpretation ? (
+                  <ChevronUp className="h-4 w-4 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                )}
+              </button>
+
+              {showInterpretation && (
+                <div className="p-4 pt-0 space-y-4">
+                  {/* Summary */}
+                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-600">
+                    <p className="text-sm text-slate-300 leading-relaxed">{simulationData.interpretation.summary}</p>
+                  </div>
+
+                  {/* Utilization Insight */}
+                  {simulationData.interpretation.utilization_insight && (
+                    <div className={`rounded-lg p-3 border ${
+                      simulationData.interpretation.utilization_insight.severity === 'high'
+                        ? 'bg-orange-900/20 border-orange-500/30'
+                        : simulationData.interpretation.utilization_insight.severity === 'medium'
+                        ? 'bg-yellow-900/20 border-yellow-500/30'
+                        : 'bg-emerald-900/20 border-emerald-500/30'
+                    }`}>
+                      <div className="flex items-start gap-3">
+                        <TrendingUp className={`h-5 w-5 mt-0.5 ${
+                          simulationData.interpretation.utilization_insight.severity === 'high'
+                            ? 'text-orange-400'
+                            : simulationData.interpretation.utilization_insight.severity === 'medium'
+                            ? 'text-yellow-400'
+                            : 'text-emerald-400'
+                        }`} />
+                        <div className="flex-1">
+                          <div className="text-xs font-bold text-slate-300 mb-1">Capacity Utilization</div>
+                          <p className="text-sm text-slate-300 mb-2">{simulationData.interpretation.utilization_insight.message}</p>
+                          <div className="flex items-center gap-4 text-xs">
+                            <span className="text-slate-400">
+                              Current: <span className="font-bold text-white">{simulationData.interpretation.utilization_insight.current_utilization?.toFixed(0)}%</span>
+                            </span>
+                            <span className="text-slate-400">
+                              Potential Reduction: <span className="font-bold text-emerald-400">{simulationData.interpretation.utilization_insight.potential_reduction}</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Comparisons */}
+                  {simulationData.interpretation.comparisons && simulationData.interpretation.comparisons.length > 0 && (
+                    <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-600">
+                      <div className="text-xs font-bold text-slate-400 mb-3 uppercase">Environmental Context</div>
+                      <div className="grid grid-cols-3 gap-3">
+                        {simulationData.interpretation.comparisons.map((comparison: any, idx: number) => (
+                          <div key={idx} className="bg-slate-800/50 rounded p-2 text-center">
+                            <div className="text-2xl mb-1">{comparison.icon}</div>
+                            <div className="text-lg font-bold text-cyan-400">{comparison.value.toLocaleString()}</div>
+                            <div className="text-[10px] text-slate-400">{comparison.unit}</div>
+                            <div className="text-[9px] text-slate-500 mt-1">{comparison.metric}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Recommendations Panel */}
+          {simulationData.recommendations && simulationData.recommendations.length > 0 && (
+            <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 rounded-lg border border-blue-500/30">
+              <button
+                type="button"
+                onClick={() => setShowRecommendations(!showRecommendations)}
+                className="w-full flex items-center justify-between p-4 hover:bg-blue-900/20 transition-colors"
+              >
+                <div className="flex items-center gap-2 text-sm font-bold text-blue-400 uppercase tracking-wider">
+                  <Lightbulb className="h-4 w-4" />
+                  Recommendations ({simulationData.recommendations.length})
+                </div>
+                {showRecommendations ? (
+                  <ChevronUp className="h-4 w-4 text-blue-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-blue-400" />
+                )}
+              </button>
+
+              {showRecommendations && (
+                <div className="p-4 pt-0 space-y-3">
+                  {simulationData.recommendations.map((rec: any, idx: number) => {
+                    const IconComponent = rec.icon === 'package' ? Package : rec.icon === 'repeat' ? Repeat : rec.icon === 'fuel' ? Fuel : Leaf;
+                    const priorityColor = rec.priority === 'high' ? 'text-orange-400' : rec.priority === 'medium' ? 'text-yellow-400' : 'text-blue-400';
+                    const priorityBg = rec.priority === 'high' ? 'bg-orange-900/20 border-orange-500/30' : rec.priority === 'medium' ? 'bg-yellow-900/20 border-yellow-500/30' : 'bg-blue-900/20 border-blue-500/30';
+
+                    return (
+                      <div key={idx} className={`rounded-lg p-3 border ${priorityBg}`}>
+                        <div className="flex items-start gap-3">
+                          <IconComponent className={`h-5 w-5 mt-0.5 ${priorityColor}`} />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="text-sm font-bold text-white">{rec.title}</h4>
+                              <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold ${priorityColor}`}>
+                                {rec.priority}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300 mb-2">{rec.description}</p>
+                            <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
+                              <div className="bg-slate-800/50 rounded px-2 py-1">
+                                <span className="text-slate-500">Current: </span>
+                                <span className="text-white font-mono">{rec.current_value}</span>
+                              </div>
+                              <div className="bg-slate-800/50 rounded px-2 py-1">
+                                <span className="text-slate-500">Target: </span>
+                                <span className="text-emerald-400 font-mono">{rec.target_value}</span>
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-emerald-400 font-bold mb-2">
+                              Potential Reduction: {rec.potential_reduction_pct.toFixed(0)}%
+                            </div>
+                            <div className="space-y-1">
+                              {rec.actions && rec.actions.map((action: string, actionIdx: number) => (
+                                <div key={actionIdx} className="flex items-start gap-2 text-[11px] text-slate-400">
+                                  <CheckCircle className="h-3 w-3 mt-0.5 text-emerald-500 flex-shrink-0" />
+                                  <span>{action}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

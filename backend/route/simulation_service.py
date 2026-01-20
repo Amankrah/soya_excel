@@ -16,6 +16,11 @@ import json
 from django.utils import timezone
 from .models import Route, RouteStop, Warehouse
 from .scope3_emission_service import Scope3EmissionService
+from .emission_interpretation_service import (
+    EmissionInterpretationService,
+    EmissionRecommendationEngine,
+    evaluate_against_benchmark
+)
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +271,51 @@ class RouteSimulationService:
                 include_return_journey=include_return_journey
             )
 
+            # Generate interpretation and recommendations if emissions were calculated successfully
+            interpretation_data = None
+            recommendations = None
+            benchmarks = None
+
+            if emissions_data and emissions_data.get('success'):
+                try:
+                    interpreter = EmissionInterpretationService(emissions_data)
+                    recommender = EmissionRecommendationEngine(emissions_data)
+
+                    interpretation_data = {
+                        'summary': interpreter.generate_summary(),
+                        'breakdown': interpreter.generate_breakdown_explanation(),
+                        'utilization_insight': interpreter.generate_utilization_insight(),
+                        'comparisons': interpreter.generate_comparison_context()
+                    }
+
+                    recommendations = recommender.generate_recommendations()
+
+                    # Calculate fuel efficiency for benchmarking
+                    fuel = emissions_data.get('estimated_fuel_liters', 0)
+                    distance = final_total_distance
+                    fuel_per_100km = (fuel / distance * 100) if distance > 0 else 0
+
+                    benchmarks = {
+                        'co2e_per_tonne': evaluate_against_benchmark(
+                            emissions_data['kpi_metrics']['kg_co2e_per_tonne'],
+                            'kg_co2e_per_tonne'
+                        ),
+                        'co2e_per_km': evaluate_against_benchmark(
+                            emissions_data['kpi_metrics']['kg_co2e_per_km'],
+                            'kg_co2e_per_km'
+                        ),
+                        'fuel_efficiency': evaluate_against_benchmark(
+                            fuel_per_100km,
+                            'fuel_efficiency_l_per_100km'
+                        ),
+                        'utilization': evaluate_against_benchmark(
+                            emissions_data.get('vehicle_info', {}).get('utilization_pct', 0),
+                            'utilization_pct'
+                        ) if emissions_data.get('vehicle_info', {}).get('utilization_pct') else None
+                    }
+                except Exception as e:
+                    self.logger.error(f"Error generating emission interpretations: {str(e)}")
+
             return {
                 'success': True,
                 'route_id': route.id,
@@ -286,6 +336,9 @@ class RouteSimulationService:
                 'driver_info': driver_info,
                 'vehicle_info': vehicle_info,
                 'emissions_data': emissions_data,  # Scope 3 GHG emissions
+                'interpretation': interpretation_data,  # Human-readable interpretations
+                'recommendations': recommendations,  # Actionable recommendations
+                'benchmarks': benchmarks,  # Industry benchmark comparisons
                 'start_location': waypoints[0] if waypoints else None,
                 'end_location': waypoints[-1] if waypoints else None,
                 'instructions': self._get_simulation_instructions(route, simulation_speed)
@@ -569,6 +622,7 @@ class RouteSimulationService:
                     'kpi_metrics': emissions_result['kpi_metrics'],
                     'methodology': emissions_result['methodology'],
                     'standard': emissions_result['standard'],
+                    'route_summary': emissions_result['route_summary'],  # Include full route_summary for interpretation service
                     'vehicle_info': {
                         'vehicle_type': vehicle_type,
                         'capacity_tonnes': vehicle_capacity,
