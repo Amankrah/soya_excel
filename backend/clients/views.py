@@ -677,6 +677,24 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         def compute_analytics():
             """Compute all analytics - wrapped for caching"""
+            from .services_analytics import OptimizedAnalyticsService
+            import time
+
+            print(f"🔄 Starting optimized analytics computation at {timezone.now()}")
+            start_time = time.time()
+
+            # Use optimized service for fast computation
+            service = OptimizedAnalyticsService(start_date, end_date)
+            result = service.compute_all()
+
+            elapsed = time.time() - start_time
+            print(f"✅ Analytics computed in {elapsed:.2f} seconds")
+
+            return result
+
+        # OLD SLOW CODE - REPLACED WITH OPTIMIZED SERVICE ABOVE
+        def _compute_analytics_old():
+            """OLD IMPLEMENTATION - DO NOT USE - KEPT FOR REFERENCE"""
             # Filter by date range
             queryset = Order.objects.filter(
                 sales_order_creation_date__gte=start_date,
@@ -1165,26 +1183,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 })
 
             # === RETURN COMPLETE ANALYTICS ===
-
-            return {
-                'overview': overview,
-                'monthly_trends': monthly_trends,
-                'client_segmentation': client_segmentation,
-                'product_performance': product_performance,
-                'geographical_analysis': geographical_analysis,
-                'geographical_distribution': geographical_distribution,
-                'delivery_performance': delivery_performance,
-                'order_size_distribution': order_size_distribution,
-                'yearly_breakdown': yearly_breakdown,
-                'ai_predictions': ai_predictions,
-                'growth_metrics': growth_metrics,
-                'recent_activity': recent_activity,
-                'seasonal_patterns': seasonal_patterns,
-                'date_range': {
-                    'start_date': start_date.isoformat() if start_date else None,
-                    'end_date': end_date.isoformat() if end_date else None,
-                }
-            }
+            # THIS OLD CODE IS NO LONGER EXECUTED
+            pass
 
         # Use caching to avoid expensive recomputation
         analytics_data = AnalyticsCache.get_or_compute(
