@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Truck, X, Play, Pause, RotateCcw, MapPin, Clock, User, Car, Video, Eye } from 'lucide-react';
+import { Truck, X, Play, Pause, RotateCcw, MapPin, Clock, User, Car, Video, Eye, Leaf, Fuel, TrendingDown } from 'lucide-react';
 import { routeAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { loadGoogleMaps } from '@/lib/google-maps';
@@ -69,6 +69,27 @@ interface SimulationData {
     type?: string;
     capacity_used_tonnes?: number;
     icon: string;
+  } | null;
+  emissions_data?: {
+    success: boolean;
+    total_emissions_kg_co2e: number;
+    total_emissions_tonnes_co2e: number;
+    delivery_emissions_kg_co2e: number;
+    return_emissions_kg_co2e: number;
+    estimated_fuel_liters: number;
+    kpi_metrics: {
+      kg_co2e_per_tonne: number;
+      kg_co2e_per_km: number;
+      kg_co2e_per_tonne_km: number;
+    };
+    methodology: string;
+    standard: string;
+    vehicle_info?: {
+      vehicle_type: string;
+      capacity_tonnes: number | null;
+      total_mass_tonnes: number;
+      utilization_pct: number | null;
+    };
   } | null;
   start_location: Waypoint;
   end_location: Waypoint;
@@ -1046,6 +1067,120 @@ export function RouteSimulationModal({ open, onClose, routeId, routeName }: Rout
                           </div>
                         )}
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Scope 3 Emissions Panel */}
+              {simulationData.emissions_data && simulationData.emissions_data.success && (
+                <div className="p-4 bg-gradient-to-br from-green-900/30 to-emerald-900/30 rounded-lg border border-emerald-500/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Leaf className="h-4 w-4 text-emerald-400" />
+                    <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">
+                      Scope 3 GHG Emissions
+                    </h3>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/40 font-medium">
+                      WTW
+                    </span>
+                    <span className="text-xs text-slate-400 ml-auto">{simulationData.emissions_data.standard}</span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-3">
+                    {/* Total Emissions */}
+                    <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <TrendingDown className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-xs text-slate-400">Total CO₂e</span>
+                      </div>
+                      <div className="text-xl font-bold text-emerald-400 tabular-nums">
+                        {simulationData.emissions_data.total_emissions_kg_co2e.toFixed(1)}
+                      </div>
+                      <div className="text-xs text-slate-500">kg</div>
+                    </div>
+
+                    {/* Fuel Estimate */}
+                    <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Fuel className="h-3.5 w-3.5 text-amber-400" />
+                        <span className="text-xs text-slate-400">Est. Fuel</span>
+                      </div>
+                      <div className="text-xl font-bold text-amber-400 tabular-nums">
+                        {simulationData.emissions_data.estimated_fuel_liters.toFixed(1)}
+                      </div>
+                      <div className="text-xs text-slate-500">liters</div>
+                    </div>
+
+                    {/* CO2 per Tonne */}
+                    <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-xs text-slate-400">CO₂e / tonne</span>
+                      </div>
+                      <div className="text-xl font-bold text-cyan-400 tabular-nums">
+                        {simulationData.emissions_data.kpi_metrics.kg_co2e_per_tonne.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-slate-500">kg/tm</div>
+                    </div>
+
+                    {/* CO2 per KM */}
+                    <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-xs text-slate-400">CO₂e / km</span>
+                      </div>
+                      <div className="text-xl font-bold text-blue-400 tabular-nums">
+                        {simulationData.emissions_data.kpi_metrics.kg_co2e_per_km.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-slate-500">kg/km</div>
+                    </div>
+                  </div>
+
+                  {/* Emissions Breakdown */}
+                  {simulationData.emissions_data.delivery_emissions_kg_co2e >= 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-700">
+                      {/* WTW Note */}
+                      <div className="text-[10px] text-slate-500 mb-2 italic">
+                        Well-to-Wheel (WTW): Includes combustion + upstream fuel production emissions
+                      </div>
+
+                      {/* Trip Emissions */}
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="bg-emerald-900/20 rounded p-2 border border-emerald-500/20">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-emerald-400 font-medium">Outbound (Loaded):</span>
+                            <span className="font-mono text-sm text-emerald-300 font-bold">
+                              {simulationData.emissions_data.delivery_emissions_kg_co2e.toFixed(1)} kg
+                            </span>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded p-2 border border-slate-600/30">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-400 font-medium">Return (Empty):</span>
+                            <span className="font-mono text-sm text-slate-300 font-bold">
+                              {simulationData.emissions_data.return_emissions_kg_co2e?.toFixed(1) || '0.0'} kg
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Vehicle Info */}
+                      {simulationData.emissions_data.vehicle_info && (
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Load:</span>
+                            <span className="font-mono text-cyan-300">
+                              {simulationData.emissions_data.vehicle_info.total_mass_tonnes.toFixed(2)} tonnes
+                            </span>
+                          </div>
+                          {simulationData.emissions_data.vehicle_info.utilization_pct && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400">Utilization:</span>
+                              <span className="font-mono text-blue-300">
+                                {simulationData.emissions_data.vehicle_info.utilization_pct.toFixed(1)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

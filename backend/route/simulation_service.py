@@ -3,6 +3,8 @@ Route Simulation Service
 
 Provides route simulation capabilities for visualizing vehicle movement
 along optimized routes with stops on Google Maps in real-time.
+
+Includes Scope 3 GHG emission tracking for environmental impact analysis.
 """
 
 import logging
@@ -13,6 +15,7 @@ import json
 
 from django.utils import timezone
 from .models import Route, RouteStop, Warehouse
+from .scope3_emission_service import Scope3EmissionService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ class RouteSimulationService:
 
     def __init__(self):
         self.logger = logger
+        self.emission_service = Scope3EmissionService()
 
     def generate_simulation_data(
         self,
@@ -252,6 +256,16 @@ class RouteSimulationService:
             # Use route's total_distance if available, otherwise use cumulative from stops
             final_total_distance = float(route.total_distance) if route.total_distance else cumulative_distance
 
+            # Calculate Scope 3 emissions for the route
+            emissions_data = self._calculate_route_emissions(
+                route=route,
+                stops=stops,
+                vehicle_info=vehicle_info,
+                active_delivery=active_delivery,
+                final_total_distance=final_total_distance,
+                include_return_journey=include_return_journey
+            )
+
             return {
                 'success': True,
                 'route_id': route.id,
@@ -271,6 +285,7 @@ class RouteSimulationService:
                 'path_coordinates': path_coordinates,
                 'driver_info': driver_info,
                 'vehicle_info': vehicle_info,
+                'emissions_data': emissions_data,  # Scope 3 GHG emissions
                 'start_location': waypoints[0] if waypoints else None,
                 'end_location': waypoints[-1] if waypoints else None,
                 'instructions': self._get_simulation_instructions(route, simulation_speed)
@@ -472,6 +487,109 @@ class RouteSimulationService:
             'progress_percentage': (elapsed_seconds / total_duration_seconds * 100) if total_duration_seconds > 0 else 0,
             'is_in_transit': is_in_transit
         }
+
+    def _calculate_route_emissions(
+        self,
+        route,
+        stops,
+        vehicle_info: Dict,
+        active_delivery,
+        final_total_distance: float,
+        include_return_journey: bool
+    ) -> Dict:
+        """
+        Calculate Scope 3 GHG emissions for the route
+
+        Uses the Scope3EmissionService to estimate emissions based on:
+        - Route distance and total mass delivered
+        - Vehicle type and capacity from assigned delivery
+        - Return journey if applicable
+        """
+        try:
+            # Determine vehicle type and capacity
+            vehicle_type = 'default_heavy_duty'
+            vehicle_capacity = None
+
+            if active_delivery and active_delivery.vehicle:
+                # Use actual assigned vehicle
+                vehicle_type = active_delivery.vehicle.vehicle_type
+                vehicle_capacity = float(active_delivery.vehicle.capacity_tonnes) if active_delivery.vehicle.capacity_tonnes else None
+            elif route.assigned_vehicle_type:
+                # Use route's assigned vehicle type
+                vehicle_type = route.assigned_vehicle_type
+
+            # Calculate total mass to deliver
+            total_mass = 0
+            for stop in stops:
+                if stop.quantity_to_deliver:
+                    total_mass += float(stop.quantity_to_deliver)
+
+            # If no mass data from stops, use route's total_capacity_used
+            if total_mass == 0 and route.total_capacity_used:
+                total_mass = float(route.total_capacity_used)
+
+            # Build segment data for more accurate calculations
+            # Each segment carries the remaining mass after previous deliveries
+            segment_data = []
+            remaining_mass = total_mass
+
+            for stop in stops:
+                if stop.distance_from_previous and stop.distance_from_previous > 0:
+                    delivery_qty = float(stop.quantity_to_deliver) if stop.quantity_to_deliver else 0
+
+                    segment_data.append({
+                        'distance_km': float(stop.distance_from_previous),
+                        'mass_tonnes': remaining_mass,  # Carry remaining mass
+                    })
+
+                    # Reduce remaining mass after delivery
+                    remaining_mass = max(0, remaining_mass - delivery_qty)
+
+            # Calculate emissions using the emission service
+            # NOTE: final_total_distance from route.total_distance already includes return trip
+            # (calculated by Google Maps with warehouse as destination when return_to_warehouse=True)
+            emissions_result = self.emission_service.calculate_route_emissions(
+                route_distance_km=final_total_distance,
+                total_mass_tonnes=total_mass,
+                vehicle_type=vehicle_type,
+                vehicle_capacity_tonnes=vehicle_capacity,
+                return_to_origin=include_return_journey,
+                segment_data=segment_data if segment_data else None,
+                distance_includes_return=True  # Route distance from Google Maps includes return trip
+            )
+
+            if emissions_result['success']:
+                return {
+                    'success': True,
+                    'total_emissions_kg_co2e': emissions_result['total_emissions_kg_co2e'],
+                    'total_emissions_tonnes_co2e': emissions_result['total_emissions_tonnes_co2e'],
+                    'delivery_emissions_kg_co2e': emissions_result['delivery_emissions_kg_co2e'],
+                    'return_emissions_kg_co2e': emissions_result['return_emissions_kg_co2e'],
+                    'estimated_fuel_liters': emissions_result['route_summary']['estimated_fuel_liters'],
+                    'kpi_metrics': emissions_result['kpi_metrics'],
+                    'methodology': emissions_result['methodology'],
+                    'standard': emissions_result['standard'],
+                    'vehicle_info': {
+                        'vehicle_type': vehicle_type,
+                        'capacity_tonnes': vehicle_capacity,
+                        'total_mass_tonnes': total_mass,
+                        'utilization_pct': (total_mass / vehicle_capacity * 100) if vehicle_capacity and vehicle_capacity > 0 else None
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': emissions_result.get('error', 'Unknown error'),
+                    'total_emissions_kg_co2e': 0
+                }
+
+        except Exception as e:
+            self.logger.error(f"Error calculating route emissions: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'total_emissions_kg_co2e': 0
+            }
 
     def _get_simulation_instructions(self, route: Route, speed: float) -> str:
         """Generate user-friendly simulation instructions"""
