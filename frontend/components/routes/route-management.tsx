@@ -285,7 +285,7 @@ export function RouteManagement() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, [selectedDate, t]);
 
   // Load data on mount and when selectedDate changes
   useEffect(() => {
