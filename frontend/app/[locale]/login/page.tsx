@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'react-hot-toast';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,17 +15,24 @@ import { useAuthStore } from '@/lib/store';
 import { useAuth } from '@/lib/hooks/useAuth';
 import Image from 'next/image';
 import { Leaf, Lock, User, ArrowRight, Truck, MapPin, BarChart3, Shield, ArrowLeft } from 'lucide-react';
+import { LanguageSwitcher } from '@/components/ui/language-switcher';
 
-const loginSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
+type LoginFormData = {
+  username: string;
+  password: string;
+};
 
 export default function LoginPage() {
+  const t = useTranslations();
   const router = useRouter();
+  const params = useParams();
+  const locale = params?.locale || 'fr';
   const { isLoading: authLoading } = useAuth(false);
+
+  const loginSchema = z.object({
+    username: z.string().min(1, t('auth.usernameRequired')),
+    password: z.string().min(1, t('auth.passwordRequired')),
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [mfaCode, setMfaCode] = useState('');
   const login = useAuthStore((state) => state.login);
@@ -50,14 +58,14 @@ export default function LoginPage() {
       const result = await login(data.username, data.password);
 
       if (result.mfaRequired) {
-        toast.success(result.message || 'Please enter your MFA code');
+        toast.success(result.message || t('auth.pleaseEnterMFA'));
         return;
       }
 
-      toast.success('Welcome back!');
-      router.push('/dashboard');
+      toast.success(t('auth.welcomeBackMessage'));
+      router.push(`/${locale}/dashboard`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid credentials';
+      const message = error instanceof Error ? error.message : t('auth.invalidCredentials');
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -67,7 +75,7 @@ export default function LoginPage() {
   const onMFASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mfaCode || mfaCode.length !== 6) {
-      toast.error('Please enter a valid 6-digit code');
+      toast.error(t('auth.enterValid6Digit'));
       return;
     }
 
@@ -86,10 +94,10 @@ export default function LoginPage() {
       setToken(token);
       clearMFA();
 
-      toast.success('Welcome back!');
-      router.push('/dashboard');
+      toast.success(t('auth.welcomeBackMessage'));
+      router.push(`/${locale}/dashboard`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid MFA code';
+      const message = error instanceof Error ? error.message : t('auth.invalidMFACode');
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -111,8 +119,8 @@ export default function LoginPage() {
             </div>
             <div className="absolute inset-0 rounded-2xl bg-yellow-400/20 animate-ping"></div>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">SoyaFlow</h2>
-          <p className="text-gray-400">Loading your dashboard...</p>
+          <h2 className="text-2xl font-bold text-white mb-2">{t('brand.name')}</h2>
+          <p className="text-gray-400">{t('auth.loadingYourDashboard')}</p>
         </div>
       </div>
     );
@@ -149,8 +157,8 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white">SoyaFlow</h1>
-              <p className="text-yellow-400 font-medium">Distribution Platform</p>
+              <h1 className="text-3xl font-bold text-white">{t('brand.name')}</h1>
+              <p className="text-yellow-400 font-medium">{t('brand.tagline')}</p>
             </div>
           </div>
         </div>
@@ -158,27 +166,26 @@ export default function LoginPage() {
         {/* Hero Content */}
         <div className="flex-1 flex flex-col justify-center max-w-lg">
           <h2 className="text-5xl font-bold text-white mb-6 leading-tight soya-fade-in soya-stagger-1">
-            Smart Feed
-            <span className="block text-gradient-gold">Distribution</span>
+            {t('loginPage.heroTitle')}
+            <span className="block text-gradient-gold">{t('loginPage.heroTitleAccent')}</span>
           </h2>
           <p className="text-xl text-gray-300 mb-10 soya-fade-in soya-stagger-2">
-            AI-powered route optimization and predictive analytics for 
-            efficient soybean meal distribution across North America.
+            {t('loginPage.heroDescription')}
           </p>
 
           {/* Feature Pills */}
           <div className="flex flex-wrap gap-3 soya-fade-in soya-stagger-3">
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
               <Truck className="h-4 w-4 text-yellow-400" />
-              <span className="text-sm text-white font-medium">Route Optimization</span>
+              <span className="text-sm text-white font-medium">{t('features.routeOptimization')}</span>
             </div>
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
               <MapPin className="h-4 w-4 text-green-400" />
-              <span className="text-sm text-white font-medium">Live Tracking</span>
+              <span className="text-sm text-white font-medium">{t('features.liveTracking')}</span>
             </div>
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
               <BarChart3 className="h-4 w-4 text-yellow-400" />
-              <span className="text-sm text-white font-medium">AI Predictions</span>
+              <span className="text-sm text-white font-medium">{t('features.aiPredictions')}</span>
             </div>
           </div>
         </div>
@@ -200,8 +207,11 @@ export default function LoginPage() {
                 />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-1">SoyaFlow</h1>
-            <p className="text-yellow-400/80">Distribution Platform</p>
+            <h1 className="text-3xl font-bold text-white mb-1">{t('brand.name')}</h1>
+            <p className="text-yellow-400/80">{t('brand.tagline')}</p>
+            <div className="mt-4">
+              <LanguageSwitcher />
+            </div>
           </div>
           
           {/* Login Card */}
@@ -211,12 +221,12 @@ export default function LoginPage() {
                 {mfaRequired ? <Shield className="h-6 w-6 text-white" /> : <Lock className="h-6 w-6 text-white" />}
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900">
-                {mfaRequired ? 'Two-Factor Authentication' : 'Welcome Back'}
+                {mfaRequired ? t('auth.mfaTitle') : t('auth.welcomeBack')}
               </CardTitle>
               <CardDescription className="text-gray-600">
                 {mfaRequired
-                  ? 'Enter the 6-digit code from your authenticator app'
-                  : 'Sign in to access your management dashboard'
+                  ? t('auth.mfaDescription')
+                  : t('auth.signInDescription')
                 }
               </CardDescription>
             </CardHeader>
@@ -227,12 +237,12 @@ export default function LoginPage() {
                   <div className="space-y-2">
                     <Label htmlFor="mfaCode" className="text-gray-700 font-medium flex items-center gap-2">
                       <Shield className="h-4 w-4 text-gray-400" />
-                      Authentication Code
+                      {t('auth.authenticationCode')}
                     </Label>
                     <Input
                       id="mfaCode"
                       type="text"
-                      placeholder="Enter 6-digit code"
+                      placeholder={t('auth.mfaCodePlaceholder')}
                       className="soya-input h-12 text-center text-2xl tracking-widest"
                       value={mfaCode}
                       onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -241,7 +251,7 @@ export default function LoginPage() {
                       autoFocus
                     />
                     <p className="text-xs text-gray-500 text-center">
-                      Check your authenticator app for the code
+                      {t('auth.checkAuthenticator')}
                     </p>
                   </div>
 
@@ -253,10 +263,10 @@ export default function LoginPage() {
                     {isLoading ? (
                       <div className="flex items-center gap-2">
                         <div className="soya-spinner w-5 h-5 border-2"></div>
-                        <span>Verifying...</span>
+                        <span>{t('auth.verifying')}</span>
                       </div>
                     ) : (
-                      'Verify & Sign In'
+                      t('auth.verifyAndSignIn')
                     )}
                   </Button>
 
@@ -268,7 +278,7 @@ export default function LoginPage() {
                     disabled={isLoading}
                   >
                     <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Login
+                    {t('auth.backToLogin')}
                   </Button>
                 </form>
               ) : (
@@ -277,12 +287,12 @@ export default function LoginPage() {
                 <div className="space-y-2">
                   <Label htmlFor="username" className="text-gray-700 font-medium flex items-center gap-2">
                     <User className="h-4 w-4 text-gray-400" />
-                    Username
+                    {t('auth.username')}
                   </Label>
                   <Input
                     id="username"
                     type="text"
-                    placeholder="Enter your username"
+                    placeholder={t('auth.usernamePlaceholder')}
                     className="soya-input h-12"
                     {...register('username')}
                     disabled={isLoading}
@@ -298,12 +308,12 @@ export default function LoginPage() {
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-gray-700 font-medium flex items-center gap-2">
                     <Lock className="h-4 w-4 text-gray-400" />
-                    Password
+                    {t('auth.password')}
                   </Label>
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Enter your password"
+                    placeholder={t('auth.passwordPlaceholder')}
                     className="soya-input h-12"
                     {...register('password')}
                     disabled={isLoading}
@@ -324,11 +334,11 @@ export default function LoginPage() {
                   {isLoading ? (
                     <div className="flex items-center gap-2">
                       <div className="soya-spinner w-5 h-5 border-2"></div>
-                      <span>Signing in...</span>
+                      <span>{t('common.signingIn')}</span>
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-2">
-                      <span>Sign In</span>
+                      <span>{t('common.signIn')}</span>
                       <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </div>
                   )}
@@ -342,7 +352,7 @@ export default function LoginPage() {
                 </div>
                 <div className="relative flex justify-center">
                   <span className="bg-white px-4 text-xs text-gray-400 uppercase tracking-wider">
-                    Secure Login
+                    {t('auth.secureLogin')}
                   </span>
                 </div>
               </div>
@@ -361,7 +371,7 @@ export default function LoginPage() {
           {/* Footer */}
           <div className="text-center mt-8">
             <p className="text-white/50 text-sm">
-              © 2026 SoyaFlow by Soya Excel. All rights reserved.
+              {t('brand.copyright')}
             </p>
           </div>
         </div>

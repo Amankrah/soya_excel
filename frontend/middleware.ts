@@ -1,20 +1,23 @@
-import { NextResponse } from 'next/server';
+import createMiddleware from 'next-intl/middleware';
+import { locales, defaultLocale } from './i18n/config';
 
-export function middleware() {
-  // Since we're using localStorage for JWT tokens (which isn't accessible in middleware),
-  // we'll handle authentication checks on the client side in each protected page
-  return NextResponse.next();
-}
+export default createMiddleware({
+  // A list of all locales that are supported
+  locales,
+
+  // Used when no locale matches
+  defaultLocale,
+
+  // Always use locale prefix in URL (e.g., /fr/dashboard, /en/dashboard)
+  localePrefix: 'always',
+});
 
 export const config = {
+  // Match all paths except static files, API routes, and Next.js internals
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+    // Match all pathnames except for
+    // - … if they start with `/api`, `/_next` or `/_vercel`
+    // - … the ones containing a dot (e.g. `favicon.ico`)
+    '/((?!api|_next|_vercel|.*\\..*).*)'
+  ]
 }; 

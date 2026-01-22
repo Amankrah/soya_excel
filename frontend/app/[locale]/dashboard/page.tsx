@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -135,6 +137,9 @@ function StatsCard({ title, value, description, icon: Icon, alertLevel = 'normal
 }
 
 export default function DashboardPage() {
+  const t = useTranslations();
+  const params = useParams();
+  const locale = params?.locale || 'fr';
   const { isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -169,7 +174,7 @@ export default function DashboardPage() {
       });
 
     } catch (error) {
-      toast.error('Failed to load dashboard data');
+      toast.error(t('dashboard.failedToLoadDashboard'));
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
@@ -186,8 +191,8 @@ export default function DashboardPage() {
                 <Zap className="h-8 w-8 text-yellow-400 animate-pulse" />
               </div>
             </div>
-            <p className="text-gray-600 text-lg font-medium">Loading dashboard...</p>
-            <p className="text-gray-400 text-sm mt-1">Fetching your latest data</p>
+            <p className="text-gray-600 text-lg font-medium">{t('common.loadingDashboard')}</p>
+            <p className="text-gray-400 text-sm mt-1">{t('common.fetchingData')}</p>
           </div>
         </div>
       </DashboardLayout>
@@ -212,7 +217,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3 mb-3">
                   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1.5">
                     <Sparkles className="h-4 w-4 text-yellow-400" />
-                    <span className="text-sm font-medium text-yellow-400">AI-Powered</span>
+                    <span className="text-sm font-medium text-yellow-400">{t('dashboard.aiPowered')}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50"></div>
@@ -221,10 +226,10 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
-                  Welcome to SoyaFlow
+                  {t('dashboard.welcomeTitle')}
                 </h1>
                 <p className="text-lg text-gray-300 max-w-xl">
-                  Smart distribution management with AI predictions and route optimization
+                  {t('dashboard.welcomeDescription')}
                 </p>
               </div>
               
@@ -234,7 +239,7 @@ export default function DashboardPage() {
                   className="soya-button-secondary group"
                 >
                   <Brain className="h-5 w-5 mr-2 transition-transform group-hover:scale-110" />
-                  Update AI Predictions
+                  {t('dashboard.updateAIPredictions')}
                   <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
                 </Button>
               </div>
@@ -245,38 +250,38 @@ export default function DashboardPage() {
         {/* Stats Overview - 4 Cards */}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard
-            title="Total Clients"
+            title={t('dashboard.totalClients')}
             value={statistics.totalClients}
-            description="Active clients in system"
+            description={t('dashboard.activeClientsInSystem')}
             icon={Users}
-            linkTo="/dashboard/clients"
+            linkTo={`/${locale}/dashboard/clients`}
             index={0}
           />
           <StatsCard
-            title="Urgent Orders"
+            title={t('dashboard.urgentOrders')}
             value={statistics.urgentCount}
-            description="Ordering within 3 days"
+            description={t('dashboard.orderingWithin3Days')}
             icon={AlertTriangle}
             alertLevel={statistics.urgentCount > 0 ? 'urgent' : 'normal'}
-            linkTo="/dashboard/clients"
+            linkTo={`/${locale}/dashboard/clients`}
             index={1}
           />
           <StatsCard
-            title="Overdue"
+            title={t('dashboard.overdue')}
             value={statistics.overdueCount}
-            description="Past predicted date"
+            description={t('dashboard.pastPredictedDate')}
             icon={Clock}
             alertLevel={statistics.overdueCount > 0 ? 'urgent' : 'normal'}
-            linkTo="/dashboard/clients"
+            linkTo={`/${locale}/dashboard/clients`}
             index={2}
           />
           <StatsCard
-            title="High Priority"
+            title={t('dashboard.highPriority')}
             value={statistics.highCount}
-            description="Ordering in 4-7 days"
+            description={t('dashboard.ordering4to7Days')}
             icon={Brain}
             alertLevel={statistics.highCount > 5 ? 'warning' : 'normal'}
-            linkTo="/dashboard/clients"
+            linkTo={`/${locale}/dashboard/clients`}
             index={3}
           />
         </div>
@@ -291,14 +296,14 @@ export default function DashboardPage() {
                   className="data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm rounded-lg flex items-center gap-2 font-medium transition-all"
                 >
                   <BarChart3 className="h-4 w-4" />
-                  <span>Order Analytics</span>
+                  <span>{t('dashboard.orderAnalytics')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="routes"
                   className="data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm rounded-lg flex items-center gap-2 font-medium transition-all"
                 >
                   <Navigation className="h-4 w-4" />
-                  <span>Route Planning</span>
+                  <span>{t('dashboard.routePlanning')}</span>
                 </TabsTrigger>
               </TabsList>
             </CardHeader>

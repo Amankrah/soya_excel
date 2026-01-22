@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
+import { useTranslations } from 'next-intl';
 
 type User = {
   id: number;
@@ -44,29 +45,33 @@ import Image from 'next/image';
 import { MFASetupModal } from '@/components/auth/mfa-setup-modal';
 import { MFADisableModal } from '@/components/auth/mfa-disable-modal';
 import { PasswordChangeModal } from '@/components/auth/password-change-modal';
-
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Overview & KPIs', color: 'from-green-500 to-emerald-600' },
-  { name: 'Clients', href: '/dashboard/clients', icon: Users, description: 'AI Predictions', color: 'from-blue-500 to-indigo-600' },
-  { name: 'Orders', href: '/dashboard/orders', icon: Package, description: 'Order Management', color: 'from-yellow-500 to-orange-500' },
-  { name: 'Routes', href: '/dashboard/routes', icon: Navigation2, description: 'Route Planning', color: 'from-purple-500 to-pink-500' },
-  { name: 'Live Tracking', href: '/dashboard/live-tracking', icon: Radio, description: 'Real-time GPS', color: 'from-red-500 to-rose-600' },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, description: 'Reports & Insights', color: 'from-cyan-500 to-teal-600' },
-];
+import { LanguageSwitcher } from '@/components/ui/language-switcher';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const t = useTranslations();
   const pathname = usePathname();
   const router = useRouter();
+  const params = useParams();
+  const locale = params?.locale || 'fr';
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showMFASetupModal, setShowMFASetupModal] = useState(false);
   const [showMFADisableModal, setShowMFADisableModal] = useState(false);
   const { user, logout, checkAuth } = useAuthStore();
 
+  const navigation = [
+    { name: t('navigation.dashboard'), href: `/${locale}/dashboard`, icon: LayoutDashboard, description: t('navDescriptions.dashboard'), color: 'from-green-500 to-emerald-600' },
+    { name: t('navigation.clients'), href: `/${locale}/dashboard/clients`, icon: Users, description: t('navDescriptions.clients'), color: 'from-blue-500 to-indigo-600' },
+    { name: t('navigation.orders'), href: `/${locale}/dashboard/orders`, icon: Package, description: t('navDescriptions.orders'), color: 'from-yellow-500 to-orange-500' },
+    { name: t('navigation.routes'), href: `/${locale}/dashboard/routes`, icon: Navigation2, description: t('navDescriptions.routes'), color: 'from-purple-500 to-pink-500' },
+    { name: t('navigation.liveTracking'), href: `/${locale}/dashboard/live-tracking`, icon: Radio, description: t('navDescriptions.liveTracking'), color: 'from-red-500 to-rose-600' },
+    { name: t('navigation.analytics'), href: `/${locale}/dashboard/analytics`, icon: BarChart3, description: t('navDescriptions.analytics'), color: 'from-cyan-500 to-teal-600' },
+  ];
+
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login');
+    router.push(`/${locale}/login`);
   };
 
   const handleSecuritySuccess = async () => {
@@ -84,23 +89,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const getFullName = (user: User | null): string => {
-    if (!user) return 'Manager';
+    if (!user) return t('profile.manager');
     if (user.first_name && user.last_name) {
       return `${user.first_name} ${user.last_name}`;
     }
     if (user.first_name) return user.first_name;
     if (user.last_name) return user.last_name;
-    return user.username || 'Manager';
+    return user.username || t('profile.manager');
   };
 
   const getCurrentPageName = () => {
     const currentNav = navigation.find(item => item.href === pathname);
-    return currentNav?.name || 'Dashboard';
+    return currentNav?.name || t('navigation.dashboard');
   };
 
   const getCurrentPageDescription = () => {
     const currentNav = navigation.find(item => item.href === pathname);
-    return currentNav?.description || 'Overview & KPIs';
+    return currentNav?.description || t('navDescriptions.dashboard');
   };
 
   const SidebarContent = ({ isMobile = false }: { isMobile?: boolean }) => (
@@ -122,8 +127,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0f1419] animate-pulse"></div>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white tracking-tight group-hover:text-green-400 transition-colors">SoyaFlow</h2>
-            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Distribution Platform</p>
+            <h2 className="text-xl font-bold text-white tracking-tight group-hover:text-green-400 transition-colors">{t('brand.name')}</h2>
+            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{t('brand.tagline')}</p>
           </div>
         </Link>
       </div>
@@ -132,7 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <nav className="flex-1 px-3 py-6 overflow-y-auto">
         <div className="mb-6">
           <p className="px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600 mb-3">
-            Navigation
+            {t('navigation.label')}
           </p>
         </div>
         <div className="space-y-1">
@@ -190,7 +195,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <div className="absolute inset-0 w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
             </div>
-            <span className="text-[10px] text-gray-500 font-medium">System Online</span>
+            <span className="text-[10px] text-gray-500 font-medium">{t('brand.systemOnline')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -198,7 +203,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="w-2 h-2 bg-gray-800 rounded-full border border-gray-600"></div>
           </div>
         </div>
-        <p className="text-center text-[9px] text-gray-600 mt-2 font-medium">SoyaFlow v2.1 • Soya Excel</p>
+        <p className="text-center text-[9px] text-gray-600 mt-2 font-medium">{t('brand.version')}</p>
       </div>
     </div>
   );
@@ -230,7 +235,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 height={32}
                 className="w-8 h-8 object-contain"
               />
-              <span className="text-lg font-bold text-gray-900">SoyaFlow</span>
+              <span className="text-lg font-bold text-gray-900">{t('brand.name')}</span>
             </div>
 
             {/* Page Title - Desktop */}
@@ -243,6 +248,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             {/* Right side actions */}
             <div className="flex items-center gap-2">
+              {/* Language Switcher */}
+              <LanguageSwitcher />
+
               {/* User Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -261,7 +269,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </div>
                     <div className="hidden lg:block text-left">
                       <p className="text-sm font-semibold text-gray-900">{getFullName(user)}</p>
-                      <p className="text-[10px] text-gray-500 font-medium">Manager</p>
+                      <p className="text-[10px] text-gray-500 font-medium">{t('profile.manager')}</p>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
@@ -278,7 +286,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <p className="text-xs text-gray-500">{user?.email}</p>
                         <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-semibold rounded-full">
                           <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                          Active
+                          {t('profile.active')}
                         </span>
                       </div>
                     </div>
@@ -287,7 +295,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                   {/* Security Settings */}
                   <div className="px-2 py-1">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Security</p>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{t('profile.security')}</p>
                   </div>
 
                   <DropdownMenuItem
@@ -295,7 +303,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     className="hover:bg-blue-50 rounded-xl p-3 cursor-pointer"
                   >
                     <Lock className="mr-3 h-4 w-4 text-blue-600" />
-                    <span className="font-medium">Change Password</span>
+                    <span className="font-medium">{t('profile.changePassword')}</span>
                   </DropdownMenuItem>
 
                   {user?.mfa_enabled ? (
@@ -305,9 +313,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     >
                       <ShieldOff className="mr-3 h-4 w-4 text-red-600" />
                       <div className="flex items-center justify-between flex-1">
-                        <span className="font-medium">Disable MFA</span>
+                        <span className="font-medium">{t('profile.disableMFA')}</span>
                         <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">
-                          Active
+                          {t('profile.mfaActive')}
                         </span>
                       </div>
                     </DropdownMenuItem>
@@ -317,7 +325,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       className="hover:bg-green-50 rounded-xl p-3 cursor-pointer"
                     >
                       <Shield className="mr-3 h-4 w-4 text-green-600" />
-                      <span className="font-medium">Enable MFA</span>
+                      <span className="font-medium">{t('profile.enableMFA')}</span>
                     </DropdownMenuItem>
                   )}
 
@@ -327,7 +335,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     className="hover:bg-red-50 text-red-600 rounded-xl p-3 cursor-pointer"
                   >
                     <LogOut className="mr-3 h-4 w-4" />
-                    <span className="font-medium">Log out</span>
+                    <span className="font-medium">{t('common.signOut')}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

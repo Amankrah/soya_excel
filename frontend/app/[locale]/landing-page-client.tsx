@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { SoyaFlowDistributionMap } from '@/components/ui/soyaflow-animation';
 import {
@@ -21,7 +22,126 @@ import {
   Route,
 } from 'lucide-react';
 
-export default function LandingPage() {
+export default function LandingPageClient({ locale }: { locale: string }) {
+  const t = useTranslations();
+
+  const features = [
+    {
+      icon: Brain,
+      title: t('landing.aiReorderPredictions'),
+      description: t('landing.aiReorderDescription'),
+      gradient: 'from-green-500/20 to-green-600/20',
+      borderColor: 'border-green-500/30',
+      iconBg: 'bg-green-500',
+    },
+    {
+      icon: Globe,
+      title: t('landing.multiRegionOperations'),
+      description: t('landing.multiRegionDescription'),
+      gradient: 'from-yellow-500/20 to-orange-500/20',
+      borderColor: 'border-yellow-500/30',
+      iconBg: 'bg-yellow-500',
+    },
+    {
+      icon: Package,
+      title: t('landing.inventoryManagement'),
+      description: t('landing.inventoryDescription'),
+      gradient: 'from-purple-500/20 to-pink-500/20',
+      borderColor: 'border-purple-500/30',
+      iconBg: 'bg-purple-500',
+    },
+    {
+      icon: Route,
+      title: t('landing.smartRoutePlanning'),
+      description: t('landing.routeDescription'),
+      gradient: 'from-blue-500/20 to-cyan-500/20',
+      borderColor: 'border-blue-500/30',
+      iconBg: 'bg-blue-500',
+    },
+    {
+      icon: TrendingUp,
+      title: t('landing.kpiDashboard'),
+      description: t('landing.kpiDescription'),
+      gradient: 'from-emerald-500/20 to-teal-500/20',
+      borderColor: 'border-emerald-500/30',
+      iconBg: 'bg-emerald-500',
+    },
+    {
+      icon: BarChart3,
+      title: t('landing.analyticsInsights'),
+      description: t('landing.analyticsDescription'),
+      gradient: 'from-rose-500/20 to-red-500/20',
+      borderColor: 'border-rose-500/30',
+      iconBg: 'bg-rose-500',
+    },
+  ];
+
+  const modules = [
+    { title: t('landing.clientManagement'), desc: t('landing.clientManagementDesc'), icon: Users },
+    { title: t('landing.orderProcessing'), desc: t('landing.orderProcessingDesc'), icon: Package },
+    { title: t('landing.inventoryControl'), desc: t('landing.inventoryControlDesc'), icon: BarChart3 },
+    { title: t('landing.routePlanning'), desc: t('landing.routePlanningDesc'), icon: MapPin },
+    { title: t('landing.weeklyDistribution'), desc: t('landing.weeklyDistributionDesc'), icon: Clock },
+    { title: t('landing.performanceMetrics'), desc: t('landing.performanceMetricsDesc'), icon: TrendingUp },
+  ];
+
+  const values = [
+    {
+      icon: '🌱',
+      title: t('landing.agriculturalDevelopment'),
+      subtitle: t('landing.agriculturalSubtitle'),
+      description: t('landing.agriculturalDescription'),
+      gradient: 'from-green-500 to-emerald-600',
+      stat: '100%',
+      statLabel: t('landing.localFocus'),
+    },
+    {
+      icon: '♻️',
+      title: t('landing.sustainability'),
+      subtitle: t('landing.sustainabilitySubtitle'),
+      description: t('landing.sustainabilityDescription'),
+      gradient: 'from-teal-500 to-cyan-600',
+      stat: '99.8%',
+      statLabel: t('landing.processingRate'),
+    },
+    {
+      icon: '⚡',
+      title: t('landing.energyEfficiency'),
+      subtitle: t('landing.energySubtitle'),
+      description: t('landing.energyDescription'),
+      gradient: 'from-yellow-500 to-orange-500',
+      stat: '0.2%',
+      statLabel: t('landing.productLoss'),
+    },
+    {
+      icon: '🤝',
+      title: t('landing.socialResponsibility'),
+      subtitle: t('landing.socialSubtitle'),
+      description: t('landing.socialDescription'),
+      gradient: 'from-blue-500 to-indigo-600',
+      stat: '10+',
+      statLabel: t('landing.causesSupported'),
+    },
+    {
+      icon: '💪',
+      title: t('landing.respectTeamwork'),
+      subtitle: t('landing.respectSubtitle'),
+      description: t('landing.respectDescription'),
+      gradient: 'from-purple-500 to-pink-500',
+      stat: '100%',
+      statLabel: t('landing.teamCommitment'),
+    },
+    {
+      icon: '🏭',
+      title: t('landing.localProcessing'),
+      subtitle: t('landing.localProcessingSubtitle'),
+      description: t('landing.localProcessingDescription'),
+      gradient: 'from-rose-500 to-red-500',
+      stat: 'QC',
+      statLabel: t('landing.proudlyLocal'),
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white overflow-x-hidden">
       {/* Animated Background */}
@@ -49,23 +169,23 @@ export default function LandingPage() {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                  SoyaFlow
+                  {t('brand.name')}
                 </h1>
-                <p className="text-[10px] text-gray-500 font-medium tracking-wide">Distribution Platform</p>
+                <p className="text-[10px] text-gray-500 font-medium tracking-wide">{t('brand.tagline')}</p>
               </div>
             </div>
 
             <nav className="hidden md:flex items-center gap-8">
-              <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
-              <a href="#modules" className="text-sm text-gray-400 hover:text-white transition-colors">Modules</a>
-              <a href="#values" className="text-sm text-gray-400 hover:text-white transition-colors">Values</a>
-              <a href="#about" className="text-sm text-gray-400 hover:text-white transition-colors">About</a>
+              <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.navFeatures')}</a>
+              <a href="#modules" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.navModules')}</a>
+              <a href="#values" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.navValues')}</a>
+              <a href="#about" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.navAbout')}</a>
             </nav>
 
             <div className="flex items-center gap-4">
-              <Link href="/login">
+              <Link href={`/${locale}/login`}>
                 <Button className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-green-500/25 transition-all duration-300 hover:shadow-green-500/40 hover:scale-105">
-                  Access Platform
+                  {t('landing.accessPlatform')}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
@@ -91,14 +211,14 @@ export default function LandingPage() {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-3 sm:px-5 py-2 sm:py-2.5 backdrop-blur-md hover:bg-white/15 transition-colors mb-6 sm:mb-8">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs sm:text-sm font-medium text-gray-200">AI-Powered Distribution Management</span>
+              <span className="text-xs sm:text-sm font-medium text-gray-200">{t('landing.badge')}</span>
             </div>
 
             {/* Title - Responsive sizing */}
             <div className="mb-6 sm:mb-8">
               <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-black mb-3 sm:mb-4 tracking-tight leading-[0.9]">
                 <span className="bg-gradient-to-r from-white via-green-400 to-yellow-400 bg-clip-text text-transparent drop-shadow-2xl">
-                  SoyaFlow
+                  {t('landing.title')}
                 </span>
               </h1>
               <div className="w-16 sm:w-20 lg:w-24 h-1 sm:h-1.5 bg-gradient-to-r from-green-500 to-yellow-400 rounded-full"></div>
@@ -107,28 +227,27 @@ export default function LandingPage() {
             {/* Subtitle - Responsive text */}
             <div className="space-y-3 sm:space-y-4 mb-8 sm:mb-10">
               <p className="text-xl sm:text-2xl lg:text-3xl text-white font-light drop-shadow-lg">
-                Smart Feed Distribution Platform
+                {t('landing.subtitle')}
               </p>
               <p className="text-base sm:text-lg text-gray-300 leading-relaxed max-w-lg lg:max-w-xl drop-shadow-md">
-                AI-powered predictions, real-time tracking, and optimized route planning
-                for soybean meal distribution across{' '}
-                <span className="text-green-400 font-semibold">Canada</span>,{' '}
-                <span className="text-yellow-400 font-semibold">USA</span> &{' '}
-                <span className="text-white font-semibold">Spain</span>
+                {t('landing.description')}{' '}
+                <span className="text-green-400 font-semibold">{t('landing.canada')}</span>,{' '}
+                <span className="text-yellow-400 font-semibold">{t('landing.usa')}</span> &{' '}
+                <span className="text-white font-semibold">{t('landing.spain')}</span>
               </p>
             </div>
 
             {/* CTA Buttons - Responsive layout */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <Link href="/login" className="w-full sm:w-auto">
+              <Link href={`/${locale}/login`} className="w-full sm:w-auto">
                 <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-6 rounded-xl sm:rounded-2xl shadow-2xl shadow-green-500/40 transition-all duration-300 hover:shadow-green-500/60 hover:scale-105 font-bold">
-                  Launch Dashboard
+                  {t('landing.launchDashboard')}
                   <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </Link>
               <a href="#features" className="w-full sm:w-auto">
                 <Button size="lg" variant="outline" className="w-full sm:w-auto border-white/30 bg-white/10 hover:bg-white/20 text-white text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-6 rounded-xl sm:rounded-2xl backdrop-blur-md transition-all duration-300 hover:scale-105 hover:border-white/50">
-                  Explore Features
+                  {t('landing.exploreFeatures')}
                   <ChevronRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </a>
@@ -150,69 +269,20 @@ export default function LandingPage() {
           <div className="text-center mb-20">
             <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2 mb-6">
               <Zap className="w-4 h-4 text-green-400" />
-              <span className="text-sm text-green-400 font-medium">Platform Capabilities</span>
+              <span className="text-sm text-green-400 font-medium">{t('landing.platformCapabilities')}</span>
             </div>
             <h2 className="text-5xl md:text-6xl font-bold mb-6">
               <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                Powerful Features
+                {t('landing.featuresTitle')}
               </span>
             </h2>
             <p className="text-xl text-gray-500 max-w-2xl mx-auto">
-              Everything you need to manage soybean meal distribution at scale
+              {t('landing.featuresSubtitle')}
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                icon: Brain,
-                title: 'AI Reorder Predictions',
-                description: 'XGBoost ML model predicts client reorder dates with 95% accuracy using 62 features, replacing $110K sensor systems.',
-                gradient: 'from-green-500/20 to-green-600/20',
-                borderColor: 'border-green-500/30',
-                iconBg: 'bg-green-500',
-              },
-              {
-                icon: Globe,
-                title: 'Multi-Region Operations',
-                description: 'Manage clients across Canada (QC, ON, NB, BC), USA, and Spain from a unified platform.',
-                gradient: 'from-yellow-500/20 to-orange-500/20',
-                borderColor: 'border-yellow-500/30',
-                iconBg: 'bg-yellow-500',
-              },
-              {
-                icon: Package,
-                title: 'Inventory Management',
-                description: 'Track soybean meal inventory by product type (Trituro 44%, Dairy Trituro, Oil) with quality grades.',
-                gradient: 'from-purple-500/20 to-pink-500/20',
-                borderColor: 'border-purple-500/30',
-                iconBg: 'bg-purple-500',
-              },
-              {
-                icon: Route,
-                title: 'Smart Route Planning',
-                description: 'Google Maps integration with DBSCAN/KMeans clustering for optimal delivery routes.',
-                gradient: 'from-blue-500/20 to-cyan-500/20',
-                borderColor: 'border-blue-500/30',
-                iconBg: 'bg-blue-500',
-              },
-              {
-                icon: TrendingUp,
-                title: 'KPI Dashboard',
-                description: 'Monitor KM/TM efficiency by product type, forecast accuracy (90-95% target), and weekly plans.',
-                gradient: 'from-emerald-500/20 to-teal-500/20',
-                borderColor: 'border-emerald-500/30',
-                iconBg: 'bg-emerald-500',
-              },
-              {
-                icon: BarChart3,
-                title: 'Analytics & Insights',
-                description: 'Track monthly usage trends, delivery performance, client priority alerts, and prediction confidence.',
-                gradient: 'from-rose-500/20 to-red-500/20',
-                borderColor: 'border-rose-500/30',
-                iconBg: 'bg-rose-500',
-              },
-            ].map((feature, idx) => (
+            {features.map((feature, idx) => (
               <div
                 key={idx}
                 className={`group relative bg-gradient-to-br ${feature.gradient} border ${feature.borderColor} rounded-3xl p-8 backdrop-blur-sm hover:scale-[1.02] transition-all duration-300`}
@@ -235,27 +305,20 @@ export default function LandingPage() {
           <div className="text-center mb-20">
             <div className="inline-flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-full px-4 py-2 mb-6">
               <Package className="w-4 h-4 text-yellow-400" />
-              <span className="text-sm text-yellow-400 font-medium">Core Modules</span>
+              <span className="text-sm text-yellow-400 font-medium">{t('landing.coreModules')}</span>
             </div>
             <h2 className="text-5xl md:text-6xl font-bold mb-6">
               <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                Integrated Platform
+                {t('landing.modulesTitle')}
               </span>
             </h2>
             <p className="text-xl text-gray-500 max-w-2xl mx-auto">
-              Everything you need in one unified system
+              {t('landing.modulesSubtitle')}
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
-            {[
-              { title: 'Client Management', desc: 'AI predictions, priority alerts, geocoding, monthly usage tracking', icon: Users },
-              { title: 'Order Processing', desc: 'Batch tracking, delivery status, expedition dates, quantity monitoring', icon: Package },
-              { title: 'Inventory Control', desc: 'Stock levels, quality grades, silo management, low-stock alerts', icon: BarChart3 },
-              { title: 'Route Planning', desc: 'Cluster-based optimization, GPS tracking, delivery scheduling', icon: MapPin },
-              { title: 'Weekly Distribution', desc: 'Tuesday planning, Friday finalization, forecast accuracy tracking', icon: Clock },
-              { title: 'Performance Metrics', desc: 'KM/TM by product, delivery rates, trend analysis, target monitoring', icon: TrendingUp },
-            ].map((module, idx) => (
+            {modules.map((module, idx) => (
               <div
                 key={idx}
                 className="group bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-green-500/30 transition-all duration-300"
@@ -281,75 +344,20 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2 mb-6">
               <span className="text-lg">🌱</span>
-              <span className="text-sm text-green-400 font-medium">Our Values</span>
+              <span className="text-sm text-green-400 font-medium">{t('landing.ourValues')}</span>
             </div>
             <h2 className="text-5xl md:text-6xl font-bold mb-6">
               <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                Values from Here
+                {t('landing.valuesTitle')}
               </span>
             </h2>
             <p className="text-xl text-gray-500 max-w-2xl mx-auto">
-              Rooted in Québécois agriculture, committed to sustainability and community
+              {t('landing.valuesSubtitle')}
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {[
-              {
-                icon: '🌱',
-                title: 'Agricultural Development',
-                subtitle: 'Rooted in Québec',
-                description: 'Supporting local agriculture and the soybean value chain. Valuing local products, from our lands, with our people.',
-                gradient: 'from-green-500 to-emerald-600',
-                stat: '100%',
-                statLabel: 'Local Focus',
-              },
-              {
-                icon: '♻️',
-                title: 'Sustainability',
-                subtitle: '99.8% Efficiency',
-                description: 'Minimal waste, maximum value. Almost everything that enters our plants comes out processed and ready to use.',
-                gradient: 'from-teal-500 to-cyan-600',
-                stat: '99.8%',
-                statLabel: 'Processing Rate',
-              },
-              {
-                icon: '⚡',
-                title: 'Energy Efficiency',
-                subtitle: 'Smart Systems',
-                description: 'Heat recovery systems and greywater reuse reducing our ecological footprint through continuous innovation.',
-                gradient: 'from-yellow-500 to-orange-500',
-                stat: '0.2%',
-                statLabel: 'Product Loss',
-              },
-              {
-                icon: '🤝',
-                title: 'Social Responsibility',
-                subtitle: 'Community First',
-                description: 'Supporting causes that matter — from autism support services to children\'s foundations and local sports teams.',
-                gradient: 'from-blue-500 to-indigo-600',
-                stat: '10+',
-                statLabel: 'Causes Supported',
-              },
-              {
-                icon: '💪',
-                title: 'Respect & Teamwork',
-                subtitle: 'People Built This',
-                description: 'Hardworking people built Soya Excel. We support our employees and their families, rewarding effort and dedication.',
-                gradient: 'from-purple-500 to-pink-500',
-                stat: '100%',
-                statLabel: 'Team Commitment',
-              },
-              {
-                icon: '🏭',
-                title: 'Local Processing',
-                subtitle: 'Made in Québec',
-                description: 'No more exporting raw, importing processed. Québec produces quality soybeans — we process them right here.',
-                gradient: 'from-rose-500 to-red-500',
-                stat: 'QC',
-                statLabel: 'Proudly Local',
-              },
-            ].map((value, idx) => (
+            {values.map((value, idx) => (
               <div
                 key={idx}
                 className="group relative bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 hover:border-white/20 transition-all duration-300 overflow-hidden"
@@ -385,7 +393,7 @@ export default function LandingPage() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-gray-400 hover:text-green-400 transition-colors group"
             >
-              <span>Learn more about our values</span>
+              <span>{t('landing.learnMoreValues')}</span>
               <ExternalLink className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </a>
           </div>
@@ -401,16 +409,15 @@ export default function LandingPage() {
               <Shield className="h-16 w-16 text-green-500 mx-auto mb-8" />
               <h2 className="text-4xl md:text-5xl font-bold mb-6">
                 <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                  Authorized Access Only
+                  {t('landing.authorizedAccess')}
                 </span>
               </h2>
               <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-                This platform is for internal use by Soya Excel team members.
-                Log in with your credentials to access the management dashboard.
+                {t('landing.authorizedDescription')}
               </p>
-              <Link href="/login">
+              <Link href={`/${locale}/login`}>
                 <Button size="lg" className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white text-lg px-12 py-6 rounded-2xl shadow-2xl shadow-green-500/30 transition-all duration-300 hover:shadow-green-500/50 hover:scale-105 font-semibold">
-                  Employee Login
+                  {t('landing.employeeLogin')}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
@@ -425,11 +432,11 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">
               <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                Developed with Excellence
+                {t('landing.developedExcellence')}
               </span>
             </h2>
             <p className="text-gray-500 max-w-2xl mx-auto">
-              SoyaFlow was developed through a collaboration between leading research institutions and industry partners
+              {t('landing.developedDescription')}
             </p>
           </div>
 
@@ -451,14 +458,14 @@ export default function LandingPage() {
                 />
               </div>
               <h3 className="text-xl font-bold text-white mb-2 group-hover:text-green-400 transition-colors">
-                SASEL Lab
+                {t('landing.saselLab')}
               </h3>
-              <p className="text-sm text-green-400 mb-3">McGill University</p>
+              <p className="text-sm text-green-400 mb-3">{t('landing.mcgillUniversity')}</p>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">
-                Sustainable Agrifood Systems Engineering Lab - Leveraging model-based approaches and digital innovation for sustainable food systems
+                {t('landing.saselDescription')}
               </p>
               <div className="inline-flex items-center text-xs text-gray-400 group-hover:text-green-400 transition-colors">
-                Visit Lab <ExternalLink className="ml-1 w-3 h-3" />
+                {t('landing.visitLab')} <ExternalLink className="ml-1 w-3 h-3" />
               </div>
             </a>
 
@@ -473,14 +480,14 @@ export default function LandingPage() {
                 <span className="text-2xl font-bold text-white">EAK</span>
               </div>
               <h3 className="text-xl font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors">
-                Emmanuel A. Kwofie
+                {t('landing.emmanuelKwofie')}
               </h3>
-              <p className="text-sm text-yellow-400 mb-3">Software Engineer</p>
+              <p className="text-sm text-yellow-400 mb-3">{t('landing.softwareEngineer')}</p>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">
-                Full Stack Developer & Cloud Architect specializing in research-to-software engineering and sustainable food systems technology
+                {t('landing.emmanuelDescription')}
               </p>
               <div className="inline-flex items-center text-xs text-gray-400 group-hover:text-yellow-400 transition-colors">
-                Portfolio <ExternalLink className="ml-1 w-3 h-3" />
+                {t('landing.portfolio')} <ExternalLink className="ml-1 w-3 h-3" />
               </div>
             </a>
 
@@ -501,14 +508,14 @@ export default function LandingPage() {
                 />
               </div>
               <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">
-                Consortium RITA
+                {t('landing.ritaConsortium')}
               </h3>
-              <p className="text-sm text-blue-400 mb-3">Research Partnership</p>
+              <p className="text-sm text-blue-400 mb-3">{t('landing.researchPartnership')}</p>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">
-                Quebec collaboration platform accelerating innovation, technology transfer, and sustainable agri-food processing development
+                {t('landing.ritaDescription')}
               </p>
               <div className="inline-flex items-center text-xs text-gray-400 group-hover:text-blue-400 transition-colors">
-                Learn More <ExternalLink className="ml-1 w-3 h-3" />
+                {t('landing.learnMore')} <ExternalLink className="ml-1 w-3 h-3" />
               </div>
             </a>
           </div>
@@ -516,7 +523,7 @@ export default function LandingPage() {
           {/* Funding acknowledgment */}
           <div className="mt-16 text-center">
             <p className="text-sm text-gray-600">
-              Supported by the Ministère de l&apos;Agriculture, des Pêcheries et de l&apos;Alimentation du Québec (MAPAQ)
+              {t('landing.mapaqSupport')}
             </p>
           </div>
         </div>
@@ -539,49 +546,49 @@ export default function LandingPage() {
                   />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">SoyaFlow</h3>
-                  <p className="text-xs text-gray-500">Distribution Platform</p>
+                  <h3 className="text-xl font-bold text-white">{t('brand.name')}</h3>
+                  <p className="text-xs text-gray-500">{t('brand.tagline')}</p>
                 </div>
               </div>
               <p className="text-sm text-gray-500 leading-relaxed max-w-md">
-                AI-powered soybean meal distribution management for efficient operations across North America and Europe. Designed to streamline logistics and optimize delivery routes.
+                {t('landing.footerDescription')}
               </p>
             </div>
 
             {/* Features */}
             <div>
-              <h4 className="font-semibold text-white mb-4">Key Features</h4>
+              <h4 className="font-semibold text-white mb-4">{t('landing.keyFeatures')}</h4>
               <ul className="space-y-3 text-sm text-gray-500">
-                <li>AI Reorder Predictions</li>
-                <li>Real-time Order Tracking</li>
-                <li>Route Optimization</li>
-                <li>Geographic Clustering</li>
-                <li>KPI Analytics Dashboard</li>
+                <li>{t('landing.aiReorderPredictionsFeature')}</li>
+                <li>{t('landing.realTimeTracking')}</li>
+                <li>{t('landing.routeOptimizationFeature')}</li>
+                <li>{t('landing.geographicClustering')}</li>
+                <li>{t('landing.kpiAnalytics')}</li>
               </ul>
             </div>
 
             {/* Links */}
             <div>
-              <h4 className="font-semibold text-white mb-4">Quick Links</h4>
+              <h4 className="font-semibold text-white mb-4">{t('landing.quickLinks')}</h4>
               <ul className="space-y-3 text-sm">
                 <li>
-                  <Link href="/login" className="text-gray-500 hover:text-green-400 transition-colors">
-                    Employee Login
+                  <Link href={`/${locale}/login`} className="text-gray-500 hover:text-green-400 transition-colors">
+                    {t('landing.employeeLogin')}
                   </Link>
                 </li>
                 <li>
                   <a href="https://sasellab.com/" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-green-400 transition-colors inline-flex items-center gap-1">
-                    SASEL Lab <ExternalLink className="w-3 h-3" />
+                    {t('landing.saselLab')} <ExternalLink className="w-3 h-3" />
                   </a>
                 </li>
                 <li>
                   <a href="https://www.eakwofie.com/" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-yellow-400 transition-colors inline-flex items-center gap-1">
-                    Developer Portfolio <ExternalLink className="w-3 h-3" />
+                    {t('landing.portfolio')} <ExternalLink className="w-3 h-3" />
                   </a>
                 </li>
                 <li>
                   <a href="https://ca.linkedin.com/company/consortium-rita" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-400 transition-colors inline-flex items-center gap-1">
-                    RITA Consortium <ExternalLink className="w-3 h-3" />
+                    {t('landing.ritaConsortium')} <ExternalLink className="w-3 h-3" />
                   </a>
                 </li>
               </ul>
@@ -592,12 +599,12 @@ export default function LandingPage() {
           <div className="border-t border-white/10 mt-12 pt-8">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <p className="text-sm text-gray-600">
-                © {new Date().getFullYear()} Soya Excel. Internal distribution management platform.
+                {t('landing.footerCopyright', { year: new Date().getFullYear() })}
               </p>
               <div className="flex items-center gap-6 text-xs text-gray-600">
-                <span>Developed by <a href="https://sasellab.com/" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-400">SASEL Lab</a> at McGill University</span>
+                <span>{t('landing.developedBy')} <a href="https://sasellab.com/" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-400">{t('landing.saselLab')}</a> {t('landing.mcgillUniversity')}</span>
                 <span className="hidden md:inline">•</span>
-                <span>Engineered by <a href="https://www.eakwofie.com/" target="_blank" rel="noopener noreferrer" className="text-yellow-500 hover:text-yellow-400">Emmanuel A. Kwofie</a></span>
+                <span>{t('landing.engineeredBy')} <a href="https://www.eakwofie.com/" target="_blank" rel="noopener noreferrer" className="text-yellow-500 hover:text-yellow-400">{t('landing.emmanuelKwofie')}</a></span>
               </div>
             </div>
           </div>
