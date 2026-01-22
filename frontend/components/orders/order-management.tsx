@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { toast } from 'react-hot-toast';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,7 @@ interface Order {
 }
 
 export function OrderManagement() {
+  const t = useTranslations('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,12 +138,12 @@ export function OrderManagement() {
       setTotalPages(Math.ceil((data.count || 0) / ordersPerPage));
     } catch (error) {
       console.error('Error loading orders:', error);
-      toast.error('Failed to load orders');
+      toast.error(t('failedToLoad'));
       setOrders([]);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, statusFilter, searchQuery]);
+  }, [currentPage, statusFilter, searchQuery, t]);
 
   useEffect(() => {
     loadOrders();
@@ -156,10 +158,10 @@ export function OrderManagement() {
   // Get status color
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { className: string; label: string }> = {
-      pending: { className: 'bg-yellow-100 text-yellow-700 border-yellow-200 font-semibold', label: 'Pending' },
-      delivered: { className: 'bg-green-100 text-green-700 border-green-200 font-semibold', label: 'Delivered' },
-      cancelled: { className: 'bg-red-100 text-red-700 border-red-200 font-semibold', label: 'Cancelled' },
-      in_progress: { className: 'bg-blue-100 text-blue-700 border-blue-200 font-semibold', label: 'In Progress' },
+      pending: { className: 'bg-yellow-100 text-yellow-700 border-yellow-200 font-semibold', label: t('pending') },
+      delivered: { className: 'bg-green-100 text-green-700 border-green-200 font-semibold', label: t('delivered') },
+      cancelled: { className: 'bg-red-100 text-red-700 border-red-200 font-semibold', label: t('cancelled') },
+      in_progress: { className: 'bg-blue-100 text-blue-700 border-blue-200 font-semibold', label: t('inProgress') },
     };
 
     const variant = variants[status] || { className: 'bg-gray-100 text-gray-700 border-gray-200', label: status };
@@ -183,9 +185,9 @@ export function OrderManagement() {
   const endIndex = Math.min(startIndex + ordersPerPage, totalCount);
 
   const filterButtons = [
-    { key: 'all', label: 'All Orders', color: 'bg-gray-900 hover:bg-gray-800' },
-    { key: 'pending', label: 'Pending', color: 'bg-yellow-600 hover:bg-yellow-700' },
-    { key: 'delivered', label: 'Delivered', color: 'bg-green-600 hover:bg-green-700' },
+    { key: 'all', label: t('allOrders'), color: 'bg-gray-900 hover:bg-gray-800' },
+    { key: 'pending', label: t('pendingFilter'), color: 'bg-yellow-600 hover:bg-yellow-700' },
+    { key: 'delivered', label: t('deliveredFilter'), color: 'bg-green-600 hover:bg-green-700' },
   ];
 
   return (
@@ -199,25 +201,25 @@ export function OrderManagement() {
             </div>
             <div className="flex items-center gap-2 bg-yellow-100 rounded-full px-3 py-1">
               <Truck className="h-3.5 w-3.5 text-yellow-600" />
-              <span className="text-xs font-semibold text-yellow-700">Feed Distribution</span>
+              <span className="text-xs font-semibold text-yellow-700">{t('feedDistribution')}</span>
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('orderManagement')}</h1>
           <p className="mt-1 text-gray-500">
-            Manage soybean meal orders and track deliveries
+            {t('manageOrders')}
           </p>
         </div>
         <div className="flex gap-3">
-          <Button 
+          <Button
             onClick={() => { loadOrders(); loadStatistics(); }}
             className="soya-button-outline group"
           >
             <RefreshCw className="h-4 w-4 mr-2 transition-transform group-hover:rotate-180 duration-500" />
-            Refresh
+            {t('refresh')}
           </Button>
           <Button className="soya-button-primary">
             <Plus className="h-4 w-4 mr-2" />
-            Create Order
+            {t('createOrder')}
           </Button>
         </div>
       </div>
@@ -229,10 +231,10 @@ export function OrderManagement() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">Total Orders</p>
+                <p className="text-sm font-medium text-gray-500">{t('totalOrders')}</p>
                 <p className="text-3xl font-bold text-gray-900 mt-1">{stats.total.toLocaleString()}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {statusFilter !== 'all' ? `${statusFilter} orders` : 'All time'}
+                  {statusFilter !== 'all' ? t('statusOrders', { status: statusFilter }) : t('allTime')}
                 </p>
               </div>
               <div className="p-3 bg-gradient-to-br from-green-600 to-green-700 rounded-xl shadow-lg shadow-green-600/20">
@@ -247,9 +249,9 @@ export function OrderManagement() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">Pending</p>
+                <p className="text-sm font-medium text-gray-500">{t('pending')}</p>
                 <p className="text-3xl font-bold text-yellow-600 mt-1">{stats.pending.toLocaleString()}</p>
-                <p className="text-xs text-gray-400 mt-1">Awaiting delivery</p>
+                <p className="text-xs text-gray-400 mt-1">{t('awaitingDelivery')}</p>
               </div>
               <div className="p-3 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl shadow-lg shadow-yellow-500/20">
                 <Clock className="h-6 w-6 text-white" />
@@ -263,9 +265,9 @@ export function OrderManagement() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">Delivered</p>
+                <p className="text-sm font-medium text-gray-500">{t('delivered')}</p>
                 <p className="text-3xl font-bold text-green-600 mt-1">{stats.delivered.toLocaleString()}</p>
-                <p className="text-xs text-gray-400 mt-1">Successfully completed</p>
+                <p className="text-xs text-gray-400 mt-1">{t('successfullyCompleted')}</p>
               </div>
               <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20">
                 <TrendingUp className="h-6 w-6 text-white" />
@@ -279,11 +281,11 @@ export function OrderManagement() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">Total Volume</p>
+                <p className="text-sm font-medium text-gray-500">{t('totalVolume')}</p>
                 <p className="text-3xl font-bold text-gray-900 mt-1">
                   {Number(stats.totalVolume || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Tonnes all time</p>
+                <p className="text-xs text-gray-400 mt-1">{t('tonnesAllTime')}</p>
               </div>
               <div className="p-3 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl shadow-lg shadow-gray-700/20">
                 <Package className="h-6 w-6 text-yellow-400" />
@@ -301,7 +303,7 @@ export function OrderManagement() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by order number, client, or product..."
+                  placeholder={t('searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 h-11 border-gray-200 focus:border-green-500 focus:ring-green-500/20"
@@ -311,7 +313,7 @@ export function OrderManagement() {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 text-gray-500 mr-2">
                 <Filter className="h-4 w-4" />
-                <span className="text-sm font-medium hidden sm:inline">Status:</span>
+                <span className="text-sm font-medium hidden sm:inline">{t('status')}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {filterButtons.map((btn) => (
@@ -340,10 +342,10 @@ export function OrderManagement() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-xl">
               <Package className="h-5 w-5 text-green-600" />
-              Orders
+              {t('orders')}
             </CardTitle>
             <Badge className="soya-badge-success">
-              {totalCount.toLocaleString()} orders
+              {t('ordersCount', { count: totalCount })}
             </Badge>
           </div>
         </CardHeader>
@@ -352,7 +354,7 @@ export function OrderManagement() {
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <div className="soya-spinner mx-auto mb-4"></div>
-                <p className="text-gray-500">Loading orders...</p>
+                <p className="text-gray-500">{t('loadingOrders')}</p>
               </div>
             </div>
           ) : orders.length === 0 ? (
@@ -360,11 +362,11 @@ export function OrderManagement() {
               <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mb-4">
                 <Package className="h-8 w-8 text-gray-400" />
               </div>
-              <p className="font-semibold text-gray-900">No orders found</p>
+              <p className="font-semibold text-gray-900">{t('noOrdersFound')}</p>
               <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
                 {searchQuery || statusFilter !== 'all'
-                  ? 'Try adjusting your filters'
-                  : 'Create your first order to get started'}
+                  ? t('adjustFilters')
+                  : t('createFirstOrder')}
               </p>
             </div>
           ) : (
@@ -373,15 +375,15 @@ export function OrderManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                      <TableHead className="font-semibold text-gray-700">Order #</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Client</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Location</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Product</TableHead>
-                      <TableHead className="font-semibold text-gray-700 text-right">Quantity</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Status</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Order Date</TableHead>
-                      <TableHead className="font-semibold text-gray-700">Delivery</TableHead>
-                      <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
+                      <TableHead className="font-semibold text-gray-700">{t('orderNumber')}</TableHead>
+                      <TableHead className="font-semibold text-gray-700">{t('client')}</TableHead>
+                      <TableHead className="font-semibold text-gray-700">{t('location')}</TableHead>
+                      <TableHead className="font-semibold text-gray-700">{t('product')}</TableHead>
+                      <TableHead className="font-semibold text-gray-700 text-right">{t('quantity')}</TableHead>
+                      <TableHead className="font-semibold text-gray-700">{t('statusLabel')}</TableHead>
+                      <TableHead className="font-semibold text-gray-700">{t('orderDate')}</TableHead>
+                      <TableHead className="font-semibold text-gray-700">{t('delivery')}</TableHead>
+                      <TableHead className="font-semibold text-gray-700 text-right">{t('actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -395,12 +397,12 @@ export function OrderManagement() {
                           {order.client_order_number}
                         </TableCell>
                         <TableCell className="font-medium text-gray-700">
-                          {order.client?.name || 'N/A'}
+                          {order.client?.name || t('na')}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 text-sm text-gray-600">
                             <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                            {order.client?.city || 'N/A'}, {order.client?.country || 'N/A'}
+                            {order.client?.city || t('na')}, {order.client?.country || t('na')}
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-gray-600">
@@ -410,7 +412,7 @@ export function OrderManagement() {
                           <span className="font-semibold text-gray-900">
                             {Number(order.total_amount_delivered_tm || 0).toFixed(1)}
                           </span>
-                          <span className="text-gray-500 text-sm ml-1">tm</span>
+                          <span className="text-gray-500 text-sm ml-1">{t('tm')}</span>
                         </TableCell>
                         <TableCell>
                           {getStatusBadge(order.status)}
@@ -424,7 +426,7 @@ export function OrderManagement() {
                         <TableCell className="text-sm text-gray-600">
                           {order.delivery_date
                             ? format(new Date(order.delivery_date), 'MMM dd, yyyy')
-                            : <span className="text-gray-400">Not scheduled</span>}
+                            : <span className="text-gray-400">{t('notScheduled')}</span>}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -434,7 +436,7 @@ export function OrderManagement() {
                             className="hover:bg-green-100 hover:text-green-700 group rounded-lg"
                           >
                             <Eye className="h-4 w-4 mr-1.5" />
-                            View
+                            {t('view')}
                             <ArrowRight className="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </Button>
                         </TableCell>
@@ -448,9 +450,9 @@ export function OrderManagement() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between p-4 border-t border-gray-100">
                   <p className="text-sm text-gray-600">
-                    Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                    <span className="font-medium">{endIndex}</span> of{' '}
-                    <span className="font-medium">{totalCount.toLocaleString()}</span> orders
+                    {t('showing')} <span className="font-medium">{startIndex + 1}</span> {t('to')}{' '}
+                    <span className="font-medium">{endIndex}</span> {t('of')}{' '}
+                    <span className="font-medium">{totalCount.toLocaleString()}</span> {t('orders').toLowerCase()}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -461,7 +463,7 @@ export function OrderManagement() {
                       className="rounded-lg"
                     >
                       <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
+                      {t('previous')}
                     </Button>
                     <div className="flex items-center gap-1 px-3">
                       <span className="text-sm font-medium text-gray-900">{currentPage}</span>
@@ -475,7 +477,7 @@ export function OrderManagement() {
                       disabled={currentPage === totalPages || loading}
                       className="rounded-lg"
                     >
-                      Next
+                      {t('next')}
                       <ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
                   </div>
@@ -497,7 +499,7 @@ export function OrderManagement() {
                     <Package className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl">Order Details</CardTitle>
+                    <CardTitle className="text-xl">{t('orderDetails')}</CardTitle>
                     <p className="text-sm text-gray-500">{selectedOrder.client_order_number}</p>
                   </div>
                 </div>
@@ -516,29 +518,29 @@ export function OrderManagement() {
               <div className="bg-gray-50 rounded-xl p-5">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <Package className="h-4 w-4 text-green-600" />
-                  Order Information
+                  {t('orderInformation')}
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Order Number</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('orderNumberLabel')}</p>
                     <p className="font-semibold text-gray-900 mt-1">{selectedOrder.client_order_number}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Status</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('statusLabel')}</p>
                     <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('orderDateLabel')}</p>
                     <p className="font-medium text-gray-900 mt-1">
                       {format(new Date(selectedOrder.sales_order_creation_date), 'MMM dd, yyyy')}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Date</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('deliveryDate')}</p>
                     <p className="font-medium text-gray-900 mt-1">
                       {selectedOrder.delivery_date
                         ? format(new Date(selectedOrder.delivery_date), 'MMM dd, yyyy')
-                        : <span className="text-gray-400">Not scheduled</span>}
+                        : <span className="text-gray-400">{t('notScheduled')}</span>}
                     </p>
                   </div>
                 </div>
@@ -548,17 +550,17 @@ export function OrderManagement() {
               <div className="bg-gradient-to-br from-green-50 to-yellow-50 border border-green-100 rounded-xl p-5">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-green-600" />
-                  Client Information
+                  {t('clientInformation')}
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</p>
-                    <p className="font-semibold text-gray-900 mt-1">{selectedOrder.client?.name || 'N/A'}</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('clientName')}</p>
+                    <p className="font-semibold text-gray-900 mt-1">{selectedOrder.client?.name || t('na')}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Location</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('locationLabel')}</p>
                     <p className="font-medium text-gray-900 mt-1">
-                      {selectedOrder.client?.city || 'N/A'}, {selectedOrder.client?.country || 'N/A'}
+                      {selectedOrder.client?.city || t('na')}, {selectedOrder.client?.country || t('na')}
                     </p>
                   </div>
                 </div>
@@ -568,18 +570,18 @@ export function OrderManagement() {
               <div className="bg-gray-50 rounded-xl p-5">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <Truck className="h-4 w-4 text-yellow-600" />
-                  Product Information
+                  {t('productInformation')}
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Product</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('productLabel')}</p>
                     <p className="font-medium text-gray-900 mt-1">{selectedOrder.product_name}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('quantityLabel')}</p>
                     <p className="text-2xl font-bold text-green-700 mt-1">
-                      {Number(selectedOrder.total_amount_delivered_tm || 0).toFixed(1)} 
-                      <span className="text-sm font-medium text-gray-500 ml-1">tonnes</span>
+                      {Number(selectedOrder.total_amount_delivered_tm || 0).toFixed(1)}
+                      <span className="text-sm font-medium text-gray-500 ml-1">{t('tonnes')}</span>
                     </p>
                   </div>
                 </div>
@@ -592,7 +594,7 @@ export function OrderManagement() {
                   onClick={() => setSelectedOrder(null)}
                   className="flex-1 rounded-lg"
                 >
-                  Close
+                  {t('close')}
                 </Button>
               </div>
             </CardContent>
