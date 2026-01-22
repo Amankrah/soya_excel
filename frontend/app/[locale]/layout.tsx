@@ -5,7 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { locales } from '@/i18n';
+import { locales, type Locale } from '@/i18n';
 
 const inter = Inter({
   variable: "--font-inter",
@@ -69,7 +69,7 @@ export default async function LocaleLayout({
   const { locale } = await params;
 
   // Ensure that the incoming `locale` is valid
-  if (!locales.includes(locale as any)) {
+  if (!locales.includes(locale as Locale)) {
     notFound();
   }
 

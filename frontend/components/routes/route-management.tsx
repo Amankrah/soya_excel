@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { routeAPI, productAPI, API_BASE_URL } from '@/lib/api';
 import { AxiosError } from 'axios';
 import { toast } from 'react-hot-toast';
@@ -175,6 +176,7 @@ interface DistributionPlan {
 }
 
 export function RouteManagement() {
+  const t = useTranslations('routeManagement');
   const router = useRouter();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
@@ -277,7 +279,7 @@ export function RouteManagement() {
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Failed to load route data');
+      toast.error(t('failedToLoadData'));
       setRoutes([]);
       setAvailableClients([]);
     } finally {
@@ -314,13 +316,13 @@ export function RouteManagement() {
   const handleOptimizeRoute = async (routeId: string) => {
     try {
       const result = await routeAPI.optimizeRoute(parseInt(routeId));
-      toast.success(`Route optimized: ${result.message || 'Success'}`);
+      toast.success(t('routeOptimized', { message: result.message || 'Success' }));
       loadData();
     } catch (error: unknown) {
       console.error('Error optimizing route:', error);
       const errorMessage = error instanceof Error && 'response' in error
-        ? (error as AxiosError<{ error: string }>).response?.data?.error || 'Failed to optimize route'
-        : 'Failed to optimize route';
+        ? (error as AxiosError<{ error: string }>).response?.data?.error || t('failedToOptimize')
+        : t('failedToOptimize');
       toast.error(errorMessage);
     }
   };
@@ -328,22 +330,22 @@ export function RouteManagement() {
   const handleActivateRoute = async (routeId: string) => {
     try {
       await routeAPI.activateRoute(routeId);
-      toast.success('Route activated');
+      toast.success(t('routeActivated'));
       loadData();
     } catch (error) {
       console.error('Error activating route:', error);
-      toast.error('Failed to activate route');
+      toast.error(t('failedToActivate'));
     }
   };
 
   const handleCompleteRoute = async (routeId: string) => {
     try {
       await routeAPI.completeRoute(routeId);
-      toast.success('Route completed');
+      toast.success(t('routeCompleted'));
       loadData();
     } catch (error) {
       console.error('Error completing route:', error);
-      toast.error('Failed to complete route');
+      toast.error(t('failedToComplete'));
     }
   };
 
@@ -383,7 +385,7 @@ export function RouteManagement() {
     if (!editingRoute) return;
 
     if (editSelectedClients.size === 0) {
-      toast.error('Please select at least one client');
+      toast.error(t('selectAtLeastOne'));
       return;
     }
 
@@ -493,7 +495,7 @@ export function RouteManagement() {
           await routeAPI.optimizeRoute(parseInt(editingRoute.id));
         }
 
-        toast.success(`Active route updated: ${clientsToAdd.length} stops added, ${clientsToRemove.length} removed`);
+        toast.success(t('activeRouteUpdated', { added: clientsToAdd.length, removed: clientsToRemove.length }));
         setShowEditModal(false);
         setEditingRoute(null);
         setEditSelectedClients(new Set());
@@ -527,14 +529,14 @@ export function RouteManagement() {
         setEditClientPriorityFilter('all');
         loadData();
       } else {
-        toast.error(result.error || 'Failed to update route');
+        toast.error(result.error || t('failedToUpdate'));
       }
       }
     } catch (error: unknown) {
       console.error('Error updating route:', error);
       const errorMessage = error instanceof Error && 'response' in error
-        ? (error as AxiosError<{ error: string }>).response?.data?.error || 'Failed to update route'
-        : 'Failed to update route';
+        ? (error as AxiosError<{ error: string }>).response?.data?.error || t('failedToUpdate')
+        : t('failedToUpdate');
       toast.error(errorMessage);
     } finally {
       setEditPlanningLoading(false);
@@ -542,19 +544,19 @@ export function RouteManagement() {
   };
 
   const handleDeleteRoute = async (routeId: string, routeName: string) => {
-    if (!confirm(`Are you sure you want to delete route "${routeName}"? This action cannot be undone.`)) {
+    if (!confirm(t('confirmDelete', { name: routeName }))) {
       return;
     }
 
     try {
       await routeAPI.deleteRoute(routeId);
-      toast.success('Route deleted successfully');
+      toast.success(t('routeDeleted'));
       loadData();
     } catch (error: unknown) {
       console.error('Error deleting route:', error);
       const errorMessage = error instanceof Error && 'response' in error
-        ? (error as AxiosError<{ error: string }>).response?.data?.error || 'Failed to delete route'
-        : 'Failed to delete route';
+        ? (error as AxiosError<{ error: string }>).response?.data?.error || t('failedToDelete')
+        : t('failedToDelete');
       toast.error(errorMessage);
     }
   };
@@ -563,7 +565,7 @@ export function RouteManagement() {
   // Distribution planning actions
   const handleCreateDistributionPlan = async () => {
     if (selectedClients.size === 0) {
-      toast.error('Please select at least one client');
+      toast.error(t('selectAtLeastOne'));
       return;
     }
 
@@ -913,12 +915,12 @@ export function RouteManagement() {
             </div>
             <div className="flex items-center gap-2 bg-green-100 rounded-full px-3 py-1">
               <Zap className="h-3.5 w-3.5 text-green-600" />
-              <span className="text-xs font-semibold text-green-700">Optimized</span>
+              <span className="text-xs font-semibold text-green-700">{t('optimized')}</span>
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Route Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('routeManagement')}</h1>
           <p className="mt-1 text-gray-500">
-            Plan, optimize, and manage soybean meal delivery routes
+            {t('planOptimizeManage')}
           </p>
         </div>
         <Button
@@ -926,7 +928,7 @@ export function RouteManagement() {
           onClick={() => setShowDistributionPlanner(true)}
         >
           <Users className="h-4 w-4 mr-2" />
-          Distribution Planner
+          {t('distributionPlanner')}
         </Button>
       </div>
 
@@ -936,7 +938,7 @@ export function RouteManagement() {
           <CardHeader className="border-b border-gray-100">
             <CardTitle className="text-lg flex items-center gap-2">
               <Calendar className="h-4 w-4 text-green-600" />
-              Route Date
+              {t('routeDate')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -961,7 +963,7 @@ export function RouteManagement() {
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     <span className="font-medium text-blue-900">
-                      {datesWithRoutes.size} date{datesWithRoutes.size !== 1 ? 's' : ''} with routes
+                      {datesWithRoutes.size === 1 ? t('datesWithRoutes', { count: datesWithRoutes.size }) : t('datesWithRoutesPlural', { count: datesWithRoutes.size })}
                     </span>
                   </div>
                   {showDatesList ? (
@@ -1000,23 +1002,23 @@ export function RouteManagement() {
             )}
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">Total Routes</span>
+                <span className="text-gray-600">{t('totalRoutes')}</span>
                 <span className="font-semibold">{routes.length}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">Active</span>
+                <span className="text-gray-600">{t('active')}</span>
                 <span className="font-semibold text-green-600">
                   {routes.filter(r => r.status === 'active').length}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">Planned</span>
+                <span className="text-gray-600">{t('planned')}</span>
                 <span className="font-semibold text-blue-600">
                   {routes.filter(r => r.status === 'planned').length}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">Completed</span>
+                <span className="text-gray-600">{t('completed')}</span>
                 <span className="font-semibold text-gray-600">
                   {routes.filter(r => r.status === 'completed').length}
                 </span>
@@ -1029,7 +1031,7 @@ export function RouteManagement() {
         <div className="lg:col-span-3">
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="text-gray-500">Loading routes...</div>
+              <div className="text-gray-500">{t('loadingRoutes')}</div>
             </div>
           ) : routes.length === 0 ? (
             <Card className="h-64 soya-card border-0 shadow-lg">
@@ -1039,17 +1041,17 @@ export function RouteManagement() {
                     <RouteIcon className="h-8 w-8 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    No routes for {new Date(selectedDate).toLocaleDateString()}
+                    {t('noRoutesFor', { date: new Date(selectedDate).toLocaleDateString() })}
                   </h3>
                   <p className="text-gray-500 mb-6 max-w-sm">
-                    Use the distribution planner to create optimized delivery routes.
+                    {t('useDistributionPlanner')}
                   </p>
                   <Button
                     className="soya-button-primary"
                     onClick={() => setShowDistributionPlanner(true)}
                   >
                     <Users className="h-4 w-4 mr-2" />
-                    Create Routes
+                    {t('createRoutes')}
                   </Button>
                 </div>
               </CardContent>
@@ -1074,20 +1076,20 @@ export function RouteManagement() {
                             {route.status}
                           </Badge>
                           <Badge variant="outline" className="text-xs">
-                            {route.route_type ? route.route_type.replace('_', ' ') : 'Mixed Route'}
+                            {route.route_type ? route.route_type.replace('_', ' ') : t('mixedRoute')}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-gray-500">
                           <div className="flex items-center gap-1.5">
                             <Truck className="h-4 w-4 text-gray-600" />
-                            <span>{route.driver_name || 'Unassigned'}</span>
+                            <span>{route.driver_name || t('unassigned')}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <Calendar className="h-4 w-4 text-gray-600" />
                             <span>{new Date(route.date).toLocaleDateString()}</span>
                           </div>
                           <div className="text-gray-600">
-                            {route.stops.filter(s => s.is_completed).length} / {route.stops.length} delivered
+                            {route.stops.filter(s => s.is_completed).length} / {route.stops.length} {t('delivered')}
                           </div>
                         </div>
                       </div>
@@ -1099,19 +1101,19 @@ export function RouteManagement() {
                         <div className="text-2xl font-bold text-green-700">
                           {route.stops.length}
                         </div>
-                        <div className="text-xs font-medium text-green-600 mt-0.5">Stops</div>
+                        <div className="text-xs font-medium text-green-600 mt-0.5">{t('stops')}</div>
                       </div>
                       <div className="bg-gradient-to-br from-yellow-50 to-white rounded-lg p-3 border border-yellow-100">
                         <div className="text-2xl font-bold text-yellow-700">
                           {route.total_distance ? `${route.total_distance}` : '—'}
                         </div>
-                        <div className="text-xs font-medium text-yellow-600 mt-0.5">km</div>
+                        <div className="text-xs font-medium text-yellow-600 mt-0.5">{t('km')}</div>
                       </div>
                       <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-3 border border-gray-200">
                         <div className="text-2xl font-bold text-gray-700">
                           {route.estimated_duration ? `${Math.round(route.estimated_duration / 60)}` : '—'}
                         </div>
-                        <div className="text-xs font-medium text-gray-500 mt-0.5">hours</div>
+                        <div className="text-xs font-medium text-gray-500 mt-0.5">{t('hours')}</div>
                       </div>
                     </div>
 
@@ -1119,7 +1121,7 @@ export function RouteManagement() {
                     {route.status === 'active' && (
                       <div className="bg-green-50 rounded-lg p-3 mb-4">
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-green-700 font-medium">Progress</span>
+                          <span className="text-green-700 font-medium">{t('progress')}</span>
                           <span className="font-bold text-green-800">{Math.round(getProgress(route))}%</span>
                         </div>
                         <div className="w-full bg-green-200 rounded-full h-2.5 overflow-hidden">
@@ -1139,21 +1141,21 @@ export function RouteManagement() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleOptimizeRoute(route.id)}
-                            title={route.status === 'active' ? 'Reoptimize active route' : 'Optimize route'}
+                            title={route.status === 'active' ? t('reoptimizeActive') : t('optimizeRoute')}
                             className="rounded-lg hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300 transition-colors"
                           >
                             <Zap className="h-3.5 w-3.5 mr-1.5 text-yellow-600" />
-                            {route.status === 'active' ? 'Reoptimize' : 'Optimize'}
+                            {route.status === 'active' ? t('reoptimize') : t('optimize')}
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleEditRoute(route)}
-                            title={route.status === 'active' ? 'Edit stops (add/remove)' : 'Edit route'}
+                            title={route.status === 'active' ? t('editStopsActive') : t('editRoute')}
                             className="rounded-lg hover:bg-gray-100 transition-colors"
                           >
                             <Edit className="h-3.5 w-3.5 mr-1.5" />
-                            {route.status === 'active' ? 'Edit Stops' : 'Edit'}
+                            {route.status === 'active' ? t('editStops') : t('edit')}
                           </Button>
                         </>
                       )}
@@ -1170,7 +1172,7 @@ export function RouteManagement() {
                             className="rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
                           >
                             <UserPlus className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-                            {route.driver_name ? 'Reassign Driver' : 'Assign Driver'}
+                            {route.driver_name ? t('reassignDriver') : t('assignDriver')}
                           </Button>
                           <Button
                             size="sm"
@@ -1178,7 +1180,7 @@ export function RouteManagement() {
                             className="rounded-lg bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-sm shadow-green-600/30"
                           >
                             <Play className="h-3.5 w-3.5 mr-1.5" />
-                            Activate
+                            {t('activate')}
                           </Button>
                         </>
                       )}
@@ -1191,7 +1193,7 @@ export function RouteManagement() {
                           className="rounded-lg hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-colors"
                         >
                           <CheckCircle className="h-3.5 w-3.5 mr-1.5 text-green-600" />
-                          Complete
+                          {t('complete')}
                         </Button>
                       )}
 
@@ -1204,7 +1206,7 @@ export function RouteManagement() {
                         }}
                       >
                         <MapIcon className="h-3 w-3 mr-1" />
-                        View Map
+                        {t('viewMap')}
                       </Button>
 
                       {(route.status === 'planned' || route.status === 'active') && (
@@ -1218,7 +1220,7 @@ export function RouteManagement() {
                             className="rounded-lg hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
                           >
                             <Play className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-                            Simulate
+                            {t('simulate')}
                           </Button>
                         </>
                       )}
@@ -1231,7 +1233,7 @@ export function RouteManagement() {
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="h-3 w-3 mr-1" />
-                          Delete
+                          {t('delete')}
                         </Button>
                       )}
                     </div>
@@ -1240,7 +1242,7 @@ export function RouteManagement() {
                     {route.stops.length > 0 && (
                       <div className="pt-2 border-t">
                         <div className="text-xs text-gray-600 mb-2">
-                          Next stops:
+                          {t('nextStops')}
                         </div>
                         <div className="space-y-1">
                           {route.stops
@@ -1275,7 +1277,7 @@ export function RouteManagement() {
                           ))}
                           {route.stops.filter(stop => !stop.is_completed).length > 2 && (
                             <div className="text-xs text-gray-500 pl-6">
-                              +{route.stops.filter(stop => !stop.is_completed).length - 2} more stops
+                              {t('moreStops', { count: route.stops.filter(stop => !stop.is_completed).length - 2 })}
                             </div>
                           )}
                         </div>
@@ -1296,9 +1298,9 @@ export function RouteManagement() {
             <CardHeader className="border-b sticky top-0 bg-white z-10">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl">Distribution Planner</CardTitle>
+                  <CardTitle className="text-2xl">{t('distributionPlanner')}</CardTitle>
                   <p className="text-sm text-gray-600 mt-1">
-                    Select clients and create optimized delivery routes
+                    {t('selectClientsAndCreate')}
                   </p>
                 </div>
                 <Button
@@ -1318,21 +1320,21 @@ export function RouteManagement() {
                 {/* Client Selection */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Select Clients ({filteredClients.length})</h3>
+                    <h3 className="text-lg font-semibold">{t('selectClients', { count: filteredClients.length })}</h3>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setSelectedClients(new Set(filteredClients.map(c => c.id)))}
                       >
-                        Select All Filtered
+                        {t('selectAllFiltered')}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={clearSelection}
                       >
-                        Clear
+                        {t('clear')}
                       </Button>
                     </div>
                   </div>
@@ -1340,7 +1342,7 @@ export function RouteManagement() {
                   {/* Search Bar */}
                   <div className="relative">
                     <Input
-                      placeholder="Search by name, city, or country..."
+                      placeholder={t('searchByNameCity')}
                       value={clientSearchTerm}
                       onChange={(e) => setClientSearchTerm(e.target.value)}
                       className="pl-10"
@@ -1354,10 +1356,10 @@ export function RouteManagement() {
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-sm font-semibold text-green-800 flex items-center gap-2">
                           <MapPin className="h-4 w-4" />
-                          Geographic Clusters
+                          {t('geographicClusters')}
                         </label>
                         <Badge variant="outline" className="text-xs bg-white">
-                          {clusters.length} regions
+                          {clusters.length} {t('regions')}
                         </Badge>
                       </div>
                       <select
@@ -1366,14 +1368,14 @@ export function RouteManagement() {
                         className="w-full border rounded-md px-3 py-2 text-sm bg-white"
                         title="Filter by geographic cluster"
                       >
-                        <option value="all">All Clusters ({availableClients.length})</option>
+                        <option value="all">{t('allClusters', { count: availableClients.length })}</option>
                         {clusters.map((cluster) => (
                           <option key={cluster.cluster_id} value={cluster.cluster_id}>
-                            {cluster.cluster_label || `Cluster ${cluster.cluster_id}`} ({cluster.client_count})
+                            {cluster.cluster_label || t('cluster', { id: cluster.cluster_id })} ({cluster.client_count})
                           </option>
                         ))}
                         {unclusteredCount > 0 && (
-                          <option value="unclustered">Unclustered ({unclusteredCount})</option>
+                          <option value="unclustered">{t('unclustedClients', { count: unclusteredCount })}</option>
                         )}
                       </select>
                       {clientClusterFilter !== 'all' && (
@@ -1384,7 +1386,7 @@ export function RouteManagement() {
                             onClick={() => selectCluster(clientClusterFilter === 'unclustered' ? 'unclustered' : parseInt(clientClusterFilter))}
                             className="flex-1 text-xs bg-green-100 border-green-300 hover:bg-green-200"
                           >
-                            Select All in Cluster
+                            {t('selectAllInCluster')}
                           </Button>
                           <Button
                             variant="outline"
@@ -1392,7 +1394,7 @@ export function RouteManagement() {
                             onClick={() => deselectCluster(clientClusterFilter === 'unclustered' ? 'unclustered' : parseInt(clientClusterFilter))}
                             className="flex-1 text-xs"
                           >
-                            Deselect Cluster
+                            {t('deselectCluster')}
                           </Button>
                         </div>
                       )}
@@ -1401,14 +1403,14 @@ export function RouteManagement() {
 
                   {/* Priority Filter Buttons */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Filter by Priority</label>
+                    <label className="text-sm font-medium text-gray-700">{t('filterByPriority')}</label>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant={clientPriorityFilter === 'all' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setClientPriorityFilter('all')}
                       >
-                        All
+                        {t('all')}
                       </Button>
                       <Button
                         variant={clientPriorityFilter === 'overdue' ? 'default' : 'outline'}
@@ -1416,35 +1418,35 @@ export function RouteManagement() {
                         onClick={() => setClientPriorityFilter('overdue')}
                         className={clientPriorityFilter === 'overdue' ? 'bg-orange-600 hover:bg-orange-700' : ''}
                       >
-                        Overdue
+                        {t('overdue')}
                       </Button>
                       <Button
                         variant={clientPriorityFilter === 'urgent' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setClientPriorityFilter('urgent')}
                       >
-                        Urgent (≤3d)
+                        {t('urgentLte3d')}
                       </Button>
                       <Button
                         variant={clientPriorityFilter === 'high' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setClientPriorityFilter('high')}
                       >
-                        High (4-7d)
+                        {t('high4to7d')}
                       </Button>
                       <Button
                         variant={clientPriorityFilter === 'medium' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setClientPriorityFilter('medium')}
                       >
-                        Medium (8-14d)
+                        {t('medium8to14d')}
                       </Button>
                       <Button
                         variant={clientPriorityFilter === 'low' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setClientPriorityFilter('low')}
                       >
-                        Low (&gt;14d)
+                        {t('lowGt14d')}
                       </Button>
                     </div>
                   </div>
@@ -1454,7 +1456,7 @@ export function RouteManagement() {
                     {filteredClients.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                        <p>No clients match your filters</p>
+                        <p>{t('noClientsMatch')}</p>
                       </div>
                     ) : clientClusterFilter === 'all' && clusters.length > 0 ? (
                       /* Grouped by cluster view */
@@ -1466,7 +1468,7 @@ export function RouteManagement() {
                                 <MapPin className="h-4 w-4 text-green-600" />
                                 <span className="font-medium text-sm text-green-800">{label}</span>
                                 <Badge variant="outline" className="text-xs bg-white">
-                                  {clients.length} clients
+                                  {clients.length} {t('clientsLabel')}
                                 </Badge>
                               </div>
                               <div className="flex gap-1">
@@ -1522,8 +1524,8 @@ export function RouteManagement() {
                                       'bg-gray-100 text-gray-600'
                                     }`}>
                                       {client.days_until_predicted_order < 0
-                                        ? `${Math.abs(client.days_until_predicted_order)}d late`
-                                        : `${client.days_until_predicted_order}d`
+                                        ? t('dLate', { days: Math.abs(client.days_until_predicted_order) })
+                                        : t('dDays', { days: client.days_until_predicted_order })
                                       }
                                     </Badge>
                                   )}
@@ -1564,8 +1566,8 @@ export function RouteManagement() {
                                   'text-blue-600'
                                 }`}>
                                   {client.days_until_predicted_order < 0
-                                    ? `Overdue by ${Math.abs(client.days_until_predicted_order)} days`
-                                    : `Order in ${client.days_until_predicted_order} days`
+                                    ? t('overdueByDays', { days: Math.abs(client.days_until_predicted_order) })
+                                    : t('orderInDays', { days: client.days_until_predicted_order })
                                   }
                                 </div>
                               )}
@@ -1580,14 +1582,14 @@ export function RouteManagement() {
                   {/* Selection Summary */}
                   <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Selected Clients</span>
+                      <span className="text-sm font-medium text-gray-700">{t('selectedClients')}</span>
                       <span className="text-lg font-bold text-green-700">
                         {selectedClients.size} / {availableClients.length}
                       </span>
                     </div>
                     {selectedClients.size > 0 && clusters.length > 0 && (
                       <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
-                        <div className="font-medium text-gray-600">Selection by Cluster:</div>
+                        <div className="font-medium text-gray-600">{t('selectionByCluster')}</div>
                         {clusters.map(cluster => {
                           const count = availableClients.filter(
                             c => c.cluster_id === cluster.cluster_id && selectedClients.has(c.id)
@@ -1606,7 +1608,7 @@ export function RouteManagement() {
                           ).length;
                           return unclusteredSelected > 0 ? (
                             <div className="flex justify-between">
-                              <span>Unclustered</span>
+                              <span>{t('unclustered')}</span>
                               <span className="font-medium text-gray-600">{unclusteredSelected}</span>
                             </div>
                           ) : null;
@@ -1621,18 +1623,18 @@ export function RouteManagement() {
                       <div className="bg-gradient-to-r from-yellow-100 to-orange-50 px-3 py-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Package className="h-4 w-4 text-yellow-600" />
-                          <span className="font-medium text-sm text-yellow-800">Delivery Details</span>
+                          <span className="font-medium text-sm text-yellow-800">{t('deliveryDetails')}</span>
                         </div>
                         {products.length > 0 && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-600">Default:</span>
+                            <span className="text-xs text-gray-600">{t('default')}:</span>
                             <select
                               value={defaultProduct || ''}
                               onChange={(e) => setDefaultProduct(e.target.value ? parseInt(e.target.value) : null)}
                               className="text-xs border rounded px-2 py-1 bg-white"
                               title="Select default product"
                             >
-                              <option value="">No default</option>
+                              <option value="">{t('noDefault')}</option>
                               {products.map(p => (
                                 <option key={p.id} value={p.id}>{p.name}</option>
                               ))}
@@ -1663,7 +1665,7 @@ export function RouteManagement() {
                                       className="w-full text-xs border rounded px-2 py-1.5 bg-white cursor-pointer focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                       title={`Select product for ${client.name}`}
                                     >
-                                      <option value="">Select product</option>
+                                      <option value="">{t('selectProduct')}</option>
                                       {products.map(p => (
                                         <option key={p.id} value={p.id}>{p.name}</option>
                                       ))}
@@ -1672,7 +1674,7 @@ export function RouteManagement() {
                                   <div className="flex items-center gap-1">
                                     <Input
                                       type="number"
-                                      placeholder="Qty"
+                                      placeholder={t('qty')}
                                       value={details.quantity_to_deliver || ''}
                                       onChange={(e) => updateClientDeliveryDetail(
                                         client.id,
@@ -1683,7 +1685,7 @@ export function RouteManagement() {
                                       min={0}
                                       step={0.1}
                                     />
-                                    <span className="text-xs text-gray-500">tm</span>
+                                    <span className="text-xs text-gray-500">{t('tm')}</span>
                                   </div>
                                 </div>
                               </div>
@@ -2034,7 +2036,7 @@ export function RouteManagement() {
                                 <MapPin className="h-4 w-4 text-green-600" />
                                 <span className="font-medium text-sm text-green-800">{label}</span>
                                 <Badge variant="outline" className="text-xs bg-white">
-                                  {clients.length} clients
+                                  {clients.length} {t('clientsLabel')}
                                 </Badge>
                               </div>
                               <div className="flex gap-1">
@@ -2090,8 +2092,8 @@ export function RouteManagement() {
                                       'bg-gray-100 text-gray-600'
                                     }`}>
                                       {client.days_until_predicted_order < 0
-                                        ? `${Math.abs(client.days_until_predicted_order)}d late`
-                                        : `${client.days_until_predicted_order}d`
+                                        ? t('dLate', { days: Math.abs(client.days_until_predicted_order) })
+                                        : t('dDays', { days: client.days_until_predicted_order })
                                       }
                                     </Badge>
                                   )}
@@ -2132,8 +2134,8 @@ export function RouteManagement() {
                                   'text-blue-600'
                                 }`}>
                                   {client.days_until_predicted_order < 0
-                                    ? `Overdue by ${Math.abs(client.days_until_predicted_order)} days`
-                                    : `Order in ${client.days_until_predicted_order} days`
+                                    ? t('overdueByDays', { days: Math.abs(client.days_until_predicted_order) })
+                                    : t('orderInDays', { days: client.days_until_predicted_order })
                                   }
                                 </div>
                               )}
@@ -2174,7 +2176,7 @@ export function RouteManagement() {
                           ).length;
                           return unclusteredSelected > 0 ? (
                             <div className="flex justify-between">
-                              <span>Unclustered</span>
+                              <span>{t('unclustered')}</span>
                               <span className="font-medium text-gray-600">{unclusteredSelected}</span>
                             </div>
                           ) : null;
@@ -2189,18 +2191,18 @@ export function RouteManagement() {
                       <div className="bg-gradient-to-r from-yellow-100 to-orange-50 px-3 py-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Package className="h-4 w-4 text-yellow-600" />
-                          <span className="font-medium text-sm text-yellow-800">Delivery Details</span>
+                          <span className="font-medium text-sm text-yellow-800">{t('deliveryDetails')}</span>
                         </div>
                         {products.length > 0 && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-600">Default:</span>
+                            <span className="text-xs text-gray-600">{t('default')}:</span>
                             <select
                               value={defaultProduct || ''}
                               onChange={(e) => setDefaultProduct(e.target.value ? parseInt(e.target.value) : null)}
                               className="text-xs border rounded px-2 py-1 bg-white"
                               title="Select default product"
                             >
-                              <option value="">No default</option>
+                              <option value="">{t('noDefault')}</option>
                               {products.map(p => (
                                 <option key={p.id} value={p.id}>{p.name}</option>
                               ))}
@@ -2231,7 +2233,7 @@ export function RouteManagement() {
                                       className="w-full text-xs border rounded px-2 py-1.5 bg-white cursor-pointer focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                       title={`Select product for ${client.name}`}
                                     >
-                                      <option value="">Select product</option>
+                                      <option value="">{t('selectProduct')}</option>
                                       {products.map(p => (
                                         <option key={p.id} value={p.id}>{p.name}</option>
                                       ))}
@@ -2240,7 +2242,7 @@ export function RouteManagement() {
                                   <div className="flex items-center gap-1">
                                     <Input
                                       type="number"
-                                      placeholder="Qty"
+                                      placeholder={t('qty')}
                                       value={details.quantity_to_deliver || ''}
                                       onChange={(e) => updateEditClientDeliveryDetail(
                                         client.id,
@@ -2251,7 +2253,7 @@ export function RouteManagement() {
                                       min={0}
                                       step={0.1}
                                     />
-                                    <span className="text-xs text-gray-500">tm</span>
+                                    <span className="text-xs text-gray-500">{t('tm')}</span>
                                   </div>
                                 </div>
                               </div>

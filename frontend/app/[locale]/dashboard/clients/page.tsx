@@ -140,7 +140,7 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm, filterPriority]);
+  }, [currentPage, searchTerm, filterPriority, t]);
 
   const fetchStatistics = async () => {
     try {
