@@ -27,26 +27,10 @@ class ClientViewSet(viewsets.ModelViewSet):
         """Enhanced queryset with filtering"""
         queryset = super().get_queryset()
 
-        # CRITICAL: Only show clients suitable for AI predictions
-        # These are clients with:
-        # 1. At least 3 orders (minimum for meaningful predictions)
-        # 2. Small/medium order patterns (≤10 tonnes average per order)
-        # 3. Valid predictions
-        # 4. Active status
-
-        from django.db.models import Count, Avg
-
-        # Annotate with order statistics
-        queryset = queryset.annotate(
-            order_count=Count('orders', filter=Q(orders__status='delivered')),
-            avg_order_size=Avg('orders__total_amount_delivered_tm', filter=Q(orders__status='delivered'))
-        )
-
-        # Filter for prediction-suitable clients
+        # Show all clients with AI predictions (active clients with valid prediction dates)
+        # This matches the statistics endpoint to avoid discrepancies
         queryset = queryset.filter(
             is_active=True,  # Active clients only
-            order_count__gte=3,  # At least 3 orders
-            avg_order_size__lte=10.0,  # Small/medium orders (≤10 tonnes average)
             predicted_next_order_date__isnull=False  # Has valid prediction
         )
 
@@ -118,14 +102,14 @@ class ClientViewSet(viewsets.ModelViewSet):
         """
         Get client statistics including AI predictions.
 
-        NOTE: This uses ALL clients with predictions, not just the filtered queryset,
-        because statistics should show the complete picture of all clients with predictions.
+        NOTE: This uses the same filtering as the main queryset to ensure
+        the statistics count matches the client list count.
         """
         # Use the filtered queryset for the paginated client list
         filtered_clients = self.get_queryset()
 
-        # But for statistics, count ALL clients with predictions (not just filtered ones)
-        # This matches what the prediction command reports
+        # For statistics, use the same filter as the client list
+        # This ensures the count matches between the table and statistics
         all_clients_with_predictions = Client.objects.filter(
             is_active=True,
             predicted_next_order_date__isnull=False
