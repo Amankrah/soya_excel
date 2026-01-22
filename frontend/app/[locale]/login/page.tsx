@@ -146,20 +146,23 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-between p-12">
         {/* Logo & Brand */}
         <div className="soya-fade-in">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-2xl p-3 shadow-xl shadow-yellow-500/20">
-              <Image
-                src="/LOGO-SoyaExcel.png"
-                alt="SoyaFlow Logo"
-                width={48}
-                height={48}
-                className="w-12 h-12 object-contain"
-              />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-2xl p-3 shadow-xl shadow-yellow-500/20">
+                <Image
+                  src="/LOGO-SoyaExcel.png"
+                  alt="SoyaFlow Logo"
+                  width={48}
+                  height={48}
+                  className="w-12 h-12 object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-white">{t('brand.name')}</h1>
+                <p className="text-yellow-400 font-medium">{t('brand.tagline')}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white">{t('brand.name')}</h1>
-              <p className="text-yellow-400 font-medium">{t('brand.tagline')}</p>
-            </div>
+            <LanguageSwitcher />
           </div>
         </div>
 

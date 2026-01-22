@@ -249,7 +249,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Right side actions */}
             <div className="flex items-center gap-2">
               {/* Language Switcher */}
-              <LanguageSwitcher />
+              <LanguageSwitcher variant="light" />
 
               {/* User Menu */}
               <DropdownMenu>
