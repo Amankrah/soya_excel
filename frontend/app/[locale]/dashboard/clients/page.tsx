@@ -6,6 +6,7 @@ import { Loading } from '@/components/ui/loading';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { clientAPI, API_BASE_URL } from '@/lib/api';
 import { toast } from 'react-hot-toast';
+import { useTranslations } from 'next-intl';
 import {
   Card,
   CardContent,
@@ -72,6 +73,7 @@ interface Client {
 
 export default function ClientsPage() {
   const { isLoading: authLoading } = useAuth();
+  const t = useTranslations('clients');
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -133,7 +135,7 @@ export default function ClientsPage() {
       setTotalCount(data.count || 0);
       setTotalPages(Math.ceil((data.count || 0) / clientsPerPage));
     } catch (error) {
-      toast.error('Failed to load clients');
+      toast.error(t('failedToLoad'));
       console.error('Error fetching clients:', error);
     } finally {
       setLoading(false);
@@ -182,7 +184,7 @@ export default function ClientsPage() {
     if (!client.predicted_next_order_date || client.days_until_predicted_order === null) {
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-          No Prediction
+          {t('noPrediction')}
         </span>
       );
     }
@@ -194,39 +196,39 @@ export default function ClientsPage() {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200">
           <AlertTriangle className="h-3 w-3" />
-          Overdue
+          {t('overdue')}
         </span>
       );
     } else if (days <= 3) {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
           <AlertTriangle className="h-3 w-3" />
-          Urgent
+          {t('urgent')}
         </span>
       );
     } else if (days <= 7) {
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-200">
-          High
+          {t('high')}
         </span>
       );
     } else if (days <= 14) {
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
-          Medium
+          {t('medium')}
         </span>
       );
     } else {
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-          Low
+          {t('low')}
         </span>
       );
     }
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('na');
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -236,17 +238,17 @@ export default function ClientsPage() {
 
   const getDaysDisplay = (client: Client) => {
     if (client.days_until_predicted_order === null) {
-      return 'No prediction';
+      return t('noPrediction');
     }
 
     const days = Math.round(client.days_until_predicted_order);
 
     if (days < 0) {
-      return `Overdue by ${Math.abs(days)} days`;
+      return t('overdueBy', { days: Math.abs(days) });
     } else if (days === 0) {
-      return 'Expected today';
+      return t('expectedToday');
     } else {
-      return `In ${days} days`;
+      return t('inDays', { days });
     }
   };
 
@@ -258,7 +260,7 @@ export default function ClientsPage() {
   if (authLoading || loading) {
     return (
       <DashboardLayout>
-        <Loading message="Loading clients..." />
+        <Loading message={t('loadingClients')} />
       </DashboardLayout>
     );
   }
@@ -267,12 +269,12 @@ export default function ClientsPage() {
   const endIndex = Math.min(startIndex + clientsPerPage, totalCount);
 
   const filterButtons = [
-    { key: 'all', label: 'All Clients', color: 'bg-gray-900 hover:bg-gray-800' },
-    { key: 'overdue', label: 'Overdue', color: 'bg-orange-600 hover:bg-orange-700' },
-    { key: 'urgent', label: 'Urgent (≤3d)', color: 'bg-red-600 hover:bg-red-700' },
-    { key: 'high', label: 'High (≤7d)', color: 'bg-yellow-600 hover:bg-yellow-700' },
-    { key: 'medium', label: 'Medium (≤14d)', color: 'bg-green-600 hover:bg-green-700' },
-    { key: 'low', label: 'Low (>14d)', color: 'bg-gray-500 hover:bg-gray-600' },
+    { key: 'all', label: t('allClients'), color: 'bg-gray-900 hover:bg-gray-800' },
+    { key: 'overdue', label: t('overdueFilter'), color: 'bg-orange-600 hover:bg-orange-700' },
+    { key: 'urgent', label: t('urgentFilter'), color: 'bg-red-600 hover:bg-red-700' },
+    { key: 'high', label: t('highFilter'), color: 'bg-yellow-600 hover:bg-yellow-700' },
+    { key: 'medium', label: t('mediumFilter'), color: 'bg-green-600 hover:bg-green-700' },
+    { key: 'low', label: t('lowFilter'), color: 'bg-gray-500 hover:bg-gray-600' },
   ];
 
   return (
@@ -290,17 +292,17 @@ export default function ClientsPage() {
                 <span className="text-xs font-semibold text-yellow-700">AI-Powered</span>
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Client Predictions</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{t('clientPredictions')}</h1>
             <p className="text-gray-500 mt-1">
-              AI-powered reorder predictions for small/medium order clients (≤10 tonnes per order)
+              {t('aiPoweredReorder')}
             </p>
           </div>
-          <Button 
-            onClick={fetchClients} 
+          <Button
+            onClick={fetchClients}
             className="soya-button-outline group soya-fade-in soya-stagger-1"
           >
             <RefreshCw className="h-4 w-4 mr-2 transition-transform group-hover:rotate-180 duration-500" />
-            Refresh Data
+            {t('refreshData')}
           </Button>
         </div>
 
@@ -312,11 +314,9 @@ export default function ClientsPage() {
                 <Brain className="h-5 w-5 text-green-600" />
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-green-900 mb-1">About AI Predictions</h3>
+                <h3 className="text-sm font-semibold text-green-900 mb-1">{t('aboutAIPredictions')}</h3>
                 <p className="text-sm text-green-800">
-                  <strong>Only clients with valid predictions are shown below.</strong> Predictions are generated for clients with at least 3 small/medium orders (≤10 tonnes each).
-                  The AI model was trained specifically on small and medium order patterns.
-                  Clients who primarily order in bulk (&gt;10 tonnes) cannot receive predictions.
+                  <strong>{t('onlyValidPredictions')}</strong> {t('predictionRequirements')}
                 </p>
               </div>
             </div>
@@ -330,9 +330,9 @@ export default function ClientsPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Total Clients</p>
+                  <p className="text-sm font-medium text-gray-500">{t('totalClients')}</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">{statistics.totalClients}</p>
-                  <p className="text-xs text-gray-400 mt-1">With AI predictions</p>
+                  <p className="text-xs text-gray-400 mt-1">{t('withAIPredictions')}</p>
                 </div>
                 <div className="p-3 bg-gradient-to-br from-green-600 to-green-700 rounded-xl shadow-lg shadow-green-600/20">
                   <Users className="h-6 w-6 text-white" />
@@ -346,9 +346,9 @@ export default function ClientsPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Urgent Orders</p>
+                  <p className="text-sm font-medium text-gray-500">{t('urgentOrders')}</p>
                   <p className="text-3xl font-bold text-red-600 mt-1">{statistics.urgentCount}</p>
-                  <p className="text-xs text-gray-400 mt-1">Within 3 days</p>
+                  <p className="text-xs text-gray-400 mt-1">{t('within3Days')}</p>
                 </div>
                 <div className="p-3 bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg shadow-red-500/20">
                   <AlertTriangle className="h-6 w-6 text-white" />
@@ -362,9 +362,9 @@ export default function ClientsPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Overdue</p>
+                  <p className="text-sm font-medium text-gray-500">{t('overdue')}</p>
                   <p className="text-3xl font-bold text-orange-600 mt-1">{statistics.overdueCount}</p>
-                  <p className="text-xs text-gray-400 mt-1">Past predicted date</p>
+                  <p className="text-xs text-gray-400 mt-1">{t('pastPredictedDate')}</p>
                 </div>
                 <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg shadow-orange-500/20">
                   <Clock className="h-6 w-6 text-white" />
@@ -378,9 +378,9 @@ export default function ClientsPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">High Priority</p>
+                  <p className="text-sm font-medium text-gray-500">{t('highPriority')}</p>
                   <p className="text-3xl font-bold text-yellow-600 mt-1">{statistics.highCount}</p>
-                  <p className="text-xs text-gray-400 mt-1">4-7 days</p>
+                  <p className="text-xs text-gray-400 mt-1">{t('fourTo7Days')}</p>
                 </div>
                 <div className="p-3 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl shadow-lg shadow-yellow-500/20">
                   <TrendingUp className="h-6 w-6 text-white" />
@@ -398,18 +398,18 @@ export default function ClientsPage() {
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input
-                  placeholder="Search by name, city, or country..."
+                  placeholder={t('searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10 h-11 border-gray-200 focus:border-green-500 focus:ring-green-500/20"
                 />
               </div>
-              
+
               {/* Filter Buttons */}
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 text-gray-500 mr-2">
                   <Filter className="h-4 w-4" />
-                  <span className="text-sm font-medium hidden sm:inline">Filter:</span>
+                  <span className="text-sm font-medium hidden sm:inline">{t('filter')}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {filterButtons.map((btn) => (
@@ -437,13 +437,13 @@ export default function ClientsPage() {
           <CardHeader className="border-b border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl">All Clients</CardTitle>
+                <CardTitle className="text-xl">{t('allClientsTable')}</CardTitle>
                 <CardDescription className="mt-1">
-                  AI-predicted next order dates based on historical ordering patterns
+                  {t('aiPredictedDates')}
                 </CardDescription>
               </div>
               <Badge className="soya-badge-success">
-                {totalCount} clients
+                {t('clientsCount', { count: totalCount })}
               </Badge>
             </div>
           </CardHeader>
@@ -452,13 +452,13 @@ export default function ClientsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                    <TableHead className="font-semibold text-gray-700">Client Name</TableHead>
-                    <TableHead className="font-semibold text-gray-700">Location</TableHead>
-                    <TableHead className="font-semibold text-gray-700">Priority</TableHead>
-                    <TableHead className="font-semibold text-gray-700">Predicted Order</TableHead>
-                    <TableHead className="font-semibold text-gray-700">Days Until</TableHead>
-                    <TableHead className="font-semibold text-gray-700">Monthly Usage</TableHead>
-                    <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
+                    <TableHead className="font-semibold text-gray-700">{t('clientName')}</TableHead>
+                    <TableHead className="font-semibold text-gray-700">{t('location')}</TableHead>
+                    <TableHead className="font-semibold text-gray-700">{t('priority')}</TableHead>
+                    <TableHead className="font-semibold text-gray-700">{t('predictedOrder')}</TableHead>
+                    <TableHead className="font-semibold text-gray-700">{t('daysUntil')}</TableHead>
+                    <TableHead className="font-semibold text-gray-700">{t('monthlyUsage')}</TableHead>
+                    <TableHead className="font-semibold text-gray-700 text-right">{t('actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -473,7 +473,7 @@ export default function ClientsPage() {
                           <span className="text-gray-900">{client.name}</span>
                           {client.has_contract && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200">
-                              Contract
+                              {t('contract')}
                             </span>
                           )}
                         </div>
@@ -511,19 +511,19 @@ export default function ClientsPage() {
                       <TableCell>
                         <span className="text-gray-700">
                           {client.historical_monthly_usage
-                            ? `${client.historical_monthly_usage} tm/mo`
+                            ? t('tmPerMonth', { usage: client.historical_monthly_usage })
                             : '—'}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => viewClientDetails(client)}
                           className="hover:bg-green-100 hover:text-green-700 group"
                         >
                           <Eye className="h-4 w-4 mr-1.5" />
-                          Details
+                          {t('details')}
                           <ArrowRight className="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </Button>
                       </TableCell>
@@ -537,9 +537,9 @@ export default function ClientsPage() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between p-4 border-t border-gray-100">
                 <p className="text-sm text-gray-600">
-                  Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                  <span className="font-medium">{endIndex}</span> of{' '}
-                  <span className="font-medium">{totalCount}</span> clients
+                  {t('showing')} <span className="font-medium">{startIndex + 1}</span> {t('to')}{' '}
+                  <span className="font-medium">{endIndex}</span> {t('of')}{' '}
+                  <span className="font-medium">{totalCount}</span> {t('allClients').toLowerCase()}
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
@@ -550,7 +550,7 @@ export default function ClientsPage() {
                     className="rounded-lg"
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
+                    {t('previous')}
                   </Button>
                   <div className="flex items-center gap-1 px-3">
                     <span className="text-sm font-medium text-gray-900">{currentPage}</span>
@@ -564,7 +564,7 @@ export default function ClientsPage() {
                     disabled={currentPage === totalPages || loading}
                     className="rounded-lg"
                   >
-                    Next
+                    {t('next')}
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
@@ -578,7 +578,7 @@ export default function ClientsPage() {
           <DialogContent className="max-w-2xl rounded-2xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold">{selectedClient?.name}</DialogTitle>
-              <DialogDescription>Client details and AI prediction information</DialogDescription>
+              <DialogDescription>{t('clientDetails')}</DialogDescription>
             </DialogHeader>
             {selectedClient && (
               <div className="space-y-6 mt-4">
@@ -586,10 +586,10 @@ export default function ClientsPage() {
                   <div className="bg-gray-50 rounded-xl p-4">
                     <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
                       <MapPin className="h-4 w-4 text-green-600" />
-                      Location Information
+                      {t('locationInformation')}
                     </h4>
                     <div className="space-y-2 text-sm">
-                      <p className="text-gray-700">{selectedClient.address || 'No address'}</p>
+                      <p className="text-gray-700">{selectedClient.address || t('noAddress')}</p>
                       <p className="text-gray-600">
                         {selectedClient.city}, {selectedClient.country}
                       </p>
@@ -598,7 +598,7 @@ export default function ClientsPage() {
                         {getPriorityBadge(selectedClient)}
                         {selectedClient.has_contract && (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                            Long-term Contract
+                            {t('longTermContract')}
                           </span>
                         )}
                       </div>
@@ -607,27 +607,27 @@ export default function ClientsPage() {
                   <div className="bg-gray-50 rounded-xl p-4">
                     <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
                       <TrendingUp className="h-4 w-4 text-yellow-600" />
-                      Business Metrics
+                      {t('businessMetrics')}
                     </h4>
                     <div className="space-y-2 text-sm">
                       <p>
-                        <span className="text-gray-500">Monthly Usage:</span>{' '}
+                        <span className="text-gray-500">{t('monthlyUsageLabel')}</span>{' '}
                         <span className="font-medium text-gray-900">
                           {selectedClient.historical_monthly_usage
-                            ? `${selectedClient.historical_monthly_usage} tonnes`
-                            : 'Not calculated'}
+                            ? t('tonnes', { usage: selectedClient.historical_monthly_usage })
+                            : t('notCalculated')}
                         </span>
                       </p>
                       <p>
-                        <span className="text-gray-500">Total Orders:</span>{' '}
+                        <span className="text-gray-500">{t('totalOrders')}</span>{' '}
                         <span className="font-medium text-gray-900">{selectedClient.orders_count}</span>
                       </p>
                       <p>
-                        <span className="text-gray-500">Prediction Accuracy:</span>{' '}
+                        <span className="text-gray-500">{t('predictionAccuracy')}</span>{' '}
                         <span className="font-medium text-gray-900">
                           {selectedClient.prediction_accuracy_score
                             ? `${selectedClient.prediction_accuracy_score}%`
-                            : 'N/A'}
+                            : t('na')}
                         </span>
                       </p>
                     </div>
@@ -637,17 +637,17 @@ export default function ClientsPage() {
                 <div className="bg-gradient-to-br from-green-50 to-yellow-50 border border-green-200 rounded-xl p-5">
                   <h4 className="font-semibold mb-4 flex items-center gap-2 text-gray-900">
                     <Brain className="h-4 w-4 text-green-600" />
-                    AI Prediction
+                    {t('aiPrediction')}
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white rounded-lg p-4 shadow-sm">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Predicted Next Order</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('predictedNextOrder')}</p>
                       <p className="text-2xl font-bold text-gray-900 mt-1">
                         {formatDate(selectedClient.predicted_next_order_date)}
                       </p>
                     </div>
                     <div className="bg-white rounded-lg p-4 shadow-sm">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Until Order</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('timeUntilOrder')}</p>
                       <p className={`text-2xl font-bold mt-1 ${
                         selectedClient.days_until_predicted_order !== null && selectedClient.days_until_predicted_order < 0
                           ? 'text-orange-600'
@@ -662,19 +662,19 @@ export default function ClientsPage() {
                   {selectedClient.prediction_confidence_lower &&
                     selectedClient.prediction_confidence_upper && (
                       <div className="mt-4 bg-white rounded-lg p-3 shadow-sm">
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence Interval</p>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('confidenceInterval')}</p>
                         <p className="text-sm font-medium text-gray-700 mt-1">
                           {typeof selectedClient.prediction_confidence_lower === 'number'
                             ? selectedClient.prediction_confidence_lower.toFixed(1)
                             : selectedClient.prediction_confidence_lower} -{' '}
                           {typeof selectedClient.prediction_confidence_upper === 'number'
                             ? selectedClient.prediction_confidence_upper.toFixed(1)
-                            : selectedClient.prediction_confidence_upper} days
+                            : selectedClient.prediction_confidence_upper} {t('days')}
                         </p>
                       </div>
                     )}
                   <p className="text-xs text-gray-500 mt-4">
-                    Last Updated: {formatDate(selectedClient.last_prediction_update)}
+                    {t('lastUpdated')} {formatDate(selectedClient.last_prediction_update)}
                   </p>
                 </div>
 
@@ -684,28 +684,28 @@ export default function ClientsPage() {
                     onClick={async () => {
                       try {
                         await clientAPI.updateClientPrediction(selectedClient.id);
-                        toast.success('Prediction updated successfully');
+                        toast.success(t('predictionUpdated'));
                         fetchClients();
                         setIsDetailOpen(false);
                       } catch (error: unknown) {
                         console.error('Error updating prediction:', error);
-                        const errorMessage = 
-                          (error && typeof error === 'object' && 'response' in error) 
-                            ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update prediction'
-                            : 'Failed to update prediction';
+                        const errorMessage =
+                          (error && typeof error === 'object' && 'response' in error)
+                            ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || t('failedToUpdate')
+                            : t('failedToUpdate');
                         toast.error(errorMessage);
                       }
                     }}
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Update Prediction
+                    {t('updatePrediction')}
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => setIsDetailOpen(false)}
                     className="flex-1"
                   >
-                    Close
+                    {t('close')}
                   </Button>
                 </div>
               </div>
