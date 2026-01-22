@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Truck, Play, Pause, RotateCcw, MapPin, Clock, User, Car, Video, Eye, Leaf, Fuel, TrendingDown, ChevronDown, ChevronUp, Lightbulb, TrendingUp, AlertTriangle, CheckCircle, Star, Package, Repeat, Wrench } from 'lucide-react';
+import { Truck, Play, Pause, RotateCcw, MapPin, Clock, User, Car, Video, Eye, Leaf, Fuel, TrendingDown, ChevronDown, ChevronUp, Lightbulb, TrendingUp, CheckCircle, Star, TriangleAlert, Package, Repeat, Wrench } from 'lucide-react';
 import { routeAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { loadGoogleMaps } from '@/lib/google-maps';

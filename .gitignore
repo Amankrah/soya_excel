@@ -307,7 +307,7 @@ temp/
 # =============================================================================
 
 # Deployment files with sensitive info (optional - uncomment to ignore)
-# DEPLOYMENT.md
+DEPLOYMENT.md
 
 # Local scripts
 *.bat

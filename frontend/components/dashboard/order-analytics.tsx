@@ -562,7 +562,7 @@ export function OrderAnalytics() {
                     <div key={index} className="bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between mb-4">
                         <h4 className="font-semibold text-lg text-gray-900">{product.product_name}</h4>
-                        <Badge className="soya-badge-success">{product.market_share.toFixed(1)}% Market Share</Badge>
+                        <Badge className="soya-badge-success">{product.market_share.toFixed(1)}% Product Market Share</Badge>
                       </div>
                       <div className="grid grid-cols-4 gap-4">
                         <div className="bg-green-50 rounded-lg p-3 text-center">
